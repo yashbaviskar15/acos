@@ -27,6 +27,8 @@ jobs:
 
       - name: Run Backend Pytest Suite
         working-directory: ./backend
+        env:
+          PYTHONPATH: .
         run: |
           pytest tests
 
