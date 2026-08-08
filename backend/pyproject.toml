@@ -12,3 +12,6 @@ select = ["E", "F", "I", "B", "UP"]
 
 [tool.ruff.format]
 quote-style = "double"
+
+[tool.vercel]
+entrypoint = "app/main.py"

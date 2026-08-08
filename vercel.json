@@ -1,6 +1,0 @@
-{
-  "buildCommand": "echo 'Python build'",
-  "env": {
-    "PYTHON_VERSION": "3.12"
-  }
-}
