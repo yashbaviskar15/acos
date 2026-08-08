@@ -26,10 +26,9 @@ jobs:
           pip install -r backend/requirements.txt
 
       - name: Run Backend Pytest Suite
-        env:
-          PYTHONPATH: backend
+        working-directory: ./backend
         run: |
-          pytest backend/tests
+          pytest tests
 
   build-frontend:
     name: Frontend Build & Typecheck
