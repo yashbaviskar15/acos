@@ -1,8 +1,6 @@
 {
-  "installCommand": "npm ci",
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
+  "buildCommand": "echo 'Python build'",
+  "env": {
+    "PYTHON_VERSION": "3.12"
+  }
 }
