@@ -63,7 +63,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build Backend Docker Image
-        run: docker build -t aravanta/backend:ci ./backend
+        run: docker build -t aravanta/backend:ci -f ./backend/Dockerfile .
 
       - name: Build Frontend Docker Image
         run: docker build -t aravanta/frontend:ci ./frontend
