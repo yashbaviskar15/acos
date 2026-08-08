@@ -1,0 +1,9 @@
+apiVersion: v2
+name: aravanta-cloudos
+description: Helm chart for deploying Aravanta CloudOS platform to Kubernetes
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+maintainers:
+  - name: Aravanta Platform Team
+    email: devops@aravanta.cloud

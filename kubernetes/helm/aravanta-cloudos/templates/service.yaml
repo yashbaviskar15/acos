@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "aravanta-cloudos.fullname" . }}-backend
+  labels:
+    app.kubernetes.io/name: aravanta-backend
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.backendPort }}
+      targetPort: {{ .Values.service.backendPort }}
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: aravanta-backend

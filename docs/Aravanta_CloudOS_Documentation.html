@@ -1,0 +1,2047 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aravanta CloudOS — Technical Documentation</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Fira+Code:wght@400;500&display=swap');
+
+        :root {
+            --navy: #0A1628;
+            --navy-light: #0F2038;
+            --gold: #C9A84C;
+            --gold-light: #E8D48B;
+            --white: #FFFFFF;
+            --gray-100: #F7F8FA;
+            --gray-200: #E9ECF0;
+            --gray-300: #D1D5DB;
+            --gray-500: #6B7280;
+            --gray-700: #374151;
+            --gray-900: #111827;
+            --blue-accent: #3B82F6;
+            --green-accent: #10B981;
+            --red-accent: #EF4444;
+            --purple-accent: #8B5CF6;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--gray-900);
+            line-height: 1.7;
+            background: var(--white);
+            font-size: 11pt;
+        }
+
+        /* ==================== PRINT STYLES ==================== */
+        @media print {
+            body { font-size: 10pt; }
+            .cover-page { page-break-after: always; }
+            .toc-page { page-break-after: always; }
+            .chapter { page-break-before: always; }
+            .no-break { page-break-inside: avoid; }
+            .page-break { page-break-after: always; }
+            img { max-width: 100% !important; }
+        }
+
+        /* ==================== COVER PAGE ==================== */
+        .cover-page {
+            min-height: 100vh;
+            background: linear-gradient(145deg, var(--navy) 0%, #0F2038 40%, #162A4A 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 60px 40px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cover-page::before {
+            content: '';
+            position: absolute;
+            top: -200px;
+            right: -200px;
+            width: 600px;
+            height: 600px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(201,168,76,0.08) 0%, transparent 70%);
+        }
+
+        .cover-page::after {
+            content: '';
+            position: absolute;
+            bottom: -150px;
+            left: -150px;
+            width: 400px;
+            height: 400px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(59,130,246,0.06) 0%, transparent 70%);
+        }
+
+        .cover-logo {
+            width: 140px;
+            height: auto;
+            margin-bottom: 30px;
+            filter: drop-shadow(0 4px 20px rgba(201,168,76,0.3));
+        }
+
+        .cover-title {
+            font-size: 48pt;
+            font-weight: 900;
+            color: var(--white);
+            letter-spacing: -1px;
+            margin-bottom: 8px;
+        }
+
+        .cover-title span {
+            color: var(--gold);
+        }
+
+        .cover-subtitle {
+            font-size: 18pt;
+            font-weight: 300;
+            color: var(--gold-light);
+            margin-bottom: 40px;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+        }
+
+        .cover-tagline {
+            font-size: 13pt;
+            color: rgba(255,255,255,0.7);
+            max-width: 600px;
+            line-height: 1.8;
+            margin-bottom: 50px;
+        }
+
+        .cover-divider {
+            width: 80px;
+            height: 3px;
+            background: var(--gold);
+            margin: 0 auto 40px;
+        }
+
+        .cover-meta {
+            color: rgba(255,255,255,0.5);
+            font-size: 9pt;
+            letter-spacing: 1px;
+        }
+
+        .cover-meta strong {
+            color: rgba(255,255,255,0.7);
+        }
+
+        .cover-version {
+            display: inline-block;
+            background: rgba(201,168,76,0.15);
+            border: 1px solid rgba(201,168,76,0.3);
+            color: var(--gold-light);
+            padding: 6px 20px;
+            border-radius: 20px;
+            font-size: 9pt;
+            font-weight: 500;
+            margin-bottom: 20px;
+            letter-spacing: 1px;
+        }
+
+        /* ==================== TABLE OF CONTENTS ==================== */
+        .toc-page {
+            padding: 60px 80px;
+            min-height: 100vh;
+        }
+
+        .toc-header {
+            font-size: 28pt;
+            font-weight: 800;
+            color: var(--navy);
+            margin-bottom: 8px;
+        }
+
+        .toc-header-line {
+            width: 60px;
+            height: 4px;
+            background: var(--gold);
+            margin-bottom: 40px;
+        }
+
+        .toc-list {
+            list-style: none;
+        }
+
+        .toc-list li {
+            border-bottom: 1px solid var(--gray-200);
+            padding: 12px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+        }
+
+        .toc-list li a {
+            color: var(--gray-900);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 11pt;
+        }
+
+        .toc-list li a:hover {
+            color: var(--gold);
+        }
+
+        .toc-list li .toc-page-num {
+            color: var(--gray-500);
+            font-weight: 400;
+            font-size: 10pt;
+        }
+
+        .toc-section {
+            font-weight: 700;
+            font-size: 12pt;
+            color: var(--navy) !important;
+            margin-top: 10px;
+        }
+
+        .toc-sub {
+            padding-left: 24px !important;
+        }
+
+        .toc-sub a {
+            font-weight: 400 !important;
+            color: var(--gray-700) !important;
+            font-size: 10pt !important;
+        }
+
+        /* ==================== CONTENT STYLES ==================== */
+        .chapter {
+            padding: 50px 80px;
+        }
+
+        .chapter-number {
+            font-size: 9pt;
+            font-weight: 700;
+            color: var(--gold);
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin-bottom: 8px;
+        }
+
+        h1.chapter-title {
+            font-size: 28pt;
+            font-weight: 800;
+            color: var(--navy);
+            margin-bottom: 6px;
+            line-height: 1.2;
+        }
+
+        .chapter-title-line {
+            width: 60px;
+            height: 4px;
+            background: var(--gold);
+            margin-bottom: 30px;
+        }
+
+        h2 {
+            font-size: 18pt;
+            font-weight: 700;
+            color: var(--navy);
+            margin: 35px 0 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--gray-200);
+        }
+
+        h3 {
+            font-size: 14pt;
+            font-weight: 600;
+            color: var(--navy-light);
+            margin: 25px 0 12px;
+        }
+
+        h4 {
+            font-size: 11pt;
+            font-weight: 600;
+            color: var(--gray-700);
+            margin: 18px 0 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        p {
+            margin-bottom: 14px;
+            color: var(--gray-700);
+        }
+
+        /* ==================== CALLOUT BOXES ==================== */
+        .callout {
+            border-radius: 8px;
+            padding: 20px 24px;
+            margin: 20px 0;
+            border-left: 4px solid;
+        }
+
+        .callout-vision {
+            background: linear-gradient(135deg, #FEF9E7 0%, #FFFDF5 100%);
+            border-color: var(--gold);
+        }
+
+        .callout-info {
+            background: linear-gradient(135deg, #EBF5FF 0%, #F5FAFF 100%);
+            border-color: var(--blue-accent);
+        }
+
+        .callout-success {
+            background: linear-gradient(135deg, #ECFDF5 0%, #F5FFFA 100%);
+            border-color: var(--green-accent);
+        }
+
+        .callout-warning {
+            background: linear-gradient(135deg, #FFF7ED 0%, #FFFBF5 100%);
+            border-color: #F59E0B;
+        }
+
+        .callout-title {
+            font-weight: 700;
+            font-size: 10pt;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .callout-vision .callout-title { color: #92700C; }
+        .callout-info .callout-title { color: #1D4ED8; }
+        .callout-success .callout-title { color: #059669; }
+        .callout-warning .callout-title { color: #D97706; }
+
+        .callout p {
+            margin-bottom: 6px;
+            font-size: 10.5pt;
+        }
+
+        /* ==================== TABLES ==================== */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 10pt;
+        }
+
+        thead th {
+            background: var(--navy);
+            color: var(--white);
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 9pt;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        thead th:first-child {
+            border-radius: 6px 0 0 0;
+        }
+
+        thead th:last-child {
+            border-radius: 0 6px 0 0;
+        }
+
+        tbody td {
+            padding: 11px 16px;
+            border-bottom: 1px solid var(--gray-200);
+            vertical-align: top;
+        }
+
+        tbody tr:nth-child(even) {
+            background: var(--gray-100);
+        }
+
+        tbody tr:hover {
+            background: #FEF9E7;
+        }
+
+        /* ==================== CODE BLOCKS ==================== */
+        code {
+            font-family: 'Fira Code', monospace;
+            background: var(--gray-100);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 9pt;
+            color: var(--navy);
+        }
+
+        pre {
+            background: var(--navy);
+            color: #E2E8F0;
+            padding: 20px 24px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 16px 0;
+            font-family: 'Fira Code', monospace;
+            font-size: 9pt;
+            line-height: 1.6;
+            border: 1px solid rgba(201,168,76,0.2);
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+
+        /* ==================== IMAGE CONTAINERS ==================== */
+        .diagram-container {
+            margin: 24px 0;
+            text-align: center;
+        }
+
+        .diagram-container img {
+            max-width: 100%;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+            border: 1px solid var(--gray-200);
+        }
+
+        .diagram-caption {
+            font-size: 9pt;
+            color: var(--gray-500);
+            font-style: italic;
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        /* ==================== SERVICE CARDS ==================== */
+        .service-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin: 20px 0;
+        }
+
+        .service-card {
+            background: var(--gray-100);
+            border: 1px solid var(--gray-200);
+            border-radius: 10px;
+            padding: 20px;
+            transition: all 0.2s;
+        }
+
+        .service-card:hover {
+            border-color: var(--gold);
+            box-shadow: 0 2px 12px rgba(201,168,76,0.15);
+        }
+
+        .service-card-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16pt;
+            margin-bottom: 12px;
+        }
+
+        .service-card h4 {
+            font-size: 12pt;
+            font-weight: 700;
+            color: var(--navy);
+            margin: 0 0 4px;
+            text-transform: none;
+            letter-spacing: 0;
+        }
+
+        .service-card .service-code {
+            font-size: 8pt;
+            color: var(--gold);
+            font-weight: 600;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .service-card p {
+            font-size: 9.5pt;
+            color: var(--gray-500);
+            margin: 0;
+            line-height: 1.5;
+        }
+
+        /* ==================== FEATURE LIST ==================== */
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .feature-list li {
+            padding: 8px 0 8px 28px;
+            position: relative;
+            color: var(--gray-700);
+            font-size: 10.5pt;
+        }
+
+        .feature-list li::before {
+            content: '✦';
+            position: absolute;
+            left: 0;
+            color: var(--gold);
+            font-size: 10pt;
+        }
+
+        /* ==================== BADGE ==================== */
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 8pt;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-gold { background: #FEF3C7; color: #92400E; }
+        .badge-blue { background: #DBEAFE; color: #1E40AF; }
+        .badge-green { background: #D1FAE5; color: #065F46; }
+        .badge-purple { background: #EDE9FE; color: #5B21B6; }
+        .badge-red { background: #FEE2E2; color: #991B1B; }
+
+        /* ==================== TREE STRUCTURE ==================== */
+        .tree-container {
+            background: var(--navy);
+            color: #A5F3FC;
+            padding: 24px 30px;
+            border-radius: 10px;
+            font-family: 'Fira Code', monospace;
+            font-size: 9pt;
+            line-height: 1.8;
+            margin: 20px 0;
+            border: 1px solid rgba(201,168,76,0.2);
+        }
+
+        .tree-container .tree-folder {
+            color: var(--gold-light);
+        }
+
+        .tree-container .tree-file {
+            color: #94A3B8;
+        }
+
+        .tree-container .tree-comment {
+            color: #4B5563;
+        }
+
+        /* ==================== STAT BOXES ==================== */
+        .stat-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin: 24px 0;
+        }
+
+        .stat-box {
+            text-align: center;
+            padding: 20px;
+            background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
+            border-radius: 10px;
+            border: 1px solid rgba(201,168,76,0.2);
+        }
+
+        .stat-number {
+            font-size: 24pt;
+            font-weight: 800;
+            color: var(--gold);
+        }
+
+        .stat-label {
+            font-size: 8pt;
+            color: rgba(255,255,255,0.6);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 4px;
+        }
+
+        /* ==================== TIMELINE ==================== */
+        .timeline {
+            position: relative;
+            padding-left: 30px;
+            margin: 20px 0;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 8px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--gray-200);
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 24px;
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -26px;
+            top: 6px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--gold);
+            border: 3px solid var(--white);
+            box-shadow: 0 0 0 2px var(--gold);
+        }
+
+        .timeline-phase {
+            font-size: 8pt;
+            font-weight: 700;
+            color: var(--gold);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .timeline-title {
+            font-weight: 600;
+            color: var(--navy);
+            font-size: 11pt;
+        }
+
+        .timeline-desc {
+            color: var(--gray-500);
+            font-size: 10pt;
+        }
+
+        /* ==================== FOOTER ==================== */
+        .page-footer {
+            text-align: center;
+            padding: 40px 80px;
+            border-top: 2px solid var(--gray-200);
+            color: var(--gray-500);
+            font-size: 9pt;
+        }
+
+        .page-footer img {
+            width: 40px;
+            margin-bottom: 10px;
+            opacity: 0.6;
+        }
+
+        /* ==================== MISC ==================== */
+        ul, ol {
+            margin: 10px 0 16px 20px;
+        }
+
+        li {
+            margin-bottom: 4px;
+            color: var(--gray-700);
+        }
+
+        strong {
+            font-weight: 600;
+        }
+
+        .highlight {
+            color: var(--gold);
+            font-weight: 600;
+        }
+
+        .separator {
+            border: none;
+            border-top: 2px solid var(--gray-200);
+            margin: 40px 0;
+        }
+
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin: 20px 0;
+        }
+
+        .api-endpoint {
+            background: var(--gray-100);
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin: 10px 0;
+            font-family: 'Fira Code', monospace;
+            font-size: 9pt;
+        }
+
+        .api-method {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 700;
+            font-size: 8pt;
+            margin-right: 8px;
+        }
+
+        .api-get { background: #D1FAE5; color: #065F46; }
+        .api-post { background: #DBEAFE; color: #1E40AF; }
+        .api-put { background: #FEF3C7; color: #92400E; }
+        .api-delete { background: #FEE2E2; color: #991B1B; }
+    </style>
+</head>
+<body>
+
+<!-- =====================================================================
+     COVER PAGE
+     ===================================================================== -->
+<div class="cover-page">
+    <img src="images/aravanta_logo.png" alt="Aravanta CloudOS Logo" class="cover-logo">
+    <div class="cover-version">VERSION 1.0 — TECHNICAL DOCUMENTATION</div>
+    <h1 class="cover-title">Aravanta <span>CloudOS</span></h1>
+    <p class="cover-subtitle">Cloud Operating Platform</p>
+    <div class="cover-divider"></div>
+    <p class="cover-tagline">
+        An open, self-service cloud operating platform for provisioning infrastructure, deploying 
+        cloud-native applications, orchestrating containers, and monitoring workloads — all from 
+        a single, unified command center.
+    </p>
+    <p class="cover-meta">
+        <strong>Prepared by:</strong> Aravanta Engineering Team &nbsp;&nbsp;|&nbsp;&nbsp;
+        <strong>Date:</strong> July 2026 &nbsp;&nbsp;|&nbsp;&nbsp;
+        <strong>Classification:</strong> Internal / Portfolio
+    </p>
+</div>
+
+<!-- =====================================================================
+     TABLE OF CONTENTS
+     ===================================================================== -->
+<div class="toc-page">
+    <h1 class="toc-header">Table of Contents</h1>
+    <div class="toc-header-line"></div>
+    <ol class="toc-list">
+        <li class="toc-section"><a href="#ch1">Chapter 1 — Executive Summary</a></li>
+        <li class="toc-sub"><a href="#ch1-vision">Vision & Mission</a></li>
+        <li class="toc-sub"><a href="#ch1-value">Value Proposition</a></li>
+
+        <li class="toc-section"><a href="#ch2">Chapter 2 — Platform Architecture</a></li>
+        <li class="toc-sub"><a href="#ch2-overview">High-Level Architecture</a></li>
+        <li class="toc-sub"><a href="#ch2-layers">Architectural Layers</a></li>
+        <li class="toc-sub"><a href="#ch2-principles">Design Principles</a></li>
+
+        <li class="toc-section"><a href="#ch3">Chapter 3 — Aravanta Service Catalog</a></li>
+        <li class="toc-sub"><a href="#ch3-compute">ArvCompute — Compute Engine</a></li>
+        <li class="toc-sub"><a href="#ch3-kube">ArvKube — Kubernetes Engine</a></li>
+        <li class="toc-sub"><a href="#ch3-store">ArvStore — Object Storage</a></li>
+        <li class="toc-sub"><a href="#ch3-db">ArvDB — Managed Databases</a></li>
+        <li class="toc-sub"><a href="#ch3-registry">ArvRegistry — Container Registry</a></li>
+        <li class="toc-sub"><a href="#ch3-edge">ArvEdge — Load Balancer</a></li>
+        <li class="toc-sub"><a href="#ch3-watch">ArvWatch — Monitoring & Observability</a></li>
+        <li class="toc-sub"><a href="#ch3-gate">ArvGate — Identity & Access</a></li>
+
+        <li class="toc-section"><a href="#ch4">Chapter 4 — Core Modules</a></li>
+        <li class="toc-sub"><a href="#ch4-identity">Identity & Authentication</a></li>
+        <li class="toc-sub"><a href="#ch4-dashboard">Dashboard & Resource Overview</a></li>
+        <li class="toc-sub"><a href="#ch4-infra">Infrastructure as Code</a></li>
+        <li class="toc-sub"><a href="#ch4-cicd">CI/CD Pipeline</a></li>
+        <li class="toc-sub"><a href="#ch4-security">Security & Compliance</a></li>
+        <li class="toc-sub"><a href="#ch4-billing">Billing & Cost Management</a></li>
+
+        <li class="toc-section"><a href="#ch5">Chapter 5 — Technology Stack</a></li>
+        <li class="toc-sub"><a href="#ch5-frontend">Frontend Architecture</a></li>
+        <li class="toc-sub"><a href="#ch5-backend">Backend Architecture</a></li>
+        <li class="toc-sub"><a href="#ch5-infra">Infrastructure & DevOps</a></li>
+
+        <li class="toc-section"><a href="#ch6">Chapter 6 — API Reference</a></li>
+        <li class="toc-sub"><a href="#ch6-auth">Authentication API</a></li>
+        <li class="toc-sub"><a href="#ch6-resources">Resource Management API</a></li>
+
+        <li class="toc-section"><a href="#ch7">Chapter 7 — Deployment & Operations</a></li>
+        <li class="toc-sub"><a href="#ch7-repo">Repository Structure</a></li>
+        <li class="toc-sub"><a href="#ch7-deploy">Deployment Pipeline</a></li>
+
+        <li class="toc-section"><a href="#ch8">Chapter 8 — Monitoring & Observability</a></li>
+
+        <li class="toc-section"><a href="#ch9">Chapter 9 — Security Architecture</a></li>
+
+        <li class="toc-section"><a href="#ch10">Chapter 10 — Roadmap & Future Vision</a></li>
+    </ol>
+</div>
+
+<!-- =====================================================================
+     CHAPTER 1 — EXECUTIVE SUMMARY
+     ===================================================================== -->
+<div class="chapter" id="ch1">
+    <div class="chapter-number">Chapter 01</div>
+    <h1 class="chapter-title">Executive Summary</h1>
+    <div class="chapter-title-line"></div>
+
+    <div class="callout callout-vision">
+        <div class="callout-title">🌟 Vision Statement</div>
+        <p><strong>Aravanta CloudOS</strong> is a production-grade cloud operating platform designed to unify every aspect of modern cloud infrastructure into a single, intuitive experience. It empowers engineering teams to provision resources, deploy applications, manage Kubernetes workloads, automate infrastructure, and gain deep operational visibility — without switching between dozens of disconnected tools.</p>
+    </div>
+
+    <h2 id="ch1-vision">1.1 &nbsp; Vision & Mission</h2>
+    <p>The modern cloud ecosystem is fragmented. Engineers juggle separate consoles for compute, storage, databases, container orchestration, monitoring, and CI/CD. Each tool has its own learning curve, its own authentication, and its own mental model. <strong>Aravanta CloudOS</strong> eliminates this fragmentation.</p>
+
+    <p>Our mission is to build the <em>"operating system for the cloud"</em> — a platform that abstracts away the complexity of cloud infrastructure while giving engineers full control over their resources. Think of it as what an operating system does for hardware, but for cloud services.</p>
+
+    <div class="stat-row">
+        <div class="stat-box">
+            <div class="stat-number">12+</div>
+            <div class="stat-label">Core Modules</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-number">8</div>
+            <div class="stat-label">Aravanta Services</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-number">50+</div>
+            <div class="stat-label">API Endpoints</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-number">∞</div>
+            <div class="stat-label">Scalability</div>
+        </div>
+    </div>
+
+    <h2 id="ch1-value">1.2 &nbsp; Value Proposition</h2>
+
+    <div class="two-col">
+        <div>
+            <h3>For Developers</h3>
+            <ul class="feature-list">
+                <li>One-click application deployments with zero-downtime rollouts</li>
+                <li>Built-in CI/CD pipelines connected to Git repositories</li>
+                <li>Real-time log streaming and distributed tracing</li>
+                <li>Self-service infrastructure provisioning via declarative templates</li>
+                <li>Integrated secret management with automatic rotation</li>
+            </ul>
+        </div>
+        <div>
+            <h3>For Organizations</h3>
+            <ul class="feature-list">
+                <li>Centralized visibility across all cloud resources</li>
+                <li>Granular role-based access control (RBAC) with audit trails</li>
+                <li>Cost optimization through real-time billing analytics</li>
+                <li>Compliance-ready security posture with automated scanning</li>
+                <li>Multi-environment management (dev, staging, production)</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="callout callout-info">
+        <div class="callout-title">💡 Key Differentiator</div>
+        <p>Unlike vendor-locked platforms, Aravanta CloudOS uses a <strong>provider-agnostic abstraction layer</strong>. All services (ArvCompute, ArvKube, ArvStore, etc.) are Aravanta-native abstractions that can be backed by any cloud provider — giving you portability without sacrificing functionality.</p>
+    </div>
+</div>
+
+<!-- =====================================================================
+     CHAPTER 2 — PLATFORM ARCHITECTURE
+     ===================================================================== -->
+<div class="chapter" id="ch2">
+    <div class="chapter-number">Chapter 02</div>
+    <h1 class="chapter-title">Platform Architecture</h1>
+    <div class="chapter-title-line"></div>
+
+    <h2 id="ch2-overview">2.1 &nbsp; High-Level Architecture</h2>
+    <p>Aravanta CloudOS follows a layered, microservices-oriented architecture. Each layer has clear responsibilities and communicates with adjacent layers through well-defined APIs. This design ensures separation of concerns, independent scalability, and ease of maintenance.</p>
+
+    <div class="diagram-container">
+        <img src="images/architecture_diagram.jpg" alt="Aravanta CloudOS - High-Level Architecture Diagram">
+        <div class="diagram-caption">Figure 2.1 — Aravanta CloudOS High-Level Architecture (Layered View)</div>
+    </div>
+
+    <h2 id="ch2-layers">2.2 &nbsp; Architectural Layers</h2>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Layer</th>
+                <th>Components</th>
+                <th>Responsibility</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Presentation Layer</strong></td>
+                <td>Web Dashboard, CLI, Mobile App</td>
+                <td>User-facing interfaces for interacting with the platform. The web dashboard provides a rich graphical experience; the CLI enables scriptable automation.</td>
+            </tr>
+            <tr>
+                <td><strong>API Gateway</strong></td>
+                <td>ArvGateway (Reverse Proxy, Rate Limiter, Auth Middleware)</td>
+                <td>Single entry point for all API traffic. Handles authentication, rate limiting, request routing, and SSL termination.</td>
+            </tr>
+            <tr>
+                <td><strong>Application Layer</strong></td>
+                <td>Auth Service, Compute Service, Kube Service, Storage Service, DB Service, CICD Service, Monitor Service</td>
+                <td>Domain-specific microservices implementing business logic. Each service owns its data and exposes RESTful APIs.</td>
+            </tr>
+            <tr>
+                <td><strong>Orchestration Layer</strong></td>
+                <td>Container Runtime, Service Mesh, Task Scheduler</td>
+                <td>Manages container lifecycle, inter-service communication, and scheduled workload execution.</td>
+            </tr>
+            <tr>
+                <td><strong>Infrastructure Layer</strong></td>
+                <td>Compute Nodes, Storage Backends, Network Fabric</td>
+                <td>Physical and virtual resources provisioned and managed through the platform's IaC engine.</td>
+            </tr>
+            <tr>
+                <td><strong>Provider Abstraction</strong></td>
+                <td>Cloud Provider Adapters</td>
+                <td>Translates Aravanta service calls into provider-specific API calls, enabling cloud portability.</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2 id="ch2-principles">2.3 &nbsp; Design Principles</h2>
+    <div class="service-grid">
+        <div class="service-card">
+            <h4>🔌 API-First Design</h4>
+            <p>Every feature is an API first. The dashboard and CLI are consumers of the same API — ensuring consistency and enabling third-party integrations.</p>
+        </div>
+        <div class="service-card">
+            <h4>🧱 Microservices Architecture</h4>
+            <p>Each domain (compute, storage, auth, etc.) is an independent service with its own database, deployable and scalable independently.</p>
+        </div>
+        <div class="service-card">
+            <h4>🔐 Zero-Trust Security</h4>
+            <p>Every request is authenticated and authorized. Service-to-service communication uses mTLS. Secrets are encrypted at rest and in transit.</p>
+        </div>
+        <div class="service-card">
+            <h4>📊 Observability by Default</h4>
+            <p>All services emit structured logs, metrics, and traces. The platform "eats its own dog food" by monitoring itself through ArvWatch.</p>
+        </div>
+        <div class="service-card">
+            <h4>☁️ Cloud Agnostic</h4>
+            <p>The provider abstraction layer ensures that switching or multi-homing across cloud providers requires zero application changes.</p>
+        </div>
+        <div class="service-card">
+            <h4>🚀 GitOps Workflow</h4>
+            <p>Infrastructure and application state is version-controlled. Every change flows through Git, is reviewed, and is applied declaratively.</p>
+        </div>
+    </div>
+</div>
+
+<!-- =====================================================================
+     CHAPTER 3 — ARAVANTA SERVICE CATALOG
+     ===================================================================== -->
+<div class="chapter" id="ch3">
+    <div class="chapter-number">Chapter 03</div>
+    <h1 class="chapter-title">Aravanta Service Catalog</h1>
+    <div class="chapter-title-line"></div>
+
+    <p>Aravanta CloudOS introduces its own cloud-native service layer — a set of platform-managed services that abstract the underlying cloud provider. These services provide a consistent, Aravanta-branded API regardless of which backend provider powers them.</p>
+
+    <div class="callout callout-warning">
+        <div class="callout-title">⚠️ Provider Independence</div>
+        <p>All <code>Arv*</code> services are Aravanta's own abstractions. They are <strong>not</strong> re-labeled versions of any specific cloud provider's services. The Provider Abstraction Layer translates Aravanta API calls to the appropriate backend, whether that is a public cloud, private cloud, or bare-metal infrastructure.</p>
+    </div>
+
+    <!-- ArvCompute -->
+    <h2 id="ch3-compute">3.1 &nbsp; ArvCompute — Compute Engine</h2>
+    <div class="service-card" style="margin: 16px 0;">
+        <div class="service-code">ARVCOMPUTE</div>
+        <h4 style="font-size: 13pt; color: var(--navy); text-transform: none; letter-spacing: 0;">Virtual Machine & Instance Management</h4>
+        <p style="color: var(--gray-700); font-size: 10.5pt; margin-top: 10px;">
+            ArvCompute provides on-demand virtual machine instances with configurable CPU, memory, and storage profiles. It supports auto-scaling groups, spot/preemptible instances for cost optimization, and instance templates for repeatable provisioning.
+        </p>
+    </div>
+
+    <table>
+        <thead>
+            <tr><th>Feature</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+            <tr><td><strong>Instance Types</strong></td><td>General Purpose, Compute Optimized, Memory Optimized, GPU Accelerated</td></tr>
+            <tr><td><strong>Auto Scaling</strong></td><td>Policy-based scaling triggered by CPU, memory, custom metrics, or scheduled events</td></tr>
+            <tr><td><strong>Instance Templates</strong></td><td>Reusable configurations for consistent provisioning across environments</td></tr>
+            <tr><td><strong>Health Monitoring</strong></td><td>Automatic health checks with self-healing (restart or replace unhealthy instances)</td></tr>
+            <tr><td><strong>SSH Key Management</strong></td><td>Platform-managed SSH keys with automatic rotation and audit logging</td></tr>
+            <tr><td><strong>Snapshots</strong></td><td>Point-in-time snapshots for backup and disaster recovery</td></tr>
+        </tbody>
+    </table>
+
+    <!-- ArvKube -->
+    <h2 id="ch3-kube">3.2 &nbsp; ArvKube — Kubernetes Engine</h2>
+    <div class="service-card" style="margin: 16px 0;">
+        <div class="service-code">ARVKUBE</div>
+        <h4 style="font-size: 13pt; color: var(--navy); text-transform: none; letter-spacing: 0;">Managed Kubernetes Orchestration</h4>
+        <p style="color: var(--gray-700); font-size: 10.5pt; margin-top: 10px;">
+            ArvKube provides fully managed Kubernetes clusters with automated control plane management, worker node scaling, and integrated monitoring. It handles cluster lifecycle operations — creation, upgrades, patching, and decommissioning.
+        </p>
+    </div>
+
+    <div class="diagram-container">
+        <img src="images/kubernetes_architecture.jpg" alt="ArvKube Kubernetes Architecture">
+        <div class="diagram-caption">Figure 3.1 — ArvKube Cluster Architecture (Control Plane + Worker Nodes)</div>
+    </div>
+
+    <table>
+        <thead>
+            <tr><th>Feature</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+            <tr><td><strong>Cluster Management</strong></td><td>Create, update, and delete Kubernetes clusters via API or dashboard</td></tr>
+            <tr><td><strong>Node Pools</strong></td><td>Multiple node pools with different instance types per cluster</td></tr>
+            <tr><td><strong>Auto Scaling</strong></td><td>Cluster autoscaler and Horizontal Pod Autoscaler (HPA) integration</td></tr>
+            <tr><td><strong>Deployments</strong></td><td>Rolling updates, blue-green deployments, and canary releases</td></tr>
+            <tr><td><strong>Service Mesh</strong></td><td>Optional Istio/Linkerd integration for traffic management and mTLS</td></tr>
+            <tr><td><strong>Ingress</strong></td><td>Built-in ingress controller with TLS termination and path-based routing</td></tr>
+            <tr><td><strong>Helm Support</strong></td><td>Native Helm chart repository and one-click chart installations</td></tr>
+        </tbody>
+    </table>
+
+    <!-- ArvStore -->
+    <h2 id="ch3-store">3.3 &nbsp; ArvStore — Object Storage</h2>
+    <div class="service-card" style="margin: 16px 0;">
+        <div class="service-code">ARVSTORE</div>
+        <h4 style="font-size: 13pt; color: var(--navy); text-transform: none; letter-spacing: 0;">Scalable Object & Bucket Storage</h4>
+        <p style="color: var(--gray-700); font-size: 10.5pt; margin-top: 10px;">
+            ArvStore is a highly durable, scalable object storage service for storing and retrieving any amount of data. It provides bucket-level access policies, versioning, lifecycle rules, and CDN integration for global content delivery.
+        </p>
+    </div>
+
+    <table>
+        <thead>
+            <tr><th>Feature</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+            <tr><td><strong>Buckets</strong></td><td>Logical containers for objects with configurable access policies</td></tr>
+            <tr><td><strong>Versioning</strong></td><td>Object versioning for data protection and point-in-time recovery</td></tr>
+            <tr><td><strong>Lifecycle Policies</strong></td><td>Automatic transition between storage tiers (hot → warm → archive)</td></tr>
+            <tr><td><strong>Encryption</strong></td><td>Server-side encryption (AES-256) with customer-managed or platform-managed keys</td></tr>
+            <tr><td><strong>Presigned URLs</strong></td><td>Time-limited URLs for secure, direct file upload/download</td></tr>
+            <tr><td><strong>Event Triggers</strong></td><td>Webhooks on object creation, deletion, or modification</td></tr>
+        </tbody>
+    </table>
+
+    <!-- ArvDB -->
+    <h2 id="ch3-db">3.4 &nbsp; ArvDB — Managed Database Service</h2>
+    <div class="service-card" style="margin: 16px 0;">
+        <div class="service-code">ARVDB</div>
+        <h4 style="font-size: 13pt; color: var(--navy); text-transform: none; letter-spacing: 0;">Managed Relational & NoSQL Databases</h4>
+        <p style="color: var(--gray-700); font-size: 10.5pt; margin-top: 10px;">
+            ArvDB offers fully managed database instances with automated backups, patch management, high availability, and read replicas. Supports PostgreSQL, MySQL, and extensible to other engines.
+        </p>
+    </div>
+
+    <table>
+        <thead>
+            <tr><th>Feature</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+            <tr><td><strong>Supported Engines</strong></td><td>PostgreSQL 15+, MySQL 8+, with extensibility for MongoDB and Redis</td></tr>
+            <tr><td><strong>High Availability</strong></td><td>Multi-AZ deployments with automatic failover (RPO ≈ 0, RTO < 60s)</td></tr>
+            <tr><td><strong>Automated Backups</strong></td><td>Daily snapshots with configurable retention (7–365 days)</td></tr>
+            <tr><td><strong>Read Replicas</strong></td><td>Up to 5 read replicas for read-heavy workloads</td></tr>
+            <tr><td><strong>Connection Pooling</strong></td><td>Built-in PgBouncer/ProxySQL for efficient connection management</td></tr>
+            <tr><td><strong>Monitoring</strong></td><td>Real-time query performance insights, slow query logs, and resource utilization</td></tr>
+        </tbody>
+    </table>
+
+    <!-- ArvRegistry -->
+    <h2 id="ch3-registry">3.5 &nbsp; ArvRegistry — Container Registry</h2>
+    <div class="service-card" style="margin: 16px 0;">
+        <div class="service-code">ARVREGISTRY</div>
+        <h4 style="font-size: 13pt; color: var(--navy); text-transform: none; letter-spacing: 0;">Private Container Image Registry</h4>
+        <p style="color: var(--gray-700); font-size: 10.5pt; margin-top: 10px;">
+            ArvRegistry is a fully managed, private Docker container registry that integrates natively with ArvKube and the CI/CD pipeline. It provides vulnerability scanning, image signing, and lifecycle policies for image cleanup.
+        </p>
+    </div>
+
+    <table>
+        <thead>
+            <tr><th>Feature</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+            <tr><td><strong>Image Storage</strong></td><td>Unlimited private repositories with tag-based versioning</td></tr>
+            <tr><td><strong>Vulnerability Scanning</strong></td><td>Automatic CVE scanning on push with severity reporting</td></tr>
+            <tr><td><strong>Image Signing</strong></td><td>Content trust via Notary/Cosign for supply chain security</td></tr>
+            <tr><td><strong>Lifecycle Policies</strong></td><td>Automatic cleanup of untagged or expired images</td></tr>
+            <tr><td><strong>Geo-Replication</strong></td><td>Cross-region replication for low-latency pulls</td></tr>
+        </tbody>
+    </table>
+
+    <!-- ArvEdge -->
+    <h2 id="ch3-edge">3.6 &nbsp; ArvEdge — Load Balancer & Edge Network</h2>
+    <div class="service-card" style="margin: 16px 0;">
+        <div class="service-code">ARVEDGE</div>
+        <h4 style="font-size: 13pt; color: var(--navy); text-transform: none; letter-spacing: 0;">Application Load Balancing & Traffic Management</h4>
+        <p style="color: var(--gray-700); font-size: 10.5pt; margin-top: 10px;">
+            ArvEdge distributes incoming traffic across healthy backend targets using layer-7 routing rules. It supports path-based routing, host-based routing, weighted targets, SSL/TLS offloading, and WebSocket connections.
+        </p>
+    </div>
+
+    <table>
+        <thead>
+            <tr><th>Feature</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+            <tr><td><strong>L7 Routing</strong></td><td>Path-based, host-based, and header-based routing rules</td></tr>
+            <tr><td><strong>Health Checks</strong></td><td>Configurable HTTP/HTTPS health checks with automatic target deregistration</td></tr>
+            <tr><td><strong>SSL/TLS</strong></td><td>Automatic certificate provisioning via Let's Encrypt or custom certificates</td></tr>
+            <tr><td><strong>Rate Limiting</strong></td><td>Per-IP and per-API-key rate limiting with configurable thresholds</td></tr>
+            <tr><td><strong>DDoS Protection</strong></td><td>Built-in DDoS mitigation at the network edge</td></tr>
+        </tbody>
+    </table>
+
+    <!-- ArvWatch -->
+    <h2 id="ch3-watch">3.7 &nbsp; ArvWatch — Monitoring & Observability</h2>
+    <div class="service-card" style="margin: 16px 0;">
+        <div class="service-code">ARVWATCH</div>
+        <h4 style="font-size: 13pt; color: var(--navy); text-transform: none; letter-spacing: 0;">Unified Monitoring, Logging & Alerting</h4>
+        <p style="color: var(--gray-700); font-size: 10.5pt; margin-top: 10px;">
+            ArvWatch provides full-stack observability across the Aravanta CloudOS platform. It collects metrics, aggregates logs, and traces requests across services — powered by Prometheus, Grafana, and Loki under the hood, but exposed through a unified Aravanta interface.
+        </p>
+    </div>
+
+    <div class="diagram-container">
+        <img src="images/monitoring_stack.jpg" alt="ArvWatch Monitoring Stack Architecture">
+        <div class="diagram-caption">Figure 3.2 — ArvWatch Observability Stack (Metrics · Logs · Traces · Alerts)</div>
+    </div>
+
+    <table>
+        <thead>
+            <tr><th>Pillar</th><th>Engine</th><th>Capabilities</th></tr>
+        </thead>
+        <tbody>
+            <tr><td><strong>Metrics</strong></td><td>Prometheus + Grafana</td><td>Time-series collection, custom dashboards, PromQL queries, anomaly detection</td></tr>
+            <tr><td><strong>Logs</strong></td><td>Loki + Grafana</td><td>Structured log aggregation, label-based querying, log-to-trace correlation</td></tr>
+            <tr><td><strong>Traces</strong></td><td>OpenTelemetry + Jaeger</td><td>Distributed request tracing, latency analysis, service dependency maps</td></tr>
+            <tr><td><strong>Alerts</strong></td><td>Alertmanager</td><td>Rule-based alerts, multi-channel notifications (Email, Slack, PagerDuty, Webhooks)</td></tr>
+        </tbody>
+    </table>
+
+    <!-- ArvGate -->
+    <h2 id="ch3-gate">3.8 &nbsp; ArvGate — Identity & Access Management</h2>
+    <div class="service-card" style="margin: 16px 0;">
+        <div class="service-code">ARVGATE</div>
+        <h4 style="font-size: 13pt; color: var(--navy); text-transform: none; letter-spacing: 0;">Authentication, Authorization & Identity Federation</h4>
+        <p style="color: var(--gray-700); font-size: 10.5pt; margin-top: 10px;">
+            ArvGate is the identity backbone of Aravanta CloudOS. It manages user accounts, service accounts, API keys, roles, policies, and multi-factor authentication. It supports OAuth2/OIDC for federation with external identity providers.
+        </p>
+    </div>
+
+    <table>
+        <thead>
+            <tr><th>Feature</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+            <tr><td><strong>Authentication</strong></td><td>JWT-based tokens with configurable expiry; refresh token rotation</td></tr>
+            <tr><td><strong>MFA</strong></td><td>TOTP (Google Authenticator), SMS, and hardware key (FIDO2) support</td></tr>
+            <tr><td><strong>RBAC</strong></td><td>Granular role-based access control with predefined roles (Admin, Developer, Viewer, Auditor)</td></tr>
+            <tr><td><strong>Policies</strong></td><td>JSON-based policy documents attached to roles (allow/deny actions on resources)</td></tr>
+            <tr><td><strong>Service Accounts</strong></td><td>Machine-to-machine authentication for automated workflows and CI/CD</td></tr>
+            <tr><td><strong>SSO Federation</strong></td><td>SAML 2.0 and OIDC integration with corporate identity providers</td></tr>
+            <tr><td><strong>Audit Trail</strong></td><td>Immutable log of every authentication event, permission change, and API call</td></tr>
+        </tbody>
+    </table>
+
+    <h3>Aravanta Service Summary</h3>
+    <div class="service-grid">
+        <div class="service-card">
+            <div class="service-code">ARVCOMPUTE</div>
+            <h4>Compute Engine</h4>
+            <p>Virtual machines, auto-scaling, instance lifecycle management</p>
+        </div>
+        <div class="service-card">
+            <div class="service-code">ARVKUBE</div>
+            <h4>Kubernetes Engine</h4>
+            <p>Managed clusters, pods, deployments, services, Helm charts</p>
+        </div>
+        <div class="service-card">
+            <div class="service-code">ARVSTORE</div>
+            <h4>Object Storage</h4>
+            <p>Buckets, versioning, encryption, CDN integration</p>
+        </div>
+        <div class="service-card">
+            <div class="service-code">ARVDB</div>
+            <h4>Database Service</h4>
+            <p>PostgreSQL, MySQL, HA failover, automated backups</p>
+        </div>
+        <div class="service-card">
+            <div class="service-code">ARVREGISTRY</div>
+            <h4>Container Registry</h4>
+            <p>Private image repos, vulnerability scanning, signing</p>
+        </div>
+        <div class="service-card">
+            <div class="service-code">ARVEDGE</div>
+            <h4>Load Balancer</h4>
+            <p>L7 routing, SSL offloading, DDoS protection</p>
+        </div>
+        <div class="service-card">
+            <div class="service-code">ARVWATCH</div>
+            <h4>Monitoring</h4>
+            <p>Metrics, logs, traces, dashboards, alerting</p>
+        </div>
+        <div class="service-card">
+            <div class="service-code">ARVGATE</div>
+            <h4>Identity & Access</h4>
+            <p>Auth, MFA, RBAC, SSO, audit logging</p>
+        </div>
+    </div>
+</div>
+
+<!-- =====================================================================
+     CHAPTER 4 — CORE MODULES
+     ===================================================================== -->
+<div class="chapter" id="ch4">
+    <div class="chapter-number">Chapter 04</div>
+    <h1 class="chapter-title">Core Modules</h1>
+    <div class="chapter-title-line"></div>
+
+    <p>While the Aravanta Service Catalog defines the platform's cloud-native services, the <strong>Core Modules</strong> represent the functional areas of the Aravanta CloudOS user interface and backend systems. Each module maps to one or more Aravanta services.</p>
+
+    <!-- Module Tree -->
+    <div class="tree-container">
+<span class="tree-folder">Aravanta CloudOS</span>
+│
+├── <span class="tree-folder">Identity Module</span> <span class="tree-comment">────────── Powered by ArvGate</span>
+│   ├── Login & Registration
+│   ├── Multi-Factor Authentication (MFA)
+│   ├── Role-Based Access Control (RBAC)
+│   └── API Key Management
+│
+├── <span class="tree-folder">Dashboard Module</span> <span class="tree-comment">───────── Aggregates all services</span>
+│   ├── Resource Overview (instances, clusters, storage)
+│   ├── Health Status (real-time system health)
+│   ├── Usage Analytics (CPU, memory, network, cost)
+│   └── Quick Actions (deploy, scale, restart)
+│
+├── <span class="tree-folder">Compute Module</span> <span class="tree-comment">──────────── Powered by ArvCompute</span>
+│   ├── Instance Management (create, start, stop, terminate)
+│   ├── Auto Scaling Groups
+│   ├── Instance Templates
+│   └── SSH & Console Access
+│
+├── <span class="tree-folder">Kubernetes Module</span> <span class="tree-comment">──────── Powered by ArvKube</span>
+│   ├── Cluster Management
+│   ├── Pod Inspector
+│   ├── Deployment Manager
+│   ├── Service & Ingress Configuration
+│   └── Helm Chart Marketplace
+│
+├── <span class="tree-folder">Container Module</span> <span class="tree-comment">───────── Powered by ArvRegistry</span>
+│   ├── Image Repository Browser
+│   ├── Image Build Pipeline
+│   ├── Vulnerability Reports
+│   └── Tag & Lifecycle Management
+│
+├── <span class="tree-folder">Storage Module</span> <span class="tree-comment">──────────── Powered by ArvStore</span>
+│   ├── Bucket Management
+│   ├── Object Browser (upload, download, preview)
+│   ├── Access Policy Editor
+│   └── Storage Analytics
+│
+├── <span class="tree-folder">Database Module</span> <span class="tree-comment">─────────── Powered by ArvDB</span>
+│   ├── Instance Provisioning
+│   ├── Query Console
+│   ├── Backup & Restore
+│   └── Performance Insights
+│
+├── <span class="tree-folder">Infrastructure Module</span> <span class="tree-comment">──── IaC Engine (Terraform)</span>
+│   ├── Template Editor
+│   ├── Plan & Apply Workflow
+│   ├── State Management
+│   └── Drift Detection
+│
+├── <span class="tree-folder">CI/CD Module</span> <span class="tree-comment">──────────────── Pipeline Engine</span>
+│   ├── Pipeline Configuration
+│   ├── Build Logs
+│   ├── Deployment History
+│   └── Rollback Manager
+│
+├── <span class="tree-folder">Monitoring Module</span> <span class="tree-comment">──────── Powered by ArvWatch</span>
+│   ├── Metrics Dashboard
+│   ├── Log Explorer
+│   ├── Alert Manager
+│   └── Uptime Monitoring
+│
+├── <span class="tree-folder">Security Module</span> <span class="tree-comment">───────── Powered by ArvGate</span>
+│   ├── IAM Policy Manager
+│   ├── Secrets Vault
+│   ├── Compliance Scanner
+│   └── Audit Log Viewer
+│
+└── <span class="tree-folder">Billing Module</span> <span class="tree-comment">─────────────── Cost Engine</span>
+    ├── Current Spend Dashboard
+    ├── Cost by Service/Team/Environment
+    ├── Budget Alerts
+    └── Invoice History
+    </div>
+
+    <h2 id="ch4-identity">4.1 &nbsp; Identity & Authentication Module</h2>
+    <p>The Identity module is the security gateway for the entire platform. Every user, service, and automated process must authenticate through ArvGate before accessing any resource.</p>
+
+    <h3>Authentication Flow</h3>
+    <div class="callout callout-info">
+        <div class="callout-title">🔄 Authentication Sequence</div>
+        <p><strong>1.</strong> User submits credentials (email + password) → <strong>2.</strong> Backend validates against bcrypt hash → <strong>3.</strong> If MFA enabled, prompt for TOTP code → <strong>4.</strong> Issue JWT access token (15min) + refresh token (7d) → <strong>5.</strong> Client stores tokens; attaches to every API request → <strong>6.</strong> API Gateway validates JWT signature and claims before routing.</p>
+    </div>
+
+    <h3>Role-Based Access Control (RBAC)</h3>
+    <table>
+        <thead>
+            <tr><th>Role</th><th>Permissions</th><th>Use Case</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><span class="badge badge-red">Super Admin</span></td>
+                <td>Full access to all resources, users, and settings</td>
+                <td>Platform owner, CTO</td>
+            </tr>
+            <tr>
+                <td><span class="badge badge-gold">Admin</span></td>
+                <td>Manage resources, users, deployments; cannot modify billing</td>
+                <td>Team lead, DevOps lead</td>
+            </tr>
+            <tr>
+                <td><span class="badge badge-blue">Developer</span></td>
+                <td>Deploy apps, manage own resources, view logs and metrics</td>
+                <td>Software engineer, SRE</td>
+            </tr>
+            <tr>
+                <td><span class="badge badge-green">Viewer</span></td>
+                <td>Read-only access to dashboards, logs, and metrics</td>
+                <td>Stakeholder, manager</td>
+            </tr>
+            <tr>
+                <td><span class="badge badge-purple">Auditor</span></td>
+                <td>Read-only access to audit logs, security scans, compliance reports</td>
+                <td>Security analyst, compliance officer</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2 id="ch4-dashboard">4.2 &nbsp; Dashboard & Resource Overview</h2>
+    <p>The Dashboard is the first screen users see upon logging in. It provides a real-time, at-a-glance view of the entire infrastructure.</p>
+
+    <div class="diagram-container">
+        <img src="images/dashboard_mockup.jpg" alt="Aravanta CloudOS Dashboard Mockup">
+        <div class="diagram-caption">Figure 4.1 — Aravanta CloudOS Dashboard (Dark Theme with Real-Time Metrics)</div>
+    </div>
+
+    <h3>Dashboard Components</h3>
+    <ul class="feature-list">
+        <li><strong>Resource Summary Cards:</strong> Live count of running instances, active clusters, storage consumed, and database connections</li>
+        <li><strong>Health Status Panel:</strong> Color-coded health indicators (green/yellow/red) for every service and environment</li>
+        <li><strong>Resource Utilization Chart:</strong> Time-series graphs for CPU, memory, network I/O, and disk usage across all resources</li>
+        <li><strong>Recent Deployments:</strong> Chronological list of recent deployments with status (success, failed, in-progress), commit hash, and deployer</li>
+        <li><strong>Cost Ticker:</strong> Real-time monthly spend with projection and budget comparison</li>
+        <li><strong>Quick Actions:</strong> One-click buttons for common operations (new instance, new cluster, deploy app)</li>
+    </ul>
+
+    <h2 id="ch4-infra">4.3 &nbsp; Infrastructure as Code (IaC) Module</h2>
+    <p>The IaC module allows users to define, version, and provision infrastructure using declarative configuration files. Built on top of Terraform with a web-based editor and approval workflow.</p>
+
+    <h3>IaC Workflow</h3>
+    <div class="callout callout-success">
+        <div class="callout-title">✅ Infrastructure Lifecycle</div>
+        <p><strong>Define</strong> → Write infrastructure templates in HCL/YAML via the web editor or push from Git<br>
+        <strong>Plan</strong> → Generate an execution plan showing resources to create, modify, or destroy<br>
+        <strong>Review</strong> → Peer review the plan via approval workflow (optional for non-production)<br>
+        <strong>Apply</strong> → Execute the plan and provision resources<br>
+        <strong>Monitor</strong> → Track state, detect drift, and trigger remediation</p>
+    </div>
+
+    <h3>Drift Detection</h3>
+    <p>ArvInfra continuously compares the actual state of provisioned resources against the desired state stored in the Terraform state file. When drift is detected (e.g., someone manually modifies a resource outside the platform), the system generates an alert and optionally auto-remediates.</p>
+
+    <h2 id="ch4-cicd">4.4 &nbsp; CI/CD Pipeline Module</h2>
+
+    <div class="diagram-container">
+        <img src="images/cicd_pipeline.jpg" alt="CI/CD Pipeline Flow">
+        <div class="diagram-caption">Figure 4.2 — Aravanta CloudOS CI/CD Pipeline (End-to-End Deployment Flow)</div>
+    </div>
+
+    <p>The CI/CD module provides an integrated continuous integration and continuous deployment pipeline that connects source code repositories to production environments.</p>
+
+    <h3>Pipeline Stages</h3>
+    <table>
+        <thead>
+            <tr><th>Stage</th><th>Actions</th><th>Failure Behavior</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><span class="badge badge-blue">Source</span></td>
+                <td>Git webhook triggers pipeline on push/PR merge</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td><span class="badge badge-purple">Build</span></td>
+                <td>Compile code, install dependencies, run linters</td>
+                <td>Pipeline halts; notification sent</td>
+            </tr>
+            <tr>
+                <td><span class="badge badge-gold">Test</span></td>
+                <td>Run unit tests, integration tests, coverage report</td>
+                <td>Pipeline halts if coverage < threshold</td>
+            </tr>
+            <tr>
+                <td><span class="badge badge-green">Scan</span></td>
+                <td>SAST, dependency vulnerability scan, container image scan</td>
+                <td>Pipeline halts if critical CVEs found</td>
+            </tr>
+            <tr>
+                <td><span class="badge badge-blue">Package</span></td>
+                <td>Build Docker image, tag with Git SHA, push to ArvRegistry</td>
+                <td>Pipeline halts; build artifacts preserved</td>
+            </tr>
+            <tr>
+                <td><span class="badge badge-gold">Stage</span></td>
+                <td>Deploy to staging environment, run smoke tests</td>
+                <td>Automatic rollback to previous version</td>
+            </tr>
+            <tr>
+                <td><span class="badge badge-green">Production</span></td>
+                <td>Canary deploy (10% → 50% → 100%), health checks</td>
+                <td>Automatic rollback; incident created</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2 id="ch4-security">4.5 &nbsp; Security & Compliance Module</h2>
+
+    <div class="diagram-container">
+        <img src="images/security_architecture.jpg" alt="Security Architecture">
+        <div class="diagram-caption">Figure 4.3 — Aravanta CloudOS Security Architecture (Defense-in-Depth)</div>
+    </div>
+
+    <h3>Security Features</h3>
+    <div class="service-grid">
+        <div class="service-card">
+            <h4>🔑 Secrets Vault</h4>
+            <p>Encrypted key-value store for API keys, database credentials, certificates. Supports automatic rotation and version history.</p>
+        </div>
+        <div class="service-card">
+            <h4>📋 Audit Logging</h4>
+            <p>Immutable, tamper-proof audit trail of every user action, API call, and resource change. Retained for 365 days.</p>
+        </div>
+        <div class="service-card">
+            <h4>🛡️ Compliance Scanner</h4>
+            <p>Automated checks against CIS Benchmarks, SOC 2, and ISO 27001 controls. Generates compliance reports on demand.</p>
+        </div>
+        <div class="service-card">
+            <h4>🔍 Vulnerability Scanner</h4>
+            <p>Continuous scanning of container images, dependencies, and infrastructure configurations for known vulnerabilities.</p>
+        </div>
+    </div>
+
+    <h2 id="ch4-billing">4.6 &nbsp; Billing & Cost Management Module</h2>
+    <p>The Billing module provides granular cost visibility and optimization recommendations across all Aravanta services.</p>
+
+    <h3>Billing Features</h3>
+    <ul class="feature-list">
+        <li><strong>Real-Time Cost Dashboard:</strong> Live spend tracking with hourly/daily/monthly granularity</li>
+        <li><strong>Cost Allocation:</strong> Tag-based cost attribution by team, project, environment, or custom dimension</li>
+        <li><strong>Budget Alerts:</strong> Configurable threshold alerts (50%, 80%, 100% of budget) via email and Slack</li>
+        <li><strong>Optimization Recommendations:</strong> AI-powered suggestions for right-sizing instances, eliminating idle resources, and leveraging spot instances</li>
+        <li><strong>Invoice Generation:</strong> Automated monthly invoices with detailed line items and PDF export</li>
+        <li><strong>Chargeback Reports:</strong> Department-level cost reports for internal billing</li>
+    </ul>
+</div>
+
+<!-- =====================================================================
+     CHAPTER 5 — TECHNOLOGY STACK
+     ===================================================================== -->
+<div class="chapter" id="ch5">
+    <div class="chapter-number">Chapter 05</div>
+    <h1 class="chapter-title">Technology Stack</h1>
+    <div class="chapter-title-line"></div>
+
+    <h2 id="ch5-frontend">5.1 &nbsp; Frontend Architecture</h2>
+
+    <table>
+        <thead>
+            <tr><th>Technology</th><th>Purpose</th><th>Rationale</th></tr>
+        </thead>
+        <tbody>
+            <tr><td><strong>React 18+</strong></td><td>UI component library</td><td>Component-based architecture, virtual DOM, massive ecosystem</td></tr>
+            <tr><td><strong>TypeScript</strong></td><td>Type safety</td><td>Catch errors at compile time, better IDE support, self-documenting code</td></tr>
+            <tr><td><strong>Tailwind CSS</strong></td><td>Styling</td><td>Utility-first CSS for rapid, consistent UI development</td></tr>
+            <tr><td><strong>React Router v6</strong></td><td>Client-side routing</td><td>Declarative routing with nested layouts and lazy loading</td></tr>
+            <tr><td><strong>TanStack Query</strong></td><td>Server state management</td><td>Caching, background refetching, pagination, optimistic updates</td></tr>
+            <tr><td><strong>Zustand</strong></td><td>Client state management</td><td>Lightweight, minimal boilerplate, excellent DX</td></tr>
+            <tr><td><strong>Recharts</strong></td><td>Data visualization</td><td>React-native charting for metrics dashboards</td></tr>
+            <tr><td><strong>Vite</strong></td><td>Build tooling</td><td>Lightning-fast HMR, optimized production builds</td></tr>
+        </tbody>
+    </table>
+
+    <h2 id="ch5-backend">5.2 &nbsp; Backend Architecture</h2>
+
+    <table>
+        <thead>
+            <tr><th>Technology</th><th>Purpose</th><th>Rationale</th></tr>
+        </thead>
+        <tbody>
+            <tr><td><strong>Python 3.11+</strong></td><td>Primary language</td><td>Rich cloud/infra library ecosystem, rapid development, wide adoption</td></tr>
+            <tr><td><strong>FastAPI</strong></td><td>Web framework</td><td>Async-first, auto-generated OpenAPI docs, Pydantic validation, high performance</td></tr>
+            <tr><td><strong>SQLAlchemy 2.0</strong></td><td>ORM</td><td>Mature, flexible, supports async with asyncpg</td></tr>
+            <tr><td><strong>Alembic</strong></td><td>Database migrations</td><td>Version-controlled schema changes, rollback support</td></tr>
+            <tr><td><strong>PostgreSQL 15+</strong></td><td>Primary database</td><td>ACID compliance, JSONB support, advanced querying, proven at scale</td></tr>
+            <tr><td><strong>Redis 7+</strong></td><td>Caching & sessions</td><td>In-memory performance, pub/sub, rate limiter backend</td></tr>
+            <tr><td><strong>Celery</strong></td><td>Task queue</td><td>Distributed async task execution for long-running operations</td></tr>
+            <tr><td><strong>RabbitMQ</strong></td><td>Message broker</td><td>Reliable message delivery, dead-letter queues, priority queues</td></tr>
+        </tbody>
+    </table>
+
+    <h2 id="ch5-infra">5.3 &nbsp; Infrastructure & DevOps</h2>
+
+    <table>
+        <thead>
+            <tr><th>Technology</th><th>Purpose</th><th>Rationale</th></tr>
+        </thead>
+        <tbody>
+            <tr><td><strong>Docker</strong></td><td>Containerization</td><td>Consistent environments, dependency isolation, lightweight</td></tr>
+            <tr><td><strong>Kubernetes</strong></td><td>Container orchestration</td><td>Industry standard for running containerized workloads at scale</td></tr>
+            <tr><td><strong>Terraform</strong></td><td>Infrastructure as Code</td><td>Declarative, multi-provider, state management, plan/apply workflow</td></tr>
+            <tr><td><strong>Nginx</strong></td><td>Reverse proxy</td><td>High-performance request routing, SSL termination, static file serving</td></tr>
+            <tr><td><strong>GitHub Actions</strong></td><td>CI/CD</td><td>Native GitHub integration, YAML-based workflows, marketplace actions</td></tr>
+            <tr><td><strong>Prometheus</strong></td><td>Metrics collection</td><td>Pull-based model, PromQL, alerting rules, extensive exporters</td></tr>
+            <tr><td><strong>Grafana</strong></td><td>Dashboards</td><td>Rich visualization, data source plugins, alerting</td></tr>
+            <tr><td><strong>Loki</strong></td><td>Log aggregation</td><td>Lightweight, label-based indexing, Grafana integration</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- =====================================================================
+     CHAPTER 6 — API REFERENCE
+     ===================================================================== -->
+<div class="chapter" id="ch6">
+    <div class="chapter-number">Chapter 06</div>
+    <h1 class="chapter-title">API Reference</h1>
+    <div class="chapter-title-line"></div>
+
+    <p>Aravanta CloudOS exposes a RESTful API that powers both the web dashboard and the CLI. All endpoints require authentication via JWT bearer tokens issued by ArvGate.</p>
+
+    <div class="callout callout-info">
+        <div class="callout-title">📋 API Conventions</div>
+        <p><strong>Base URL:</strong> <code>https://api.aravanta.cloud/v1</code><br>
+        <strong>Content-Type:</strong> <code>application/json</code><br>
+        <strong>Authentication:</strong> <code>Authorization: Bearer &lt;JWT_TOKEN&gt;</code><br>
+        <strong>Pagination:</strong> <code>?page=1&limit=25</code> (default: 25 items per page)<br>
+        <strong>Rate Limit:</strong> 1,000 requests/minute per API key</p>
+    </div>
+
+    <h2 id="ch6-auth">6.1 &nbsp; Authentication API</h2>
+
+    <div class="api-endpoint">
+        <span class="api-method api-post">POST</span>
+        <code>/auth/register</code> — Register a new user account
+    </div>
+    <pre><code>{
+  "email": "user@example.com",
+  "password": "secureP@ssw0rd!",
+  "full_name": "Jane Doe",
+  "organization": "Aravanta Corp"
+}</code></pre>
+
+    <div class="api-endpoint">
+        <span class="api-method api-post">POST</span>
+        <code>/auth/login</code> — Authenticate and receive JWT tokens
+    </div>
+    <pre><code>// Request
+{ "email": "user@example.com", "password": "secureP@ssw0rd!" }
+
+// Response (200 OK)
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIs...",
+  "refresh_token": "dGhpcyBpcyBhIHJlZnJl...",
+  "token_type": "bearer",
+  "expires_in": 900
+}</code></pre>
+
+    <div class="api-endpoint">
+        <span class="api-method api-post">POST</span>
+        <code>/auth/refresh</code> — Refresh an expired access token
+    </div>
+
+    <div class="api-endpoint">
+        <span class="api-method api-post">POST</span>
+        <code>/auth/mfa/enable</code> — Enable multi-factor authentication
+    </div>
+
+    <div class="api-endpoint">
+        <span class="api-method api-post">POST</span>
+        <code>/auth/mfa/verify</code> — Verify MFA code during login
+    </div>
+
+    <h2 id="ch6-resources">6.2 &nbsp; Resource Management API</h2>
+
+    <h3>ArvCompute Endpoints</h3>
+    <div class="api-endpoint">
+        <span class="api-method api-get">GET</span>
+        <code>/compute/instances</code> — List all compute instances
+    </div>
+    <div class="api-endpoint">
+        <span class="api-method api-post">POST</span>
+        <code>/compute/instances</code> — Create a new compute instance
+    </div>
+    <pre><code>{
+  "name": "web-server-01",
+  "instance_type": "arv.general.medium",   // 4 vCPU, 8GB RAM
+  "image": "ubuntu-22.04-lts",
+  "region": "arv-us-east-1",
+  "ssh_key_id": "key-a1b2c3d4",
+  "tags": { "env": "production", "team": "backend" }
+}</code></pre>
+
+    <div class="api-endpoint">
+        <span class="api-method api-get">GET</span>
+        <code>/compute/instances/{id}</code> — Get instance details
+    </div>
+    <div class="api-endpoint">
+        <span class="api-method api-put">PUT</span>
+        <code>/compute/instances/{id}/scale</code> — Resize instance type
+    </div>
+    <div class="api-endpoint">
+        <span class="api-method api-delete">DELETE</span>
+        <code>/compute/instances/{id}</code> — Terminate an instance
+    </div>
+
+    <h3>ArvKube Endpoints</h3>
+    <div class="api-endpoint">
+        <span class="api-method api-get">GET</span>
+        <code>/kubernetes/clusters</code> — List Kubernetes clusters
+    </div>
+    <div class="api-endpoint">
+        <span class="api-method api-post">POST</span>
+        <code>/kubernetes/clusters</code> — Create a new managed cluster
+    </div>
+    <pre><code>{
+  "name": "prod-cluster",
+  "kubernetes_version": "1.30",
+  "node_pools": [
+    {
+      "name": "general-pool",
+      "instance_type": "arv.compute.large",
+      "min_nodes": 3,
+      "max_nodes": 10,
+      "auto_scale": true
+    }
+  ],
+  "region": "arv-us-east-1",
+  "network_policy": "calico"
+}</code></pre>
+
+    <div class="api-endpoint">
+        <span class="api-method api-get">GET</span>
+        <code>/kubernetes/clusters/{id}/pods</code> — List pods in a cluster
+    </div>
+    <div class="api-endpoint">
+        <span class="api-method api-get">GET</span>
+        <code>/kubernetes/clusters/{id}/deployments</code> — List deployments
+    </div>
+    <div class="api-endpoint">
+        <span class="api-method api-post">POST</span>
+        <code>/kubernetes/clusters/{id}/deployments</code> — Create a deployment
+    </div>
+
+    <h3>ArvStore Endpoints</h3>
+    <div class="api-endpoint">
+        <span class="api-method api-get">GET</span>
+        <code>/storage/buckets</code> — List all storage buckets
+    </div>
+    <div class="api-endpoint">
+        <span class="api-method api-post">POST</span>
+        <code>/storage/buckets</code> — Create a new bucket
+    </div>
+    <div class="api-endpoint">
+        <span class="api-method api-get">GET</span>
+        <code>/storage/buckets/{name}/objects</code> — List objects in bucket
+    </div>
+    <div class="api-endpoint">
+        <span class="api-method api-post">POST</span>
+        <code>/storage/buckets/{name}/upload</code> — Upload an object
+    </div>
+
+    <h3>ArvDB Endpoints</h3>
+    <div class="api-endpoint">
+        <span class="api-method api-get">GET</span>
+        <code>/databases/instances</code> — List database instances
+    </div>
+    <div class="api-endpoint">
+        <span class="api-method api-post">POST</span>
+        <code>/databases/instances</code> — Provision a new database
+    </div>
+    <pre><code>{
+  "name": "prod-postgres",
+  "engine": "postgresql",
+  "engine_version": "15.4",
+  "instance_type": "arv.db.medium",    // 4 vCPU, 16GB RAM
+  "storage_gb": 100,
+  "high_availability": true,
+  "backup_retention_days": 30,
+  "region": "arv-us-east-1"
+}</code></pre>
+
+    <h3>Monitoring & Security Endpoints</h3>
+    <div class="api-endpoint">
+        <span class="api-method api-get">GET</span>
+        <code>/monitoring/metrics</code> — Query time-series metrics
+    </div>
+    <div class="api-endpoint">
+        <span class="api-method api-get">GET</span>
+        <code>/monitoring/alerts</code> — List active alerts
+    </div>
+    <div class="api-endpoint">
+        <span class="api-method api-get">GET</span>
+        <code>/security/audit-logs</code> — Query audit log entries
+    </div>
+    <div class="api-endpoint">
+        <span class="api-method api-get">GET</span>
+        <code>/security/secrets</code> — List secrets (metadata only)
+    </div>
+    <div class="api-endpoint">
+        <span class="api-method api-post">POST</span>
+        <code>/security/secrets</code> — Create or update a secret
+    </div>
+    <div class="api-endpoint">
+        <span class="api-method api-get">GET</span>
+        <code>/billing/usage</code> — Get current billing usage
+    </div>
+    <div class="api-endpoint">
+        <span class="api-method api-get">GET</span>
+        <code>/billing/invoices</code> — List past invoices
+    </div>
+</div>
+
+<!-- =====================================================================
+     CHAPTER 7 — DEPLOYMENT & OPERATIONS
+     ===================================================================== -->
+<div class="chapter" id="ch7">
+    <div class="chapter-number">Chapter 07</div>
+    <h1 class="chapter-title">Deployment & Operations</h1>
+    <div class="chapter-title-line"></div>
+
+    <h2 id="ch7-repo">7.1 &nbsp; Repository Structure</h2>
+    <p>The Aravanta CloudOS monorepo is organized for clarity, separation of concerns, and CI/CD efficiency.</p>
+
+    <div class="tree-container">
+<span class="tree-folder">aravanta-cloudos/</span>
+│
+├── <span class="tree-folder">frontend/</span>                     <span class="tree-comment"># React + TypeScript application</span>
+│   ├── <span class="tree-folder">src/</span>
+│   │   ├── <span class="tree-folder">components/</span>           <span class="tree-comment"># Reusable UI components</span>
+│   │   ├── <span class="tree-folder">pages/</span>                <span class="tree-comment"># Page-level components (Dashboard, Compute, etc.)</span>
+│   │   ├── <span class="tree-folder">hooks/</span>                <span class="tree-comment"># Custom React hooks</span>
+│   │   ├── <span class="tree-folder">services/</span>             <span class="tree-comment"># API client services</span>
+│   │   ├── <span class="tree-folder">stores/</span>               <span class="tree-comment"># Zustand state stores</span>
+│   │   ├── <span class="tree-folder">utils/</span>                <span class="tree-comment"># Utility functions</span>
+│   │   └── <span class="tree-file">App.tsx</span>              <span class="tree-comment"># Root application component</span>
+│   ├── <span class="tree-file">package.json</span>
+│   ├── <span class="tree-file">tailwind.config.ts</span>
+│   ├── <span class="tree-file">vite.config.ts</span>
+│   └── <span class="tree-file">Dockerfile</span>
+│
+├── <span class="tree-folder">backend/</span>                      <span class="tree-comment"># Python FastAPI application</span>
+│   ├── <span class="tree-folder">app/</span>
+│   │   ├── <span class="tree-folder">api/</span>                  <span class="tree-comment"># API route handlers</span>
+│   │   │   ├── <span class="tree-file">auth.py</span>
+│   │   │   ├── <span class="tree-file">compute.py</span>
+│   │   │   ├── <span class="tree-file">kubernetes.py</span>
+│   │   │   ├── <span class="tree-file">storage.py</span>
+│   │   │   ├── <span class="tree-file">databases.py</span>
+│   │   │   ├── <span class="tree-file">monitoring.py</span>
+│   │   │   ├── <span class="tree-file">security.py</span>
+│   │   │   └── <span class="tree-file">billing.py</span>
+│   │   ├── <span class="tree-folder">models/</span>               <span class="tree-comment"># SQLAlchemy ORM models</span>
+│   │   ├── <span class="tree-folder">schemas/</span>              <span class="tree-comment"># Pydantic request/response schemas</span>
+│   │   ├── <span class="tree-folder">services/</span>             <span class="tree-comment"># Business logic layer</span>
+│   │   ├── <span class="tree-folder">middleware/</span>            <span class="tree-comment"># Auth, logging, CORS middleware</span>
+│   │   ├── <span class="tree-folder">core/</span>                 <span class="tree-comment"># Configuration, database, security utils</span>
+│   │   └── <span class="tree-file">main.py</span>              <span class="tree-comment"># FastAPI app entry point</span>
+│   ├── <span class="tree-folder">migrations/</span>               <span class="tree-comment"># Alembic database migrations</span>
+│   ├── <span class="tree-folder">tests/</span>                    <span class="tree-comment"># Unit & integration tests</span>
+│   ├── <span class="tree-file">requirements.txt</span>
+│   └── <span class="tree-file">Dockerfile</span>
+│
+├── <span class="tree-folder">terraform/</span>                    <span class="tree-comment"># Infrastructure as Code</span>
+│   ├── <span class="tree-folder">modules/</span>                  <span class="tree-comment"># Reusable Terraform modules</span>
+│   │   ├── <span class="tree-folder">networking/</span>           <span class="tree-comment"># VPC, subnets, security groups</span>
+│   │   ├── <span class="tree-folder">compute/</span>              <span class="tree-comment"># Instance provisioning</span>
+│   │   ├── <span class="tree-folder">kubernetes/</span>           <span class="tree-comment"># Managed K8s cluster</span>
+│   │   ├── <span class="tree-folder">database/</span>             <span class="tree-comment"># Managed database instances</span>
+│   │   └── <span class="tree-folder">monitoring/</span>           <span class="tree-comment"># Monitoring stack</span>
+│   ├── <span class="tree-folder">environments/</span>             <span class="tree-comment"># Per-environment configs</span>
+│   │   ├── <span class="tree-folder">dev/</span>
+│   │   ├── <span class="tree-folder">staging/</span>
+│   │   └── <span class="tree-folder">production/</span>
+│   └── <span class="tree-file">main.tf</span>
+│
+├── <span class="tree-folder">kubernetes/</span>                   <span class="tree-comment"># K8s manifests & Helm charts</span>
+│   ├── <span class="tree-folder">base/</span>                     <span class="tree-comment"># Common manifests</span>
+│   ├── <span class="tree-folder">overlays/</span>                 <span class="tree-comment"># Kustomize per-env overlays</span>
+│   └── <span class="tree-folder">charts/</span>                   <span class="tree-comment"># Custom Helm charts</span>
+│
+├── <span class="tree-folder">docker/</span>                       <span class="tree-comment"># Docker Compose for local dev</span>
+│   └── <span class="tree-file">docker-compose.yml</span>
+│
+├── <span class="tree-folder">monitoring/</span>                   <span class="tree-comment"># Monitoring configuration</span>
+│   ├── <span class="tree-folder">prometheus/</span>               <span class="tree-comment"># Prometheus config & alert rules</span>
+│   ├── <span class="tree-folder">grafana/</span>                  <span class="tree-comment"># Dashboard JSON exports</span>
+│   └── <span class="tree-folder">loki/</span>                     <span class="tree-comment"># Loki configuration</span>
+│
+├── <span class="tree-folder">nginx/</span>                        <span class="tree-comment"># Nginx reverse proxy configs</span>
+│
+├── <span class="tree-folder">scripts/</span>                      <span class="tree-comment"># Automation scripts</span>
+│   ├── <span class="tree-file">setup.sh</span>                 <span class="tree-comment"># Local development setup</span>
+│   ├── <span class="tree-file">deploy.sh</span>                <span class="tree-comment"># Deployment automation</span>
+│   └── <span class="tree-file">seed.py</span>                  <span class="tree-comment"># Database seed data</span>
+│
+├── <span class="tree-folder">docs/</span>                         <span class="tree-comment"># Documentation</span>
+│
+├── <span class="tree-folder">.github/</span>
+│   └── <span class="tree-folder">workflows/</span>                <span class="tree-comment"># GitHub Actions CI/CD</span>
+│       ├── <span class="tree-file">ci.yml</span>
+│       ├── <span class="tree-file">cd-staging.yml</span>
+│       └── <span class="tree-file">cd-production.yml</span>
+│
+└── <span class="tree-file">README.md</span>
+    </div>
+
+    <h2 id="ch7-deploy">7.2 &nbsp; Deployment Strategy</h2>
+
+    <h3>Environment Promotion Flow</h3>
+    <div class="callout callout-success">
+        <div class="callout-title">🚀 Promotion Pipeline</div>
+        <p>
+            <strong>Local Dev</strong> (Docker Compose) →
+            <strong>CI</strong> (GitHub Actions: lint, test, scan, build) →
+            <strong>Staging</strong> (auto-deploy on merge to <code>develop</code>) →
+            <strong>Production</strong> (manual approval + canary deploy on merge to <code>main</code>)
+        </p>
+    </div>
+
+    <h3>Local Development Setup</h3>
+    <pre><code># Clone the repository
+git clone https://github.com/aravanta/cloudos.git
+cd cloudos
+
+# Start all services locally
+docker-compose -f docker/docker-compose.yml up -d
+
+# Backend runs at     → http://localhost:8000
+# Frontend runs at    → http://localhost:3000
+# Grafana runs at     → http://localhost:3001
+# Prometheus runs at  → http://localhost:9090
+
+# Run database migrations
+cd backend && alembic upgrade head
+
+# Seed sample data
+python scripts/seed.py</code></pre>
+</div>
+
+<!-- =====================================================================
+     CHAPTER 8 — MONITORING & OBSERVABILITY
+     ===================================================================== -->
+<div class="chapter" id="ch8">
+    <div class="chapter-number">Chapter 08</div>
+    <h1 class="chapter-title">Monitoring & Observability</h1>
+    <div class="chapter-title-line"></div>
+
+    <p>Aravanta CloudOS follows the three pillars of observability — <strong>Metrics</strong>, <strong>Logs</strong>, and <strong>Traces</strong> — unified under ArvWatch. The platform "eats its own dog food" by using the same monitoring stack to observe itself.</p>
+
+    <div class="diagram-container">
+        <img src="images/monitoring_stack.jpg" alt="Monitoring & Observability Stack">
+        <div class="diagram-caption">Figure 8.1 — ArvWatch Observability Architecture (Three Pillars + Alerting)</div>
+    </div>
+
+    <h2>8.1 &nbsp; Metrics Pipeline</h2>
+    <table>
+        <thead>
+            <tr><th>Component</th><th>Role</th></tr>
+        </thead>
+        <tbody>
+            <tr><td><strong>Prometheus</strong></td><td>Scrapes metrics from application endpoints (<code>/metrics</code>) every 15s</td></tr>
+            <tr><td><strong>Node Exporter</strong></td><td>Exposes host-level metrics (CPU, memory, disk, network)</td></tr>
+            <tr><td><strong>cAdvisor</strong></td><td>Container-level metrics (resource usage per container)</td></tr>
+            <tr><td><strong>Grafana</strong></td><td>Visualization dashboards with customizable panels</td></tr>
+            <tr><td><strong>Alertmanager</strong></td><td>Rule-based alerts with deduplication and routing to notification channels</td></tr>
+        </tbody>
+    </table>
+
+    <h2>8.2 &nbsp; Key Metrics & Alerts</h2>
+    <table>
+        <thead>
+            <tr><th>Metric</th><th>Alert Threshold</th><th>Severity</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>CPU Utilization (per instance)</td><td>> 85% for 5 minutes</td><td><span class="badge badge-gold">Warning</span></td></tr>
+            <tr><td>Memory Usage (per pod)</td><td>> 90% of limit</td><td><span class="badge badge-red">Critical</span></td></tr>
+            <tr><td>API Response Time (p99)</td><td>> 2 seconds</td><td><span class="badge badge-gold">Warning</span></td></tr>
+            <tr><td>Error Rate (5xx responses)</td><td>> 1% of total requests</td><td><span class="badge badge-red">Critical</span></td></tr>
+            <tr><td>Disk Usage</td><td>> 80% capacity</td><td><span class="badge badge-gold">Warning</span></td></tr>
+            <tr><td>Pod Restart Count</td><td>> 3 restarts in 10 minutes</td><td><span class="badge badge-red">Critical</span></td></tr>
+            <tr><td>Certificate Expiry</td><td>< 30 days remaining</td><td><span class="badge badge-blue">Info</span></td></tr>
+        </tbody>
+    </table>
+
+    <h2>8.3 &nbsp; Log Aggregation</h2>
+    <p>All application logs are structured as JSON and shipped to Loki via Promtail. Each log entry includes:</p>
+    <pre><code>{
+  "timestamp": "2026-07-31T14:22:01.432Z",
+  "level": "INFO",
+  "service": "compute-service",
+  "trace_id": "abc123def456",
+  "span_id": "789ghi012",
+  "user_id": "usr_4a9b2c",
+  "message": "Instance web-server-01 started successfully",
+  "metadata": {
+    "instance_id": "i-0a1b2c3d4e",
+    "region": "arv-us-east-1",
+    "instance_type": "arv.general.medium",
+    "duration_ms": 4520
+  }
+}</code></pre>
+</div>
+
+<!-- =====================================================================
+     CHAPTER 9 — SECURITY ARCHITECTURE
+     ===================================================================== -->
+<div class="chapter" id="ch9">
+    <div class="chapter-number">Chapter 09</div>
+    <h1 class="chapter-title">Security Architecture</h1>
+    <div class="chapter-title-line"></div>
+
+    <p>Security in Aravanta CloudOS follows a <strong>defense-in-depth</strong> strategy. Multiple independent security layers ensure that the compromise of any single layer does not expose the entire system.</p>
+
+    <div class="diagram-container">
+        <img src="images/security_architecture.jpg" alt="Security Architecture Diagram">
+        <div class="diagram-caption">Figure 9.1 — Defense-in-Depth Security Architecture</div>
+    </div>
+
+    <h2>9.1 &nbsp; Security Layers</h2>
+    <table>
+        <thead>
+            <tr><th>Layer</th><th>Protection</th><th>Implementation</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Edge Protection</strong></td>
+                <td>DDoS mitigation, WAF, bot detection</td>
+                <td>ArvEdge with rate limiting and IP reputation scoring</td>
+            </tr>
+            <tr>
+                <td><strong>API Gateway</strong></td>
+                <td>Authentication, rate limiting, request validation</td>
+                <td>Nginx + custom middleware; JWT validation on every request</td>
+            </tr>
+            <tr>
+                <td><strong>Application</strong></td>
+                <td>Input validation, SQL injection prevention, XSS prevention</td>
+                <td>Pydantic schemas, parameterized queries, CSP headers</td>
+            </tr>
+            <tr>
+                <td><strong>Service-to-Service</strong></td>
+                <td>Mutual TLS, service identity verification</td>
+                <td>mTLS via service mesh; each service has unique identity certificate</td>
+            </tr>
+            <tr>
+                <td><strong>Data</strong></td>
+                <td>Encryption at rest, encryption in transit</td>
+                <td>AES-256 for storage; TLS 1.3 for all network communication</td>
+            </tr>
+            <tr>
+                <td><strong>Secrets</strong></td>
+                <td>Encrypted secret storage, automatic rotation</td>
+                <td>HashiCorp Vault integration; secrets injected as environment variables</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>9.2 &nbsp; Compliance & Governance</h2>
+    <div class="service-grid">
+        <div class="service-card">
+            <h4>📜 SOC 2 Type II</h4>
+            <p>Automated evidence collection for SOC 2 controls. Continuous monitoring ensures ongoing compliance.</p>
+        </div>
+        <div class="service-card">
+            <h4>🔒 CIS Benchmarks</h4>
+            <p>Automated scanning against CIS Kubernetes, Docker, and Linux benchmarks with remediation guidance.</p>
+        </div>
+        <div class="service-card">
+            <h4>🌍 GDPR Ready</h4>
+            <p>Data residency controls, right-to-erasure workflows, and data processing audit trails.</p>
+        </div>
+        <div class="service-card">
+            <h4>📊 Audit Reports</h4>
+            <p>On-demand compliance reports with exportable evidence packages for auditors.</p>
+        </div>
+    </div>
+</div>
+
+<!-- =====================================================================
+     CHAPTER 10 — ROADMAP & FUTURE VISION
+     ===================================================================== -->
+<div class="chapter" id="ch10">
+    <div class="chapter-number">Chapter 10</div>
+    <h1 class="chapter-title">Roadmap & Future Vision</h1>
+    <div class="chapter-title-line"></div>
+
+    <div class="timeline">
+        <div class="timeline-item">
+            <div class="timeline-phase">Phase 1 — Foundation (Completed)</div>
+            <div class="timeline-title">Core Platform & Authentication</div>
+            <div class="timeline-desc">Identity module (ArvGate), Dashboard, ArvCompute basic instance management, project structure, database schema, CI/CD pipeline setup.</div>
+        </div>
+        <div class="timeline-item">
+            <div class="timeline-phase">Phase 2 — Container & Orchestration (Current)</div>
+            <div class="timeline-title">ArvKube + ArvRegistry + ArvStore</div>
+            <div class="timeline-desc">Managed Kubernetes clusters, container registry, object storage, Docker image build pipeline, deployment automation.</div>
+        </div>
+        <div class="timeline-item">
+            <div class="timeline-phase">Phase 3 — Observability & Security</div>
+            <div class="timeline-title">ArvWatch + Security Hardening</div>
+            <div class="timeline-desc">Full observability stack (metrics, logs, traces), secrets management, compliance scanner, audit logging, vulnerability scanning.</div>
+        </div>
+        <div class="timeline-item">
+            <div class="timeline-phase">Phase 4 — Intelligence & Automation</div>
+            <div class="timeline-title">ArvIntel — AI-Powered Operations</div>
+            <div class="timeline-desc">Anomaly detection, auto-remediation, cost optimization recommendations, natural language infrastructure queries, predictive scaling.</div>
+        </div>
+        <div class="timeline-item">
+            <div class="timeline-phase">Phase 5 — Multi-Cloud & Marketplace</div>
+            <div class="timeline-title">Provider Agnosticism & Extensibility</div>
+            <div class="timeline-desc">Multi-cloud support (beyond single provider), plugin marketplace for custom integrations, community-contributed Helm charts and Terraform modules.</div>
+        </div>
+        <div class="timeline-item">
+            <div class="timeline-phase">Phase 6 — Enterprise</div>
+            <div class="timeline-title">Enterprise Features & SaaS Offering</div>
+            <div class="timeline-desc">Multi-tenancy, organization hierarchies, advanced RBAC with attribute-based policies (ABAC), SLA monitoring, enterprise SSO, and managed SaaS offering.</div>
+        </div>
+    </div>
+
+    <hr class="separator">
+
+    <div class="callout callout-vision">
+        <div class="callout-title">🌟 The Bigger Picture</div>
+        <p>Aravanta CloudOS is not just a dashboard — it's a <strong>cloud operating system</strong>. Just as Linux abstracts hardware into a programmable interface, Aravanta CloudOS abstracts cloud infrastructure into a platform that developers can interact with through a unified API, a beautiful UI, and declarative configuration.</p>
+        <p style="margin-top: 10px;">The vision is to become the <strong>single pane of glass</strong> for modern infrastructure — whether you're running a side project on a single server or managing hundreds of microservices across multiple regions.</p>
+    </div>
+
+    <h2>Resume-Ready Description</h2>
+    <div class="callout callout-info">
+        <div class="callout-title">💼 Portfolio Project Description</div>
+        <p><strong>Aravanta CloudOS</strong> — A production-grade cloud operating platform featuring a unified web dashboard for provisioning compute instances (ArvCompute), managing Kubernetes clusters (ArvKube), orchestrating containers (ArvRegistry), storing objects (ArvStore), managing databases (ArvDB), automating infrastructure via IaC, and monitoring workloads (ArvWatch). Built with React, TypeScript, Python/FastAPI, PostgreSQL, Docker, Kubernetes, and Terraform. Implements JWT + OAuth2 authentication with MFA, granular RBAC, encrypted secrets management, CI/CD pipelines, real-time monitoring (Prometheus/Grafana/Loki), and cost management — all through provider-agnostic Aravanta service abstractions.</p>
+    </div>
+</div>
+
+<!-- =====================================================================
+     FOOTER
+     ===================================================================== -->
+<div class="page-footer">
+    <img src="images/aravanta_logo.png" alt="Aravanta Logo">
+    <p><strong>Aravanta CloudOS</strong> — Build. Deploy. Scale.</p>
+    <p>© 2026 Aravanta. All rights reserved.</p>
+    <p style="margin-top: 10px; font-size: 8pt; color: var(--gray-300);">
+        This document is confidential and intended for internal use and portfolio presentation.
+        Version 1.0 | July 2026
+    </p>
+</div>
+
+</body>
+</html>
