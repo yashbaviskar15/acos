@@ -8,8 +8,8 @@ COPY . .
 ENV PATH=/app/node_modules/.bin:$PATH
 # ensure all node module binaries and scripts are executable
 RUN chmod -R +x /app/node_modules || true
-# run tsc and vite via npx to avoid shell/permission issues
-RUN npx tsc && npx vite build
+# run tsc via node (avoids executing the shell wrapper) and then run vite
+RUN node ./node_modules/typescript/bin/tsc && npx vite build
 
 FROM nginx:alpine AS production
 COPY --from=build /app/dist /usr/share/nginx/html
