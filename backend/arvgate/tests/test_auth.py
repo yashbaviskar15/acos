@@ -9,7 +9,7 @@ def register_user(client, email: str, role: str = "SuperAdmin") -> dict:
         json={
             "email": email,
             "password": "CloudOSPassword123!",
-            "full_name": "Platform Operator",
+            "fulgit pull --rebase origin mainl_name": "Platform Operator",
             "role": role,
         },
     )
