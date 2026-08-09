@@ -1,3 +1,4 @@
+import { API_URL } from "../config/api";
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Server, Boxes, HardDrive, Database, GitBranch, Activity, ShieldCheck, CreditCard,
@@ -98,12 +99,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, onNavigate }) => {
 
     try {
       const [resMetrics, resInstances, resAlerts, resBreakdown, resPricing, resInvoices] = await Promise.all([
-        fetch('/api/v1/monitoring/metrics', { headers: authHeaders }).then(r => r.ok ? r.json() : null).catch(() => null),
-        fetch('/api/v1/compute/instances', { headers: authHeaders }).then(r => r.ok ? r.json() : null).catch(() => null),
-        fetch('/api/v1/monitoring/alerts', { headers: authHeaders }).then(r => r.ok ? r.json() : null).catch(() => null),
-        fetch('/api/v1/billing/breakdown').then(r => r.ok ? r.json() : null).catch(() => null),
-        fetch('/api/v1/billing/service-pricing').then(r => r.ok ? r.json() : null).catch(() => null),
-        fetch('/api/v1/billing/invoices').then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch(`${API_URL}/v1/monitoring/metrics`, { headers: authHeaders }).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch(`${API_URL}/v1/compute/instances`, { headers: authHeaders }).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch(`${API_URL}/v1/monitoring/alerts`, { headers: authHeaders }).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch(`${API_URL}/v1/billing/breakdown`).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch(`${API_URL}/v1/billing/service-pricing`).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch(`${API_URL}/v1/billing/invoices`).then(r => r.ok ? r.json() : null).catch(() => null),
       ]);
 
       if (resMetrics) setMetrics(resMetrics);
@@ -135,7 +136,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, onNavigate }) => {
     } : { 'Content-Type': 'application/json' };
 
     try {
-      const res = await fetch('/api/v1/compute/instances', {
+      const res = await fetch(`${API_URL}/v1/compute/instances`, {
         method: 'POST',
         headers: authHeaders,
         body: JSON.stringify({ name: vmName.trim(), instance_type: vmType, region: vmRegion })
