@@ -14,4 +14,4 @@ select = ["E", "F", "I", "B", "UP"]
 quote-style = "double"
 
 [tool.vercel]
-entrypoint = "app.main:app"
+entrypoint = "main:app"
