@@ -18,7 +18,7 @@ const serviceGuides = [
       { title: 'Configure your VM', detail: 'Fill in the instance name, select an instance type (e.g. arv.medium — 2 vCPUs, 4GB RAM), choose a region and OS image.' },
       { title: 'Launch & Monitor', detail: 'Click "Launch Instance" to create your VM. It will appear in the instances list with status "running". Use the action buttons to stop, restart, or terminate.' },
     ],
-    apiExample: `curl -X POST http://localhost:8000/api/v1/compute/instances \\
+    apiExample: `curl -X POST ${import.meta.env.VITE_API_URL}/api/v1/compute/instances \\
   -H "Content-Type: application/json" \\
   -d '{"name":"web-server","instance_type":"arv.medium","region":"arv-us-east-1","image":"Ubuntu 24.04 LTS"}'`,
   },
@@ -34,7 +34,7 @@ const serviceGuides = [
       { title: 'Configure your Cluster', detail: 'Enter a cluster name, select Kubernetes version (e.g. 1.29), choose a region, set the desired node count and node type.' },
       { title: 'Deploy & Scale', detail: 'Once created, you can view cluster details, scale node pools up/down, and monitor pod health from the dashboard.' },
     ],
-    apiExample: `curl -X POST http://localhost:8000/api/v1/kubernetes/clusters \\
+    apiExample: `curl -X POST ${import.meta.env.VITE_API_URL}/api/v1/kubernetes/clusters \\
   -H "Content-Type: application/json" \\
   -d '{"name":"prod-cluster","version":"1.29","region":"arv-us-east-1","node_count":3,"node_type":"arv.large"}'`,
   },
@@ -50,7 +50,7 @@ const serviceGuides = [
       { title: 'Configure your Bucket', detail: 'Enter a globally unique bucket name, select storage class (Standard, Infrequent Access, or Archive), choose a region and access policy.' },
       { title: 'Browse Objects', detail: 'Click on any bucket in the list to browse its contained objects, view file sizes, content types, and last modified timestamps.' },
     ],
-    apiExample: `curl -X POST http://localhost:8000/api/v1/storage/buckets \\
+    apiExample: `curl -X POST ${import.meta.env.VITE_API_URL}/api/v1/storage/buckets \\
   -H "Content-Type: application/json" \\
   -d '{"name":"my-app-assets","region":"arv-us-east-1","storage_class":"STANDARD","access":"PRIVATE"}'`,
   },
@@ -66,7 +66,7 @@ const serviceGuides = [
       { title: 'Configure your Database', detail: 'Enter a database name, select the engine (PostgreSQL, MySQL, MongoDB, Redis), choose instance size, region, and storage capacity.' },
       { title: 'Connect & Query', detail: 'Once provisioned, use the connection string shown in the database details to connect from your application. All databases include automated daily backups.' },
     ],
-    apiExample: `curl -X POST http://localhost:8000/api/v1/databases \\
+    apiExample: `curl -X POST ${import.meta.env.VITE_API_URL}/api/v1/databases \\
   -H "Content-Type: application/json" \\
   -d '{"name":"analytics-db","engine":"postgresql","version":"16","region":"arv-us-east-1","instance_type":"arv.medium","storage_gb":50}'`,
   },
@@ -82,7 +82,7 @@ const serviceGuides = [
       { title: 'Configure your Pipeline', detail: 'Enter a pipeline name, Git repository URL, and target branch. The pipeline auto-detects your build configuration.' },
       { title: 'Trigger Builds', detail: 'Click "Trigger Run" on any pipeline to start a new build. Monitor status, duration, and success/failure indicators in real-time.' },
     ],
-    apiExample: `curl -X POST http://localhost:8000/api/v1/cicd/pipelines \\
+    apiExample: `curl -X POST ${import.meta.env.VITE_API_URL}/api/v1/cicd/pipelines \\
   -H "Content-Type: application/json" \\
   -d '{"name":"auth-service-ci","repository":"aravanta/auth-service","branch":"main"}'`,
   },
@@ -99,13 +99,13 @@ const serviceGuides = [
       { title: 'Health Matrix', detail: 'The Health Matrix panel shows real-time status of all microservices with latency measurements.' },
     ],
     apiExample: `# Get current system metrics
-curl http://localhost:8000/api/v1/monitoring/metrics
+curl ${import.meta.env.VITE_API_URL}/api/v1/monitoring/metrics
 
 # Get active alerts
-curl http://localhost:8000/api/v1/monitoring/alerts
+curl ${import.meta.env.VITE_API_URL}/api/v1/monitoring/alerts
 
 # Get microservice health status
-curl http://localhost:8000/api/v1/monitoring/health`,
+curl ${import.meta.env.VITE_API_URL}/api/v1/monitoring/health`,
   },
   {
     id: 'security',
@@ -120,7 +120,7 @@ curl http://localhost:8000/api/v1/monitoring/health`,
       { title: 'Compliance', detail: 'All audit logs are immutable and timestamped for regulatory compliance. Filter by service module to investigate specific events.' },
     ],
     apiExample: `# Get audit log entries
-curl http://localhost:8000/api/v1/monitoring/audit-log`,
+curl ${import.meta.env.VITE_API_URL}/api/v1/monitoring/audit-log`,
   },
 ];
 

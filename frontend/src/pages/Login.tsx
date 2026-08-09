@@ -150,7 +150,8 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
 
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/auth/login', {
+      const API_URL = import.meta.env.VITE_API_URL;
+      const res = await fetch(`${API_URL}/api/v1/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), password }),
@@ -194,7 +195,8 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
 
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/auth/mfa/verify', {
+      const API_URL = import.meta.env.VITE_API_URL;
+      const res = await fetch(`${API_URL}/api/v1/auth/mfa/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: mfaUserData?.email || email, mfa_code: mfaCode }),
@@ -231,7 +233,8 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
 
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/auth/register', {
+      const API_URL = import.meta.env.VITE_API_URL;
+      const res = await fetch(`${API_URL}/api/v1/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: regEmail.trim(), password: regPassword, full_name: regFullName.trim(), role: regRole }),
@@ -285,7 +288,8 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
 
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/auth/password-reset/request', {
+      const API_URL = import.meta.env.VITE_API_URL;
+      const res = await fetch(`${API_URL}/api/v1/auth/password-reset/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: resetEmail.trim() }),
@@ -323,7 +327,8 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
 
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/auth/password-reset/confirm', {
+      const API_URL = import.meta.env.VITE_API_URL;
+      const res = await fetch(`${API_URL}/api/v1/auth/password-reset/confirm`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: resetEmail.trim(), reset_token: resetToken.trim(), new_password: newPassword }),
