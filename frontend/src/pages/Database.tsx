@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Database, Plus, Trash2, RefreshCw } from 'lucide-react';
 import { ModalPortal } from '../components/ModalPortal';
+import { apiFetch } from '../config/api';
 
 interface DatabaseProps {
   token: string | null;
@@ -26,16 +27,11 @@ export const Databases: React.FC<DatabaseProps> = ({ token }) => {
   const fetchDatabases = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/databases/instances', { headers: authHeaders });
-      if (res.ok) {
-        const data = await res.json();
-        setDatabases(Array.isArray(data) ? data : []);
-      }
+      const data = await apiFetch<any[]>('/v1/databases/instances', { headers: authHeaders });
+      setDatabases(Array.isArray(data) ? data : []);
 
-      const sumRes = await fetch('/api/v1/databases/summary', { headers: authHeaders });
-      if (sumRes.ok) {
-        setSummary(await sumRes.json());
-      }
+      const summaryData = await apiFetch('/v1/databases/summary', { headers: authHeaders });
+      setSummary(summaryData);
     } catch (err) {
       console.error(err);
     } finally {
@@ -51,16 +47,14 @@ export const Databases: React.FC<DatabaseProps> = ({ token }) => {
     e.preventDefault();
     setActionLoading(true);
     try {
-      const res = await fetch('/api/v1/databases/instances', {
+      await apiFetch('/v1/databases/instances', {
         method: 'POST',
-        headers: { ...authHeaders, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, engine, tier, region, storage_gb: Number(storageGb), multi_az: multiAz })
+        headers: authHeaders,
+        body: JSON.stringify({ name, engine, tier, region, storage_gb: Number(storageGb), multi_az: multiAz }),
       });
-      if (res.ok) {
-        setShowCreateModal(false);
-        setName('');
-        fetchDatabases();
-      }
+      setShowCreateModal(false);
+      setName('');
+      fetchDatabases();
     } catch (err) {
       console.error(err);
     } finally {
@@ -71,13 +65,11 @@ export const Databases: React.FC<DatabaseProps> = ({ token }) => {
   const handleDeleteDB = async (dbId: string) => {
     if (!confirm('Are you sure you want to terminate this database instance? Data will be backed up.')) return;
     try {
-      const res = await fetch(`/api/v1/databases/instances/${dbId}`, {
+      await apiFetch(`/v1/databases/instances/${dbId}`, {
         method: 'DELETE',
-        headers: authHeaders
+        headers: authHeaders,
       });
-      if (res.ok) {
-        fetchDatabases();
-      }
+      fetchDatabases();
     } catch (err) {
       console.error(err);
     }

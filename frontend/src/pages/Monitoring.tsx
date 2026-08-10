@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Activity, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
+import { apiFetch } from '../config/api';
 
 interface MonitoringProps {
   token: string | null;
@@ -16,14 +17,13 @@ export const Monitoring: React.FC<MonitoringProps> = ({ token }) => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const mRes = await fetch('/api/v1/monitoring/metrics', { headers: authHeaders });
-      if (mRes.ok) setMetrics(await mRes.json());
+      const metricsData = await apiFetch('/v1/monitoring/metrics', { headers: authHeaders }).catch(() => null);
+      const alertsData = await apiFetch('/v1/monitoring/alerts', { headers: authHeaders }).catch(() => []);
+      const healthData = await apiFetch('/v1/monitoring/health', { headers: authHeaders }).catch(() => null);
 
-      const aRes = await fetch('/api/v1/monitoring/alerts', { headers: authHeaders });
-      if (aRes.ok) setAlerts(await aRes.json());
-
-      const hRes = await fetch('/api/v1/monitoring/health', { headers: authHeaders });
-      if (hRes.ok) setHealth(await hRes.json());
+      setMetrics(metricsData);
+      setAlerts(Array.isArray(alertsData) ? alertsData : []);
+      setHealth(healthData);
     } catch (err) {
       console.error(err);
     } finally {
@@ -37,11 +37,11 @@ export const Monitoring: React.FC<MonitoringProps> = ({ token }) => {
 
   const handleAlertAction = async (alertId: string, action: 'acknowledge' | 'resolve') => {
     try {
-      const res = await fetch(`/api/v1/monitoring/alerts/${alertId}/${action}`, {
+      await apiFetch(`/v1/monitoring/alerts/${alertId}/${action}`, {
         method: 'POST',
-        headers: authHeaders
+        headers: authHeaders,
       });
-      if (res.ok) fetchData();
+      fetchData();
     } catch (err) {
       console.error(err);
     }

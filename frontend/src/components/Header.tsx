@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Bell, Search, RefreshCw, Sun, Moon, X, Menu, User, Clock, BellRing, CheckCircle2 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { apiFetch } from '../config/api';
 import { requestNotificationPermission, sendSystemNotification } from '../utils/notifications';
 
 interface HeaderProps {
@@ -50,31 +51,26 @@ export const Header: React.FC<HeaderProps> = ({
   useEffect(() => {
     const fetchNotifications = async () => {
       try {
-        const res = await fetch('/api/v1/monitoring/alerts');
-        if (res.ok) {
-          const alerts = await res.json();
-          if (Array.isArray(alerts) && alerts.length > 0) {
-            setNotifications(alerts.map((a: any, i: number) => ({
-              id: a.id || i + 1,
-              title: a.title || a.name || 'System Alert',
-              desc: a.message || a.description || 'Alert triggered',
-              time: a.created_at ? new Date(a.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Just now',
-              type: a.severity === 'critical' ? 'error' : a.severity === 'warning' ? 'warning' : 'info',
-              read: false
-            })));
-          } else {
-            // Set reasonable defaults if API returns empty
-            setNotifications([
-              { id: 1, title: 'System Operational', desc: 'All Aravanta CloudOS services are running normally', time: 'Now', type: 'success', read: false },
-              { id: 2, title: 'Trial Active', desc: 'Your 10-day free trial is active. Complete payment to continue.', time: '1h ago', type: 'info', read: false },
-            ]);
-          }
+        const alerts = await apiFetch('/v1/monitoring/alerts');
+        if (Array.isArray(alerts) && alerts.length > 0) {
+          setNotifications(alerts.map((a: any, i: number) => ({
+            id: a.id || i + 1,
+            title: a.title || a.name || 'System Alert',
+            desc: a.message || a.description || 'Alert triggered',
+            time: a.created_at ? new Date(a.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Just now',
+            type: a.severity === 'critical' ? 'error' : a.severity === 'warning' ? 'warning' : 'info',
+            read: false
+          })));
+          return;
         }
       } catch {
-        setNotifications([
-          { id: 1, title: 'System Operational', desc: 'All services running normally', time: 'Now', type: 'success', read: false },
-        ]);
+        // ignore and fall back to defaults
       }
+
+      setNotifications([
+        { id: 1, title: 'System Operational', desc: 'All Aravanta CloudOS services are running normally', time: 'Now', type: 'success', read: false },
+        { id: 2, title: 'Trial Active', desc: 'Your 10-day free trial is active. Complete payment to continue.', time: '1h ago', type: 'info', read: false },
+      ]);
     };
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 30000);

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Zap, ArrowUpRight, RefreshCw, FileText, CheckCircle2, CreditCard, Clock, Download, ShieldCheck, IndianRupee, ExternalLink, Check, Sparkles } from 'lucide-react';
 import { generateInvoicePDF, InvoiceData } from '../utils/pdfGenerator';
 import { sendSystemNotification } from '../utils/notifications';
+import { apiFetch } from '../config/api';
 
 declare global {
   interface Window {
@@ -42,22 +43,19 @@ export const Billing: React.FC = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [resSum, resBreak, resInv, resPlans] = await Promise.all([
-        fetch('/api/v1/billing/summary'),
-        fetch('/api/v1/billing/breakdown'),
-        fetch('/api/v1/billing/invoices'),
-        fetch('/api/v1/billing/plans')
+      const [summaryData, breakdownData, invoicesData, plansData] = await Promise.all([
+        apiFetch('/v1/billing/summary'),
+        apiFetch('/v1/billing/breakdown'),
+        apiFetch('/v1/billing/invoices'),
+        apiFetch('/v1/billing/plans'),
       ]);
-      if (resSum.ok) {
-        const sData = await resSum.json();
-        setSummary(sData);
-        setBudgetCap(Math.round(sData.monthly_budget_usd * USD_TO_INR));
-      }
-      if (resBreak.ok) setBreakdown(await resBreak.json());
-      if (resInv.ok) setInvoices(await resInv.json());
-      if (resPlans.ok) setPlans(await resPlans.json());
+      setSummary(summaryData);
+      setBudgetCap(Math.round((summaryData?.monthly_budget_usd ?? 60) * USD_TO_INR));
+      setBreakdown(Array.isArray(breakdownData) ? breakdownData : []);
+      setInvoices(Array.isArray(invoicesData) ? invoicesData : []);
+      setPlans(Array.isArray(plansData) ? plansData : []);
     } catch (err) {
-      console.error("Failed to load Billing data:", err);
+      console.error('Failed to load Billing data:', err);
     } finally {
       setLoading(false);
     }
@@ -73,16 +71,13 @@ export const Billing: React.FC = () => {
     setBudgetMsg('');
     try {
       const usdCap = Math.round(budgetCap / USD_TO_INR);
-      const res = await fetch('/api/v1/billing/budget', {
+      await apiFetch('/v1/billing/budget', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ monthly_budget_usd: usdCap }),
       });
-      if (res.ok) {
-        setBudgetMsg('Monthly budget limit updated successfully!');
-        fetchData();
-        setTimeout(() => setBudgetMsg(''), 3000);
-      }
+      setBudgetMsg('Monthly budget limit updated successfully!');
+      fetchData();
+      setTimeout(() => setBudgetMsg(''), 3000);
     } catch (err) {
       console.error(err);
     } finally {
@@ -144,21 +139,14 @@ export const Billing: React.FC = () => {
     try {
       // Step 1: Create order on backend in paise (₹ x 100)
       const amountInPaise = planPriceINR * 100;
-      const orderRes = await fetch('/api/v1/billing/create-order', {
+      const orderData = await apiFetch('/v1/billing/create-order', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           amount: amountInPaise,
           currency: 'INR',
-          description: `Aravanta CloudOS ${planName} Subscription`
-        })
+          description: `Aravanta CloudOS ${planName} Subscription`,
+        }),
       });
-
-      if (!orderRes.ok) {
-        throw new Error('Failed to create order');
-      }
-
-      const orderData = await orderRes.json();
 
       // Step 2: Open Razorpay Checkout (direct payment mode — no server order_id needed for test keys)
       const options = {
@@ -170,20 +158,15 @@ export const Billing: React.FC = () => {
         handler: async function (response: any) {
           // Step 3: Verify payment on backend
           try {
-            const verifyRes = await fetch('/api/v1/billing/verify-payment', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_order_id: response.razorpay_order_id || orderData.order_id || '',
-                razorpay_signature: response.razorpay_signature || '',
-                amount_inr: planPriceINR
-              })
-            });
-
-            if (verifyRes.ok) {
-              const verifyData = await verifyRes.json();
-
+              const verifyData = await apiFetch('/v1/billing/verify-payment', {
+                method: 'POST',
+                body: JSON.stringify({
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_order_id: response.razorpay_order_id || orderData.order_id || '',
+                  razorpay_signature: response.razorpay_signature || '',
+                  amount_inr: planPriceINR,
+                }),
+              });
               // Add new invoice
               const newInv = {
                 invoice_id: verifyData.invoice_id,
@@ -207,7 +190,6 @@ export const Billing: React.FC = () => {
                 '✅ Payment Successful',
                 `₹${planPriceINR.toLocaleString('en-IN')} payment confirmed. Invoice ${verifyData.invoice_id} generated.`
               );
-            }
           } catch (err) {
             console.error('Payment verification failed:', err);
           }
