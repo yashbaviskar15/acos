@@ -1,0 +1,52 @@
+# Default values for Aravanta CloudOS Helm Chart
+
+replicaCount: 2
+
+image:
+  backendRepository: aravanta/backend
+  frontendRepository: aravanta/frontend
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  backendPort: 8000
+  frontendPort: 3000
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: 50m
+  hosts:
+    - host: cloudos.aravanta.cloud
+      paths:
+        - path: /api
+          pathType: Prefix
+          backendService: backend
+        - path: /
+          pathType: Prefix
+          backendService: frontend
+  tls:
+    - secretName: aravanta-cloudos-tls
+      hosts:
+        - cloudos.aravanta.cloud
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+
+env:
+  DATABASE_URL: "postgresql://aravanta:aravanta_password@aravanta-postgres:5432/aravanta_db"
+  REDIS_URL: "redis://aravanta-redis:6379/0"
