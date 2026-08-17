@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node ./node_modules/typescript/bin/tsc && node ./node_modules/vite/bin/vite.js build",
+    "build": "npx tsc && npx vite build",
     "preview": "vite preview",
     "typecheck": "node ./node_modules/typescript/bin/tsc --noEmit",
     "lint": "eslint src --ext ts,tsx --max-warnings 0"
   },
   "dependencies": {
+    "browserslist": "^4.28.8",
+    "caniuse-lite": "^1.0.30001809",
     "framer-motion": "^12.43.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",

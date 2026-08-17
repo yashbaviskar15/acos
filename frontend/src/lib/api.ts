@@ -26,11 +26,11 @@ export interface RegisterResponse {
   note: string;
 }
 
-export async function apiFetch<T = any>(
+export async function apiFetch(
   path: string,
   options: RequestInit = {},
   token?: string | null,
-): Promise<T> {
+): Promise<any> {
   const headers = new Headers(options.headers ?? {});
 
   // Only set Content-Type when a body is present and it's not FormData
@@ -41,7 +41,7 @@ export async function apiFetch<T = any>(
   }
 
   if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
+    headers.set('Authorization', 'Bearer ' + token);
   }
 
   // Prepend /api to paths that don't already start with /api
@@ -58,7 +58,6 @@ export async function apiFetch<T = any>(
     try {
       payload = await response.json();
     } catch (err) {
-      // invalid json
       payload = null;
     }
   } else {
@@ -70,12 +69,11 @@ export async function apiFetch<T = any>(
   }
 
   if (!response.ok) {
-    // Try to surface meaningful error messages from backend JSON
     const detail = isJson && payload && typeof payload === 'object' && ('detail' in payload)
       ? String((payload as any).detail)
       : `Request failed with status ${response.status}`;
     throw new Error(detail);
   }
 
-  return payload as T;
+  return payload;
 }

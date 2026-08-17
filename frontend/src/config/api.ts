@@ -7,7 +7,7 @@ const isBlob = (value: unknown): value is Blob => value instanceof Blob;
 const isArrayBuffer = (value: unknown): value is ArrayBuffer => value instanceof ArrayBuffer;
 const isURLSearchParams = (value: unknown): value is URLSearchParams => value instanceof URLSearchParams;
 
-export async function apiFetch<T>(path: string, options: RequestInit = {}, token?: string | null): Promise<T> {
+export async function apiFetch<T = any>(path: string, options: RequestInit = {}, token?: string | null): Promise<T> {
   const url = path.startsWith('/api') ? path : `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
   const headers = new Headers(options.headers ?? {});
 
@@ -16,7 +16,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}, token
   }
 
   if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
+    headers.set('Authorization', 'Bearer ' + token);
   }
 
   const response = await fetch(url, { credentials: options.credentials ?? 'same-origin', ...options, headers });
