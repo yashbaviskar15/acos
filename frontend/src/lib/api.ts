@@ -26,26 +26,54 @@ export interface RegisterResponse {
   note: string;
 }
 
-export async function apiFetch<T>(
+export async function apiFetch<T = any>(
   path: string,
   options: RequestInit = {},
   token?: string | null,
 ): Promise<T> {
   const headers = new Headers(options.headers ?? {});
-  headers.set('Content-Type', 'application/json');
+
+  // Only set Content-Type when a body is present and it's not FormData
+  if (options.body != null && !(options.body instanceof FormData)) {
+    if (!headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
+    }
+  }
+
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const response = await fetch(path, { ...options, headers });
-  const isJson = response.headers.get('content-type')?.includes('application/json');
-  const payload = isJson ? await response.json() : null;
+  // Prepend /api to paths that don't already start with /api
+  // This ensures all API calls go through the Vercel rewrite to the backend
+  const apiPath = path.startsWith('/api') ? path : `/api${path}`;
+
+  const response = await fetch(apiPath, { ...options, headers });
+
+  const contentType = response.headers.get('content-type') || '';
+  const isJson = contentType.includes('application/json');
+
+  let payload: any = null;
+  if (isJson) {
+    try {
+      payload = await response.json();
+    } catch (err) {
+      // invalid json
+      payload = null;
+    }
+  } else {
+    try {
+      payload = await response.text();
+    } catch (err) {
+      payload = null;
+    }
+  }
 
   if (!response.ok) {
-    const detail =
-      payload && typeof payload === 'object' && 'detail' in payload
-        ? String(payload.detail)
-        : `Request failed with status ${response.status}`;
+    // Try to surface meaningful error messages from backend JSON
+    const detail = isJson && payload && typeof payload === 'object' && ('detail' in payload)
+      ? String((payload as any).detail)
+      : `Request failed with status ${response.status}`;
     throw new Error(detail);
   }
 

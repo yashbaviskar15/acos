@@ -54,6 +54,19 @@ export const Billing: React.FC = () => {
       setBreakdown(Array.isArray(breakdownData) ? breakdownData : []);
       setInvoices(Array.isArray(invoicesData) ? invoicesData : []);
       setPlans(Array.isArray(plansData) ? plansData : []);
+      const [resSum, resBreak, resInv, resPlans] = await Promise.all([
+        apiFetch('/api/v1/billing/summary'),
+        apiFetch('/api/v1/billing/breakdown'),
+        apiFetch('/api/v1/billing/invoices'),
+        apiFetch('/api/v1/billing/plans')
+      ]);
+      if (resSum) {
+        setSummary(resSum);
+        setBudgetCap(Math.round(resSum.monthly_budget_usd * USD_TO_INR));
+      }
+      if (resBreak) setBreakdown(resBreak);
+      if (resInv) setInvoices(resInv);
+      if (resPlans) setPlans(resPlans);
     } catch (err) {
       console.error('Failed to load Billing data:', err);
     } finally {
@@ -78,6 +91,15 @@ export const Billing: React.FC = () => {
       setBudgetMsg('Monthly budget limit updated successfully!');
       fetchData();
       setTimeout(() => setBudgetMsg(''), 3000);
+      const res = await apiFetch('/api/v1/billing/budget', {
+        method: 'POST',
+        body: JSON.stringify({ monthly_budget_usd: usdCap }),
+      });
+      if (res) {
+        setBudgetMsg('Monthly budget limit updated successfully!');
+        fetchData();
+        setTimeout(() => setBudgetMsg(''), 3000);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -148,7 +170,7 @@ export const Billing: React.FC = () => {
         }),
       });
 
-      // Step 2: Open Razorpay Checkout (direct payment mode — no server order_id needed for test keys)
+      // Step 2: Open Razorpay Checkout (direct payment mode — no server order_id needed for test keys)// Step 2: Open Razorpay Checkout (direct payment mode — no server order_id needed for test keys)
       const options = {
         key: 'rzp_test_1DP5mmOlF5G5ag',
         amount: amountInPaise,
@@ -157,17 +179,18 @@ export const Billing: React.FC = () => {
         description: `${planName} Subscription — ₹${planPriceINR}/mo`,
         handler: async function (response: any) {
           // Step 3: Verify payment on backend
-          try {
+            try {
               const verifyData = await apiFetch('/v1/billing/verify-payment', {
                 method: 'POST',
                 body: JSON.stringify({
                   razorpay_payment_id: response.razorpay_payment_id,
                   razorpay_order_id: response.razorpay_order_id || orderData.order_id || '',
                   razorpay_signature: response.razorpay_signature || '',
-                  amount_inr: planPriceINR,
+                  amount_inr: planPriceINR
                 }),
               });
-              // Add new invoice
+
+              // Add new invoice              // Add new invoice
               const newInv = {
                 invoice_id: verifyData.invoice_id,
                 period: `${new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })}`,
@@ -216,7 +239,7 @@ export const Billing: React.FC = () => {
           animation: true,
           confirm_close: true
         }
-      };
+    };
 
       const rzp = new window.Razorpay(options);
       rzp.on('payment.failed', function (response: any) {

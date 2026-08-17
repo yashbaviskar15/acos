@@ -146,6 +146,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
         method: 'POST',
         body: JSON.stringify({ email: email.trim(), password }),
       });
+      if (!data) throw new Error('Invalid credentials. Please verify email/Account ID and password.');
 
       if (data.is_mfa_required) {
         setMfaUserData(data);
@@ -187,6 +188,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
         method: 'POST',
         body: JSON.stringify({ email: mfaUserData?.email || email, mfa_code: mfaCode }),
       });
+      if (!data) throw new Error('Invalid MFA passcode.');
 
       onLoginSuccess(
         {
@@ -222,10 +224,33 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
         body: JSON.stringify({ email: regEmail.trim(), password: regPassword, full_name: regFullName.trim(), role: regRole }),
       });
 
-      setSuccess(`Account registered as '${data.user.role || regRole}'. Please sign in to continue.`);
-      setActiveTab('signin');
-      setEmail(regEmail.trim());
-      setPassword('');
+      if (!data) throw new Error('Registration failed.');
+
+      setSuccess(`Account registered as '${data.role || regRole}'! Authenticating...`);
+
+      const loginData = await apiFetch('/v1/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email: regEmail.trim(), password: regPassword }),
+      });
+
+      if (loginData) {
+        setTimeout(() => {
+          onLoginSuccess(
+            {
+              email: loginData.email,
+              account_id: loginData.account_id || data.account_id,
+              role: loginData.role || regRole,
+              full_name: regFullName.trim(),
+            },
+            loginData.access_token
+          );
+        }, 500);
+      } else {
+        setActiveTab('signin');
+        setEmail(regEmail);
+        setSuccess('Account registered. Please enter password to sign in.');
+      }
+
     } catch (err: any) {
       setError(err.message || 'Unable to complete registration.');
     } finally {
@@ -250,6 +275,12 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
         method: 'POST',
         body: JSON.stringify({ email: resetEmail.trim() }),
       });
+      const data = await apiFetch('/v1/auth/password-reset/request', {
+        method: 'POST',
+        body: JSON.stringify({ email: resetEmail.trim() }),
+      });
+      if (!data) throw new Error('Failed to send reset code.');
+
       setSuccess(`Verification code sent to ${resetEmail.trim()}`);
       setResetStep(2);
     } catch (err: any) {
@@ -284,6 +315,11 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
         method: 'POST',
         body: JSON.stringify({ email: resetEmail.trim(), reset_token: resetToken.trim(), new_password: newPassword }),
       });
+      const data = await apiFetch('/v1/auth/password-reset/confirm', {
+        method: 'POST',
+        body: JSON.stringify({ email: resetEmail.trim(), reset_token: resetToken.trim(), new_password: newPassword }),
+      });
+      if (!data) throw new Error('Failed to reset password.');
 
       setEmail(resetEmail);
       setActiveTab('signin');
