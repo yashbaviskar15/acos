@@ -15,8 +15,9 @@ export async function apiFetch<T = any>(path: string, options: RequestInit = {},
     headers.set('Content-Type', 'application/json');
   }
 
-  if (token) {
-    headers.set('Authorization', 'Bearer ' + token);
+  const storedToken = token ?? (typeof window !== 'undefined' ? localStorage.getItem('aravanta_token') : null);
+  if (storedToken) {
+    headers.set('Authorization', 'Bearer ' + storedToken);
   }
 
   const response = await fetch(url, { credentials: options.credentials ?? 'same-origin', ...options, headers });

@@ -13,5 +13,16 @@ export default defineConfig({
         secure: false
       }
     }
+  },
+  build: {
+    commonjsOptions: {
+      include: [/node_modules/]
+    }
+  },
+  optimizeDeps: {
+    include: ['core-js']
+  },
+  ssr: {
+    noExternal: ['core-js']
   }
 })
