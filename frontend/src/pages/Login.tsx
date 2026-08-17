@@ -142,7 +142,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
 
     setLoading(true);
     try {
-      const data = await apiFetch('/v1/auth/login', {
+      const data: any = await apiFetch<any>('/v1/auth/login', {
         method: 'POST',
         body: JSON.stringify({ email: email.trim(), password }),
       });
@@ -184,7 +184,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
 
     setLoading(true);
     try {
-      const data = await apiFetch('/v1/auth/mfa/verify', {
+      const data: any = await apiFetch<any>('/v1/auth/mfa/verify', {
         method: 'POST',
         body: JSON.stringify({ email: mfaUserData?.email || email, mfa_code: mfaCode }),
       });
@@ -219,7 +219,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
 
     setLoading(true);
     try {
-      const data = await apiFetch('/v1/auth/register', {
+      const data: any = await apiFetch<any>('/v1/auth/register', {
         method: 'POST',
         body: JSON.stringify({ email: regEmail.trim(), password: regPassword, full_name: regFullName.trim(), role: regRole }),
       });
@@ -228,7 +228,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
 
       setSuccess(`Account registered as '${data.role || regRole}'! Authenticating...`);
 
-      const loginData = await apiFetch('/v1/auth/login', {
+      const loginData: any = await apiFetch<any>('/v1/auth/login', {
         method: 'POST',
         body: JSON.stringify({ email: regEmail.trim(), password: regPassword }),
       });

@@ -44,10 +44,10 @@ export const Billing: React.FC = () => {
     setLoading(true);
     try {
       const [summaryData, breakdownData, invoicesData, plansData] = await Promise.all([
-        apiFetch('/v1/billing/summary'),
-        apiFetch('/v1/billing/breakdown'),
-        apiFetch('/v1/billing/invoices'),
-        apiFetch('/v1/billing/plans'),
+        apiFetch<any>('/v1/billing/summary'),
+        apiFetch<any[]>('/v1/billing/breakdown'),
+        apiFetch<any[]>('/v1/billing/invoices'),
+        apiFetch<any[]>('/v1/billing/plans'),
       ]);
       setSummary(summaryData);
       setBudgetCap(Math.round((summaryData?.monthly_budget_usd ?? 60) * USD_TO_INR));
@@ -55,14 +55,14 @@ export const Billing: React.FC = () => {
       setInvoices(Array.isArray(invoicesData) ? invoicesData : []);
       setPlans(Array.isArray(plansData) ? plansData : []);
       const [resSum, resBreak, resInv, resPlans] = await Promise.all([
-        apiFetch('/api/v1/billing/summary'),
-        apiFetch('/api/v1/billing/breakdown'),
-        apiFetch('/api/v1/billing/invoices'),
-        apiFetch('/api/v1/billing/plans')
+        apiFetch<any>('/api/v1/billing/summary'),
+        apiFetch<any[]>('/api/v1/billing/breakdown'),
+        apiFetch<any[]>('/api/v1/billing/invoices'),
+        apiFetch<any[]>('/api/v1/billing/plans')
       ]);
       if (resSum) {
         setSummary(resSum);
-        setBudgetCap(Math.round(resSum.monthly_budget_usd * USD_TO_INR));
+        setBudgetCap(Math.round((resSum as any).monthly_budget_usd * USD_TO_INR));
       }
       if (resBreak) setBreakdown(resBreak);
       if (resInv) setInvoices(resInv);
@@ -161,7 +161,7 @@ export const Billing: React.FC = () => {
     try {
       // Step 1: Create order on backend in paise (₹ x 100)
       const amountInPaise = planPriceINR * 100;
-      const orderData = await apiFetch('/v1/billing/create-order', {
+      const orderData: any = await apiFetch<any>('/v1/billing/create-order', {
         method: 'POST',
         body: JSON.stringify({
           amount: amountInPaise,
@@ -180,11 +180,11 @@ export const Billing: React.FC = () => {
         handler: async function (response: any) {
           // Step 3: Verify payment on backend
             try {
-              const verifyData = await apiFetch('/v1/billing/verify-payment', {
+              const verifyData: any = await apiFetch<any>('/v1/billing/verify-payment', {
                 method: 'POST',
                 body: JSON.stringify({
                   razorpay_payment_id: response.razorpay_payment_id,
-                  razorpay_order_id: response.razorpay_order_id || orderData.order_id || '',
+                  razorpay_order_id: response.razorpay_order_id || (orderData && (orderData as any).order_id) || '',
                   razorpay_signature: response.razorpay_signature || '',
                   amount_inr: planPriceINR
                 }),

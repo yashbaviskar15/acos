@@ -46,7 +46,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onNavigateToBilling }) =
   const fetchProfile = async () => {
     try {
       if (token) {
-        const data = await apiFetch('/v1/auth/me', { headers: { 'Authorization': `Bearer ${token}` } });
+        const data: any = await apiFetch<any>('/v1/auth/me', { headers: { 'Authorization': `Bearer ${token}` } });
         setProfileData(data);
         setSelectedRole(data.role || 'Developer');
       }
@@ -65,7 +65,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onNavigateToBilling }) =
     setRoleMsg(null);
 
     try {
-      const data = await apiFetch('/v1/auth/role/update', {
+      const data: any = await apiFetch<any>('/v1/auth/role/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
         body: JSON.stringify({ role: newRole }),
@@ -84,7 +84,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onNavigateToBilling }) =
 
   const fetchMfaSetup = async () => {
     try {
-      const data = await apiFetch('/v1/auth/mfa/setup', {
+      const data: any = await apiFetch<any>('/v1/auth/mfa/setup', {
         method: 'POST',
         headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       });
@@ -106,7 +106,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onNavigateToBilling }) =
     setMfaMsg(null);
 
     try {
-      const data = await apiFetch('/v1/auth/mfa/enable', {
+      const data: any = await apiFetch<any>('/v1/auth/mfa/enable', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
         body: JSON.stringify({ mfa_code: mfaTestCode }),
