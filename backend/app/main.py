@@ -29,6 +29,7 @@ app = FastAPI(
 # Configure CORS for local frontend dev & gateway
 allowed_origins = [
     "https://acos-taupe.vercel.app",
+    "https://frontend-pearl-chi-29.vercel.app",
     "http://localhost:3000",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
