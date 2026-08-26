@@ -1,0 +1,28 @@
+# Build context excludes for the frontend Docker image.
+# Paths are relative to this directory (the CI builds with `docker build ./frontend`),
+# so they MUST NOT be prefixed with `frontend/`.
+
+# Never copy host-installed dependencies into the image. The Dockerfile runs
+# `npm install` itself; copying a Windows-built node_modules over it strips the
+# execute bit from node_modules/.bin/tsc and causes "sh: tsc: Permission denied"
+# (exit code 126) during `npx tsc && npx vite build`.
+node_modules
+
+# Build output is generated inside the image; don't ship the host copy.
+dist
+
+# VCS / CI / editor / OS noise — keeps the build context small.
+.git
+.gitignore
+.github
+Dockerfile
+.dockerignore
+*.log
+npm-debug.log*
+.vscode
+.idea
+.DS_Store
+
+# Local-only environment overrides (never bake these into the image).
+.env.local
+.env.*.local
