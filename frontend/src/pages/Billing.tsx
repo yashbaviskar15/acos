@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Zap, ArrowUpRight, RefreshCw, FileText, CheckCircle2, CreditCard, Clock, Download, ShieldCheck, IndianRupee, ExternalLink, Check, Sparkles } from 'lucide-react';
 import { generateInvoicePDF, InvoiceData } from '../utils/pdfGenerator';
 import { sendSystemNotification } from '../utils/notifications';
+import { apiFetch } from '../config/api';
 
 declare global {
   interface Window {
@@ -42,20 +43,19 @@ export const Billing: React.FC = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [resSum, resBreak, resInv, resPlans] = await Promise.all([
-        fetch('/api/v1/billing/summary'),
-        fetch('/api/v1/billing/breakdown'),
-        fetch('/api/v1/billing/invoices'),
-        fetch('/api/v1/billing/plans')
+      const [sData, bData, iData, pData] = await Promise.all([
+        apiFetch<any>('/v1/billing/summary').catch(() => null),
+        apiFetch<any[]>('/v1/billing/breakdown').catch(() => null),
+        apiFetch<any[]>('/v1/billing/invoices').catch(() => null),
+        apiFetch<any[]>('/v1/billing/plans').catch(() => null),
       ]);
-      if (resSum.ok) {
-        const sData = await resSum.json();
+      if (sData) {
         setSummary(sData);
         setBudgetCap(Math.round(sData.monthly_budget_usd * USD_TO_INR));
       }
-      if (resBreak.ok) setBreakdown(await resBreak.json());
-      if (resInv.ok) setInvoices(await resInv.json());
-      if (resPlans.ok) setPlans(await resPlans.json());
+      if (bData) setBreakdown(Array.isArray(bData) ? bData : []);
+      if (iData) setInvoices(Array.isArray(iData) ? iData : []);
+      if (pData) setPlans(Array.isArray(pData) ? pData : []);
     } catch (err) {
       console.error("Failed to load Billing data:", err);
     } finally {
@@ -73,16 +73,13 @@ export const Billing: React.FC = () => {
     setBudgetMsg('');
     try {
       const usdCap = Math.round(budgetCap / USD_TO_INR);
-      const res = await fetch('/api/v1/billing/budget', {
+      await apiFetch('/v1/billing/budget', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ monthly_budget_usd: usdCap }),
       });
-      if (res.ok) {
-        setBudgetMsg('Monthly budget limit updated successfully!');
-        fetchData();
-        setTimeout(() => setBudgetMsg(''), 3000);
-      }
+      setBudgetMsg('Monthly budget limit updated successfully!');
+      fetchData();
+      setTimeout(() => setBudgetMsg(''), 3000);
     } catch (err) {
       console.error(err);
     } finally {
@@ -144,21 +141,14 @@ export const Billing: React.FC = () => {
     try {
       // Step 1: Create order on backend in paise (₹ x 100)
       const amountInPaise = planPriceINR * 100;
-      const orderRes = await fetch('/api/v1/billing/create-order', {
+      const orderData = await apiFetch<any>('/v1/billing/create-order', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           amount: amountInPaise,
           currency: 'INR',
           description: `Aravanta CloudOS ${planName} Subscription`
         })
       });
-
-      if (!orderRes.ok) {
-        throw new Error('Failed to create order');
-      }
-
-      const orderData = await orderRes.json();
 
       // Step 2: Open Razorpay Checkout (direct payment mode — no server order_id needed for test keys)
       const options = {
@@ -170,9 +160,8 @@ export const Billing: React.FC = () => {
         handler: async function (response: any) {
           // Step 3: Verify payment on backend
           try {
-            const verifyRes = await fetch('/api/v1/billing/verify-payment', {
+            const verifyData = await apiFetch<any>('/v1/billing/verify-payment', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_order_id: response.razorpay_order_id || orderData.order_id || '',
@@ -181,33 +170,29 @@ export const Billing: React.FC = () => {
               })
             });
 
-            if (verifyRes.ok) {
-              const verifyData = await verifyRes.json();
+            // Add new invoice
+            const newInv = {
+              invoice_id: verifyData.invoice_id,
+              period: `${new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })}`,
+              amount_usd: roundTwo(planPriceINR / USD_TO_INR),
+              amount_inr: planPriceINR,
+              status: 'PAID',
+              date: new Date().toISOString().split('T')[0],
+              payment_id: verifyData.payment_id,
+              order_id: verifyData.order_id,
+            };
 
-              // Add new invoice
-              const newInv = {
-                invoice_id: verifyData.invoice_id,
-                period: `${new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })}`,
-                amount_usd: roundTwo(planPriceINR / USD_TO_INR),
-                amount_inr: planPriceINR,
-                status: 'PAID',
-                date: new Date().toISOString().split('T')[0],
-                payment_id: verifyData.payment_id,
-                order_id: verifyData.order_id,
-              };
+            setInvoices(prev => [newInv, ...prev]);
+            setPaymentSuccess({ amount: planPriceINR, plan: planName, id: verifyData.invoice_id });
+            setTimeout(() => setPaymentSuccess(null), 6000);
 
-              setInvoices(prev => [newInv, ...prev]);
-              setPaymentSuccess({ amount: planPriceINR, plan: planName, id: verifyData.invoice_id });
-              setTimeout(() => setPaymentSuccess(null), 6000);
+            // Generate PDF automatically
+            handleGeneratePDF(newInv);
 
-              // Generate PDF automatically
-              handleGeneratePDF(newInv);
-
-              sendSystemNotification(
-                '✅ Payment Successful',
-                `₹${planPriceINR.toLocaleString('en-IN')} payment confirmed. Invoice ${verifyData.invoice_id} generated.`
-              );
-            }
+            sendSystemNotification(
+              '✅ Payment Successful',
+              `₹${planPriceINR.toLocaleString('en-IN')} payment confirmed. Invoice ${verifyData.invoice_id} generated.`
+            );
           } catch (err) {
             console.error('Payment verification failed:', err);
           }

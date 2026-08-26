@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { HardDrive, Plus, Trash2, Folder, FileText, RefreshCw, Upload, CheckCircle2 } from 'lucide-react';
 import { ModalPortal } from '../components/ModalPortal';
+import { apiFetch } from '../config/api';
 
 interface StorageProps {
   token: string | null;
@@ -28,24 +29,20 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
   const [folderPrefix, setFolderPrefix] = useState('uploads/');
   const [uploadSuccessMsg, setUploadSuccessMsg] = useState<string | null>(null);
 
-  const authHeaders: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
-
   const fetchBuckets = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/storage/buckets', { headers: authHeaders });
-      if (res.ok) {
-        const data = await res.json();
-        setBuckets(Array.isArray(data) ? data : []);
-        if (data.length > 0 && !selectedBucket) {
-          setSelectedBucket(data[0]);
+      const data = await apiFetch<any[]>('/v1/storage/buckets', { token }).catch(() => null);
+      if (data) {
+        const list = Array.isArray(data) ? data : [];
+        setBuckets(list);
+        if (list.length > 0 && !selectedBucket) {
+          setSelectedBucket(list[0]);
         }
       }
 
-      const sumRes = await fetch('/api/v1/storage/summary', { headers: authHeaders });
-      if (sumRes.ok) {
-        setSummary(await sumRes.json());
-      }
+      const sum = await apiFetch<any>('/v1/storage/summary', { token }).catch(() => null);
+      if (sum) setSummary(sum);
     } catch (err) {
       console.error(err);
     } finally {
@@ -55,10 +52,8 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
 
   const fetchObjects = async (bucketId: string) => {
     try {
-      const res = await fetch(`/api/v1/storage/buckets/${bucketId}/objects`, { headers: authHeaders });
-      if (res.ok) {
-        setObjects(await res.json());
-      }
+      const data = await apiFetch<any[]>(`/v1/storage/buckets/${bucketId}/objects`, { token });
+      setObjects(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
     }
@@ -78,16 +73,14 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
     e.preventDefault();
     setActionLoading(true);
     try {
-      const res = await fetch('/api/v1/storage/buckets', {
+      await apiFetch('/v1/storage/buckets', {
         method: 'POST',
-        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        token,
         body: JSON.stringify({ name, region, storage_class: storageClass, access, versioning })
       });
-      if (res.ok) {
-        setShowCreateModal(false);
-        setName('');
-        fetchBuckets();
-      }
+      setShowCreateModal(false);
+      setName('');
+      fetchBuckets();
     } catch (err) {
       console.error(err);
     } finally {
@@ -105,22 +98,21 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
     formData.append('folder_prefix', folderPrefix);
 
     try {
-      const res = await fetch(`/api/v1/storage/buckets/${selectedBucket.id}/upload`, {
+      // NOTE: FormData body — apiFetch intentionally does NOT set a JSON
+      // Content-Type here so the browser adds the multipart boundary itself.
+      const data = await apiFetch<any>(`/v1/storage/buckets/${selectedBucket.id}/upload`, {
         method: 'POST',
-        headers: authHeaders,
-        body: formData
+        token,
+        body: formData,
       });
-      if (res.ok) {
-        const data = await res.json();
-        setUploadSuccessMsg(data.message || 'File uploaded successfully!');
-        setSelectedFile(null);
-        fetchObjects(selectedBucket.id);
-        fetchBuckets();
-        setTimeout(() => {
-          setUploadSuccessMsg(null);
-          setShowUploadModal(false);
-        }, 1500);
-      }
+      setUploadSuccessMsg(data?.message || 'File uploaded successfully!');
+      setSelectedFile(null);
+      fetchObjects(selectedBucket.id);
+      fetchBuckets();
+      setTimeout(() => {
+        setUploadSuccessMsg(null);
+        setShowUploadModal(false);
+      }, 1500);
     } catch (err) {
       console.error(err);
     } finally {
@@ -131,14 +123,12 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
   const handleDeleteBucket = async (bucketId: string) => {
     if (!confirm('Are you sure you want to delete this storage bucket?')) return;
     try {
-      const res = await fetch(`/api/v1/storage/buckets/${bucketId}`, {
+      await apiFetch(`/v1/storage/buckets/${bucketId}`, {
         method: 'DELETE',
-        headers: authHeaders
+        token,
       });
-      if (res.ok) {
-        if (selectedBucket?.id === bucketId) setSelectedBucket(null);
-        fetchBuckets();
-      }
+      if (selectedBucket?.id === bucketId) setSelectedBucket(null);
+      fetchBuckets();
     } catch (err) {
       console.error(err);
     }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Server, Plus, Play, Square, RotateCw, Trash2, RefreshCw } from 'lucide-react';
 import { ModalPortal } from '../components/ModalPortal';
+import { apiFetch } from '../config/api';
 
 interface ComputeProps {
   token: string | null;
@@ -22,27 +23,20 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
   const [diskGb, setDiskGb] = useState(50);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const authHeaders: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
-
   const fetchInstances = async () => {
     setLoading(true);
     try {
-      let url = '/api/v1/compute/instances';
+      let path = '/v1/compute/instances';
       const params = new URLSearchParams();
       if (selectedRegion) params.append('region', selectedRegion);
       if (selectedStatus) params.append('status', selectedStatus);
-      if (params.toString()) url += `?${params.toString()}`;
+      if (params.toString()) path += `?${params.toString()}`;
 
-      const res = await fetch(url, { headers: authHeaders });
-      if (res.ok) {
-        const data = await res.json();
-        setInstances(Array.isArray(data) ? data : []);
-      }
-      
-      const sumRes = await fetch('/api/v1/compute/summary', { headers: authHeaders });
-      if (sumRes.ok) {
-        setSummary(await sumRes.json());
-      }
+      const data = await apiFetch<any[]>(path, { token }).catch(() => null);
+      if (data) setInstances(Array.isArray(data) ? data : []);
+
+      const sum = await apiFetch<any>('/v1/compute/summary', { token }).catch(() => null);
+      if (sum) setSummary(sum);
     } catch (err) {
       console.error(err);
     } finally {
@@ -58,16 +52,14 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
     e.preventDefault();
     setActionLoading('deploy');
     try {
-      const res = await fetch('/api/v1/compute/instances', {
+      await apiFetch('/v1/compute/instances', {
         method: 'POST',
-        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        token,
         body: JSON.stringify({ name, instance_type: instanceType, os_image: osImage, region, disk_gb: Number(diskGb) })
       });
-      if (res.ok) {
-        setShowDeployModal(false);
-        setName('');
-        fetchInstances();
-      }
+      setShowDeployModal(false);
+      setName('');
+      fetchInstances();
     } catch (err) {
       console.error(err);
     } finally {
@@ -78,14 +70,12 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
   const handleAction = async (instanceId: string, action: string) => {
     setActionLoading(`${instanceId}-${action}`);
     try {
-      const res = await fetch(`/api/v1/compute/instances/${instanceId}/action`, {
+      await apiFetch(`/v1/compute/instances/${instanceId}/action`, {
         method: 'POST',
-        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        token,
         body: JSON.stringify({ action })
       });
-      if (res.ok) {
-        fetchInstances();
-      }
+      fetchInstances();
     } catch (err) {
       console.error(err);
     } finally {

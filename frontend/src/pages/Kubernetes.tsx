@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Boxes, Plus, Trash2, RefreshCw, Activity } from 'lucide-react';
 import { ModalPortal } from '../components/ModalPortal';
+import { apiFetch } from '../config/api';
 
 interface KubernetesProps {
   token: string | null;
@@ -22,24 +23,20 @@ export const Kubernetes: React.FC<KubernetesProps> = ({ token }) => {
   const [nodeSize, setNodeSize] = useState('arv.large');
   const [actionLoading, setActionLoading] = useState(false);
 
-  const authHeaders: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
-
   const fetchClusters = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/kubernetes/clusters', { headers: authHeaders });
-      if (res.ok) {
-        const data = await res.json();
-        setClusters(Array.isArray(data) ? data : []);
-        if (data.length > 0 && !selectedCluster) {
-          setSelectedCluster(data[0]);
+      const data = await apiFetch<any[]>('/v1/kubernetes/clusters', { token }).catch(() => null);
+      if (data) {
+        const list = Array.isArray(data) ? data : [];
+        setClusters(list);
+        if (list.length > 0 && !selectedCluster) {
+          setSelectedCluster(list[0]);
         }
       }
 
-      const sumRes = await fetch('/api/v1/kubernetes/summary', { headers: authHeaders });
-      if (sumRes.ok) {
-        setSummary(await sumRes.json());
-      }
+      const sum = await apiFetch<any>('/v1/kubernetes/summary', { token }).catch(() => null);
+      if (sum) setSummary(sum);
     } catch (err) {
       console.error(err);
     } finally {
@@ -49,10 +46,8 @@ export const Kubernetes: React.FC<KubernetesProps> = ({ token }) => {
 
   const fetchPods = async (clusterId: string) => {
     try {
-      const res = await fetch(`/api/v1/kubernetes/clusters/${clusterId}/pods`, { headers: authHeaders });
-      if (res.ok) {
-        setPods(await res.json());
-      }
+      const data = await apiFetch<any[]>(`/v1/kubernetes/clusters/${clusterId}/pods`, { token });
+      setPods(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
     }
@@ -72,16 +67,14 @@ export const Kubernetes: React.FC<KubernetesProps> = ({ token }) => {
     e.preventDefault();
     setActionLoading(true);
     try {
-      const res = await fetch('/api/v1/kubernetes/clusters', {
+      await apiFetch('/v1/kubernetes/clusters', {
         method: 'POST',
-        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        token,
         body: JSON.stringify({ name, version, region, node_count: Number(nodeCount), node_size: nodeSize })
       });
-      if (res.ok) {
-        setShowCreateModal(false);
-        setName('');
-        fetchClusters();
-      }
+      setShowCreateModal(false);
+      setName('');
+      fetchClusters();
     } catch (err) {
       console.error(err);
     } finally {
@@ -92,14 +85,12 @@ export const Kubernetes: React.FC<KubernetesProps> = ({ token }) => {
   const handleDeleteCluster = async (clusterId: string) => {
     if (!confirm('Are you sure you want to terminate this cluster?')) return;
     try {
-      const res = await fetch(`/api/v1/kubernetes/clusters/${clusterId}`, {
+      await apiFetch(`/v1/kubernetes/clusters/${clusterId}`, {
         method: 'DELETE',
-        headers: authHeaders
+        token,
       });
-      if (res.ok) {
-        if (selectedCluster?.id === clusterId) setSelectedCluster(null);
-        fetchClusters();
-      }
+      if (selectedCluster?.id === clusterId) setSelectedCluster(null);
+      fetchClusters();
     } catch (err) {
       console.error(err);
     }

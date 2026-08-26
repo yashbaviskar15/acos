@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Lock, Key, UserCheck, RefreshCw } from 'lucide-react';
+import { apiFetch } from '../config/api';
 
 interface SecurityProps {
   token: string | null;
@@ -9,15 +10,11 @@ export const Security: React.FC<SecurityProps> = ({ token }) => {
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const authHeaders: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
-
   const fetchLogs = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/monitoring/audit-log', { headers: authHeaders });
-      if (res.ok) {
-        setAuditLogs(await res.json());
-      }
+      const data = await apiFetch<any[]>('/v1/monitoring/audit-log', { token });
+      setAuditLogs(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
     } finally {

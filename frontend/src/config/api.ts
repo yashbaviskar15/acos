@@ -2,9 +2,9 @@
  * Aravanta CloudOS Centralized API Client
  * 
  * Rules:
- * - Production frontend must use same-origin `/api` base URL.
- * - Requests are proxied by Vercel rewrites: `/api/v1/...` -> `https://acos-backend.vercel.app/api/v1/...`
- * - Never hardcode `acos-backend.vercel.app` in frontend source.
+ * - Production frontend must use the same-origin `/api` base URL.
+ * - Requests are proxied to the backend by the Vercel rewrites configured in vercel.json (`/api/v1/...`).
+ * - Never hardcode the backend origin/domain in frontend source; always route through `/api`.
  * - Preserve Authorization header `Bearer <token>` (never send "Bearer undefined" or "Bearer null").
  * - Preserve Content-Type: application/json.
  * - Extract and throw actual backend error detail strings.
@@ -40,8 +40,9 @@ export async function apiFetch<T = any>(
     headers.set('Content-Type', 'application/json');
   }
 
-  // Get auth token from parameter or localStorage
-  const authToken = token !== undefined ? token : localStorage.getItem('aravanta_auth_token');
+  // Get auth token from parameter or localStorage.
+  // NOTE: the app persists the JWT under the 'aravanta_token' key (see App.tsx / Login.tsx).
+  const authToken = token !== undefined ? token : localStorage.getItem('aravanta_token');
   if (authToken && authToken !== 'undefined' && authToken !== 'null' && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${authToken}`);
   }

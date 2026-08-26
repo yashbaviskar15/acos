@@ -5,6 +5,7 @@ import {
   Sparkles, Plus, X, Settings, Eye, EyeOff, TrendingUp, IndianRupee, BarChart3
 } from 'lucide-react';
 import { ModalPortal } from '../components/ModalPortal';
+import { apiFetch } from '../config/api';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   AreaChart, Area, Cell
@@ -94,16 +95,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, onNavigate }) => {
 
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
-    const authHeaders: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
 
     try {
       const [resMetrics, resInstances, resAlerts, resBreakdown, resPricing, resInvoices] = await Promise.all([
-        fetch('/api/v1/monitoring/metrics', { headers: authHeaders }).then(r => r.ok ? r.json() : null).catch(() => null),
-        fetch('/api/v1/compute/instances', { headers: authHeaders }).then(r => r.ok ? r.json() : null).catch(() => null),
-        fetch('/api/v1/monitoring/alerts', { headers: authHeaders }).then(r => r.ok ? r.json() : null).catch(() => null),
-        fetch('/api/v1/billing/breakdown').then(r => r.ok ? r.json() : null).catch(() => null),
-        fetch('/api/v1/billing/service-pricing').then(r => r.ok ? r.json() : null).catch(() => null),
-        fetch('/api/v1/billing/invoices').then(r => r.ok ? r.json() : null).catch(() => null),
+        apiFetch<any>('/v1/monitoring/metrics', { token }).catch(() => null),
+        apiFetch<any>('/v1/compute/instances', { token }).catch(() => null),
+        apiFetch<any>('/v1/monitoring/alerts', { token }).catch(() => null),
+        apiFetch<any>('/v1/billing/breakdown', { token }).catch(() => null),
+        apiFetch<any>('/v1/billing/service-pricing', { token }).catch(() => null),
+        apiFetch<any>('/v1/billing/invoices', { token }).catch(() => null),
       ]);
 
       if (resMetrics) setMetrics(resMetrics);
@@ -129,22 +129,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, onNavigate }) => {
     e.preventDefault();
     if (!vmName.trim()) return;
     setDeploying(true);
-    const authHeaders: Record<string, string> = token ? {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    } : { 'Content-Type': 'application/json' };
 
     try {
-      const res = await fetch('/api/v1/compute/instances', {
+      await apiFetch('/v1/compute/instances', {
         method: 'POST',
-        headers: authHeaders,
+        token,
         body: JSON.stringify({ name: vmName.trim(), instance_type: vmType, region: vmRegion })
       });
-      if (res.ok) {
-        setShowDeployModal(false);
-        setVmName('');
-        fetchDashboardData();
-      }
+      setShowDeployModal(false);
+      setVmName('');
+      fetchDashboardData();
     } catch (err) {
       console.error("Deploy failed:", err);
     } finally {

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Eye, EyeOff, AlertCircle, CheckCircle2, KeyRound, ShieldCheck, Check, ArrowLeft } from 'lucide-react';
 import { Logo } from '../components/Logo';
+import { apiFetch } from '../config/api';
 
 interface LoginProps {
   onLoginSuccess: (user: any, token: string) => void;
@@ -124,15 +125,6 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
     emailInputRef.current?.focus();
   }, [activeTab, resetStep]);
 
-  const safeParseJson = async (res: Response) => {
-    const text = await res.text();
-    try {
-      return text ? JSON.parse(text) : {};
-    } catch {
-      return { detail: text || `Server error (${res.status})` };
-    }
-  };
-
   // Sign In Handler
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,13 +142,10 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
 
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/auth/login', {
+      const data = await apiFetch<any>('/v1/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), password }),
       });
-      const data = await safeParseJson(res);
-      if (!res.ok) throw new Error(data.detail || 'Invalid credentials. Please verify email/Account ID and password.');
 
       if (data.is_mfa_required) {
         setMfaUserData(data);
@@ -194,13 +183,10 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
 
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/auth/mfa/verify', {
+      const data = await apiFetch<any>('/v1/auth/mfa/verify', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: mfaUserData?.email || email, mfa_code: mfaCode }),
       });
-      const data = await safeParseJson(res);
-      if (!res.ok) throw new Error(data.detail || 'Invalid MFA passcode.');
 
       onLoginSuccess(
         {
@@ -231,24 +217,22 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
 
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/auth/register', {
+      const data = await apiFetch<any>('/v1/auth/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: regEmail.trim(), password: regPassword, full_name: regFullName.trim(), role: regRole }),
       });
-      const data = await safeParseJson(res);
-      if (!res.ok) throw new Error(data.detail || 'Registration failed.');
 
       setSuccess(`Account registered as '${data.role || regRole}'! Authenticating...`);
 
-      const loginRes = await fetch('/api/v1/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: regEmail.trim(), password: regPassword }),
-      });
-      const loginData = await safeParseJson(loginRes);
+      // Auto-login after successful registration. Kept in its own try/catch so a
+      // login failure falls back to the sign-in tab instead of surfacing as a
+      // registration error.
+      try {
+        const loginData = await apiFetch<any>('/v1/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ email: regEmail.trim(), password: regPassword }),
+        });
 
-      if (loginRes.ok) {
         setTimeout(() => {
           onLoginSuccess(
             {
@@ -260,7 +244,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
             loginData.access_token
           );
         }, 500);
-      } else {
+      } catch {
         setActiveTab('signin');
         setEmail(regEmail);
         setSuccess('Account registered. Please enter password to sign in.');
@@ -285,13 +269,10 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
 
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/auth/password-reset/request', {
+      await apiFetch('/v1/auth/password-reset/request', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: resetEmail.trim() }),
       });
-      const data = await safeParseJson(res);
-      if (!res.ok) throw new Error(data.detail || 'Failed to send reset code.');
 
       setSuccess(`Verification code sent to ${resetEmail.trim()}`);
       setResetStep(2);
@@ -323,13 +304,10 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
 
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/auth/password-reset/confirm', {
+      await apiFetch('/v1/auth/password-reset/confirm', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: resetEmail.trim(), reset_token: resetToken.trim(), new_password: newPassword }),
       });
-      const data = await safeParseJson(res);
-      if (!res.ok) throw new Error(data.detail || 'Failed to reset password.');
 
       setEmail(resetEmail);
       setActiveTab('signin');

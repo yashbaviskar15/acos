@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, Shield, Key, CreditCard, CheckCircle2, Clock, Copy, RefreshCw, AlertTriangle, ShieldCheck, Smartphone } from 'lucide-react';
+import { apiFetch } from '../config/api';
 
 interface ProfileProps {
   user: any;
@@ -43,17 +44,11 @@ export const Profile: React.FC<ProfileProps> = ({ user, onNavigateToBilling }) =
   const token = localStorage.getItem('aravanta_token');
 
   const fetchProfile = async () => {
+    if (!token) return;
     try {
-      if (token) {
-        const res = await fetch('/api/v1/auth/me', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setProfileData(data);
-          setSelectedRole(data.role || 'Developer');
-        }
-      }
+      const data = await apiFetch<any>('/v1/auth/me', { token });
+      setProfileData(data);
+      setSelectedRole(data.role || 'Developer');
     } catch (err) {
       console.error('Failed to fetch profile:', err);
     }
@@ -69,22 +64,17 @@ export const Profile: React.FC<ProfileProps> = ({ user, onNavigateToBilling }) =
     setRoleMsg(null);
 
     try {
-      const res = await fetch('/api/v1/auth/role/update', {
+      const data = await apiFetch<any>('/v1/auth/role/update', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+        token,
         body: JSON.stringify({ role: newRole })
       });
-      if (res.ok) {
-        const data = await res.json();
-        setRoleMsg({ type: 'success', text: `System role assigned to '${data.role}'!` });
-        fetchProfile();
-        // Update local storage
-        const savedUser = JSON.parse(localStorage.getItem('aravanta_user') || '{}');
-        savedUser.role = data.role;
-        localStorage.setItem('aravanta_user', JSON.stringify(savedUser));
-      } else {
-        setRoleMsg({ type: 'error', text: 'Failed to update system role.' });
-      }
+      setRoleMsg({ type: 'success', text: `System role assigned to '${data.role}'!` });
+      fetchProfile();
+      // Update local storage
+      const savedUser = JSON.parse(localStorage.getItem('aravanta_user') || '{}');
+      savedUser.role = data.role;
+      localStorage.setItem('aravanta_user', JSON.stringify(savedUser));
     } catch {
       setRoleMsg({ type: 'error', text: 'Failed to update system role.' });
     } finally {
@@ -94,13 +84,8 @@ export const Profile: React.FC<ProfileProps> = ({ user, onNavigateToBilling }) =
 
   const fetchMfaSetup = async () => {
     try {
-      const res = await fetch('/api/v1/auth/mfa/setup', {
-        method: 'POST',
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-      });
-      if (res.ok) {
-        setMfaData(await res.json());
-      }
+      const data = await apiFetch<any>('/v1/auth/mfa/setup', { method: 'POST', token });
+      setMfaData(data);
     } catch (err) {
       console.error(err);
     }
@@ -118,21 +103,16 @@ export const Profile: React.FC<ProfileProps> = ({ user, onNavigateToBilling }) =
     setMfaMsg(null);
 
     try {
-      const res = await fetch('/api/v1/auth/mfa/enable', {
+      const data = await apiFetch<any>('/v1/auth/mfa/enable', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+        token,
         body: JSON.stringify({ mfa_code: mfaTestCode })
       });
-      const data = await res.json();
-      if (res.ok) {
-        setMfaMsg({ type: 'success', text: data.message });
-        setMfaTestCode('');
-        fetchProfile();
-      } else {
-        setMfaMsg({ type: 'error', text: data.detail || 'Failed to verify MFA passcode.' });
-      }
-    } catch {
-      setMfaMsg({ type: 'error', text: 'Failed to enable MFA.' });
+      setMfaMsg({ type: 'success', text: data.message });
+      setMfaTestCode('');
+      fetchProfile();
+    } catch (err: any) {
+      setMfaMsg({ type: 'error', text: err.message || 'Failed to verify MFA passcode.' });
     } finally {
       setMfaLoading(false);
     }
@@ -142,14 +122,9 @@ export const Profile: React.FC<ProfileProps> = ({ user, onNavigateToBilling }) =
     setMfaLoading(true);
     setMfaMsg(null);
     try {
-      const res = await fetch('/api/v1/auth/mfa/disable', {
-        method: 'POST',
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-      });
-      if (res.ok) {
-        setMfaMsg({ type: 'success', text: 'MFA has been disabled.' });
-        fetchProfile();
-      }
+      await apiFetch('/v1/auth/mfa/disable', { method: 'POST', token });
+      setMfaMsg({ type: 'success', text: 'MFA has been disabled.' });
+      fetchProfile();
     } catch {
       setMfaMsg({ type: 'error', text: 'Failed to disable MFA.' });
     } finally {
@@ -179,23 +154,18 @@ export const Profile: React.FC<ProfileProps> = ({ user, onNavigateToBilling }) =
     }
 
     try {
-      const res = await fetch('/api/v1/auth/password-reset/confirm', {
+      await apiFetch('/v1/auth/password-reset/confirm', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+        token,
         body: JSON.stringify({ email, reset_token: '', new_password: newPassword })
       });
-      if (res.ok) {
-        setPasswordMsg({ type: 'success', text: 'Password updated successfully!' });
-      } else {
-        setPasswordMsg({ type: 'error', text: 'Password change failed.' });
-      }
-    } catch {
       setPasswordMsg({ type: 'success', text: 'Password updated successfully!' });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      setPasswordMsg({ type: 'error', text: err.message || 'Password change failed.' });
     }
-
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
   };
 
   return (

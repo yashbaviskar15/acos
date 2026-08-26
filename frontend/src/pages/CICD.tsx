@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { GitBranch, Play, Plus, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
 import { ModalPortal } from '../components/ModalPortal';
+import { apiFetch } from '../config/api';
 
 export const CICD: React.FC = () => {
   const [pipelines, setPipelines] = useState<any[]>([]);
@@ -17,12 +18,12 @@ export const CICD: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [resPipes, resSum] = await Promise.all([
-        fetch('/api/v1/cicd/pipelines'),
-        fetch('/api/v1/cicd/summary')
+      const [pData, sData] = await Promise.all([
+        apiFetch<any[]>('/v1/cicd/pipelines').catch(() => null),
+        apiFetch<any>('/v1/cicd/summary').catch(() => null),
       ]);
-      if (resPipes.ok) setPipelines(await resPipes.json());
-      if (resSum.ok) setSummary(await resSum.json());
+      if (pData) setPipelines(Array.isArray(pData) ? pData : []);
+      if (sData) setSummary(sData);
     } catch (err) {
       console.error("Failed to load CI/CD data:", err);
     } finally {
@@ -37,11 +38,8 @@ export const CICD: React.FC = () => {
   const handleRunPipeline = async (id: string) => {
     setTriggering(id);
     try {
-      const res = await fetch(`/api/v1/cicd/pipelines/${id}/trigger`, { method: 'POST' });
-      if (res.ok) {
-        const updated = await res.json();
-        setPipelines(prev => prev.map(p => p.id === id ? updated : p));
-      }
+      const updated = await apiFetch<any>(`/v1/cicd/pipelines/${id}/trigger`, { method: 'POST' });
+      setPipelines(prev => prev.map(p => p.id === id ? updated : p));
     } catch (err) {
       console.error(err);
     } finally {
@@ -54,17 +52,14 @@ export const CICD: React.FC = () => {
     if (!pipeName.trim() || !pipeRepo.trim()) return;
 
     try {
-      const res = await fetch('/api/v1/cicd/pipelines', {
+      await apiFetch('/v1/cicd/pipelines', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: pipeName.trim(), repository: pipeRepo.trim(), branch: pipeBranch }),
       });
-      if (res.ok) {
-        setShowCreateModal(false);
-        setPipeName('');
-        setPipeRepo('');
-        fetchData();
-      }
+      setShowCreateModal(false);
+      setPipeName('');
+      setPipeRepo('');
+      fetchData();
     } catch (err) {
       console.error(err);
     }
