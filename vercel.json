@@ -7,7 +7,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://acos-backend.vercel.app/api/:path*"
+      "destination": "https://arv-backend.vercel.app/api/:path*"
     },
     {
       "source": "/(.*)",
