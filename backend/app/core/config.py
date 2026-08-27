@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 1 day for dev convenience
 
     # Database
-    DATABASE_URL: str = "sqlite:///./aravanta_dev.db"  # Fallback SQLite for lightweight run, or PostgreSQL
+    DATABASE_URL: str = "sqlite:///./aravanta_dev.db"  # Relative path - will be resolved to persistent data/ directory locally. For production, set to PostgreSQL URL.
     
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
