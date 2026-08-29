@@ -93,6 +93,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
   // Sign-in fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [signInRole, setSignInRole] = useState('SuperAdmin');
 
   // Registration fields
   const [regFullName, setRegFullName] = useState('');
@@ -144,7 +145,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
     try {
       const data = await apiFetch<any>('/v1/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({ email: email.trim(), password, role: signInRole }),
       });
 
       if (data.is_mfa_required) {
@@ -158,7 +159,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
         {
           email: data.email,
           account_id: data.account_id || 'ARV-ACC-889412',
-          role: data.role || 'Developer',
+          role: data.role || signInRole || 'Developer',
           full_name: data.full_name || data.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
         },
         data.access_token
@@ -518,6 +519,22 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                  Assign System Role (RBAC)
+                </label>
+                <select
+                  value={signInRole}
+                  onChange={(e) => setSignInRole(e.target.value)}
+                  className="w-full h-10 px-3 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-colors cursor-pointer font-medium"
+                >
+                  <option value="SuperAdmin">SuperAdmin (Infrastructure Owner)</option>
+                  <option value="Developer">Developer (Deploy Workloads & Apps)</option>
+                  <option value="Admin">Admin (Resource Operator)</option>
+                  <option value="Viewer">Viewer (Telemetry Observer)</option>
+                </select>
               </div>
 
               <button

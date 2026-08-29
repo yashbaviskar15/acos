@@ -4,10 +4,11 @@ import { apiFetch } from '../config/api';
 
 interface ProfileProps {
   user: any;
+  onUpdateUser?: (updatedUser: any, newToken?: string) => void;
   onNavigateToBilling: () => void;
 }
 
-export const Profile: React.FC<ProfileProps> = ({ user, onNavigateToBilling }) => {
+export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onNavigateToBilling }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'security' | 'mfa' | 'api' | 'subscription'>('general');
   const [copiedKey, setCopiedKey] = useState(false);
   const [apiKey, setApiKey] = useState('arv_live_9f8a2c1e5b4d3a7f9e8d7c6b5a4f3e2d');
@@ -71,10 +72,17 @@ export const Profile: React.FC<ProfileProps> = ({ user, onNavigateToBilling }) =
       });
       setRoleMsg({ type: 'success', text: `System role assigned to '${data.role}'!` });
       fetchProfile();
-      // Update local storage
+      // Update local storage & parent app state
       const savedUser = JSON.parse(localStorage.getItem('aravanta_user') || '{}');
       savedUser.role = data.role;
+      if (data.user) {
+        Object.assign(savedUser, data.user);
+      }
       localStorage.setItem('aravanta_user', JSON.stringify(savedUser));
+      if (data.access_token) {
+        localStorage.setItem('aravanta_token', data.access_token);
+      }
+      onUpdateUser?.(savedUser, data.access_token);
     } catch {
       setRoleMsg({ type: 'error', text: 'Failed to update system role.' });
     } finally {

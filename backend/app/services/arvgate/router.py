@@ -81,6 +81,12 @@ def login_user(login_in: UserLogin, request: Request, db: Session = Depends(get_
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account is disabled")
 
+    # If user selected a specific system role during sign in, apply it immediately
+    if login_in.role and login_in.role in ["SuperAdmin", "Admin", "Developer", "Viewer"]:
+        user.role = login_in.role
+        db.commit()
+        db.refresh(user)
+
     if not user.account_id:
         user.account_id = f"ARV-ACC-{random.randint(100000, 999999)}"
         db.commit()
@@ -195,8 +201,8 @@ def get_mfa_current_code(mfa_in: MFAVerifyRequest, db: Session = Depends(get_db)
     return {"current_code": current_code, "valid_for_seconds": 30}
 
 @router.post("/role/update")
-def update_role(req: RoleUpdateRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Updates assigned system role for the user."""
+def update_role(req: RoleUpdateRequest, request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Updates assigned system role for the user and issues an updated JWT token."""
     if req.role not in ["SuperAdmin", "Admin", "Developer", "Viewer"]:
         raise HTTPException(status_code=400, detail="Invalid system role specified")
 
@@ -204,7 +210,23 @@ def update_role(req: RoleUpdateRequest, current_user: User = Depends(get_current
     db.commit()
     db.refresh(current_user)
 
-    return {"message": f"System role updated to '{req.role}'", "role": current_user.role}
+    new_token = create_access_token(subject=current_user.email, roles=[current_user.role])
+    log_audit(db, current_user.email, "ROLE_UPDATE", "ArvGate", request, f"System role changed to '{req.role}'")
+
+    return {
+        "message": f"System role updated to '{req.role}'",
+        "role": current_user.role,
+        "access_token": new_token,
+        "user": {
+            "id": current_user.id,
+            "account_id": current_user.account_id,
+            "email": current_user.email,
+            "full_name": current_user.full_name,
+            "role": current_user.role,
+            "is_active": current_user.is_active,
+            "is_mfa_enabled": current_user.is_mfa_enabled
+        }
+    }
 
 @router.post("/password-reset/request")
 def request_password_reset(req: PasswordResetRequest, request: Request, db: Session = Depends(get_db)):

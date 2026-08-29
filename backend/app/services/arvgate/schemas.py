@@ -11,6 +11,7 @@ class UserRegister(BaseModel):
 class UserLogin(BaseModel):
     email: str  # Accepts either Email (e.g. user@domain.com) OR Account ID (e.g. ARV-ACC-123456)
     password: str
+    role: Optional[str] = None
 
 class TokenResponse(BaseModel):
     access_token: str

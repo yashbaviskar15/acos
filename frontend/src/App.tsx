@@ -159,6 +159,11 @@ export default function App() {
         <Header
           title={getTabTitle()}
           subtitle={getTabSubtitle()}
+          user={user}
+          onUpdateUser={(updatedUser: any, newToken?: string) => {
+            setUser(updatedUser);
+            if (newToken) setToken(newToken);
+          }}
           searchTerm={searchTerm}
           onSearchChange={setSearchTerm}
           onMobileMenuToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -177,7 +182,16 @@ export default function App() {
           {activeTab === 'monitoring' && <Monitoring token={token} />}
           {activeTab === 'security' && <Security token={token} />}
           {activeTab === 'billing' && <Billing />}
-          {activeTab === 'profile' && <Profile user={user} onNavigateToBilling={() => setActiveTab('billing')} />}
+          {activeTab === 'profile' && (
+            <Profile
+              user={user}
+              onUpdateUser={(updatedUser: any, newToken?: string) => {
+                setUser(updatedUser);
+                if (newToken) setToken(newToken);
+              }}
+              onNavigateToBilling={() => setActiveTab('billing')}
+            />
+          )}
           {activeTab === 'guide' && <GettingStarted onNavigate={(tab) => setActiveTab(tab)} />}
         </main>
 
