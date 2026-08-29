@@ -178,36 +178,36 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="h-16 bg-white dark:bg-[#0F2038] border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-20 transition-colors duration-300 shadow-sm">
-      <div className="flex items-center gap-3">
+    <header className="h-16 bg-white dark:bg-[#0F2038] border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 flex items-center justify-between sticky top-0 z-20 transition-colors duration-300 shadow-sm min-w-0 w-full">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 mr-2">
         {/* Mobile Hamburger Drawer Trigger */}
         {onMobileMenuToggle && (
           <button
             onClick={onMobileMenuToggle}
-            className="p-2 md:hidden text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-colors"
+            className="p-2 md:hidden text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-colors shrink-0"
             title="Toggle Menu"
           >
             <Menu className="w-5 h-5" />
           </button>
         )}
 
-        <div>
-          <h2 className="text-sm sm:text-lg font-black text-slate-900 dark:text-white tracking-tight truncate max-w-[220px] sm:max-w-none">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-xs sm:text-base md:text-lg font-black text-slate-900 dark:text-white tracking-tight truncate">
             {title}
           </h2>
-          {subtitle && <p className="text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 font-mono font-medium mt-0.5 hidden sm:block">{subtitle}</p>}
+          {subtitle && <p className="text-[10px] sm:text-xs text-slate-600 dark:text-slate-300 font-mono font-medium mt-0.5 hidden md:block truncate">{subtitle}</p>}
         </div>
       </div>
 
-      <div className="flex items-center gap-2 sm:gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
         {/* Global Search & Command Palette Trigger */}
         {onOpenCommandPalette && (
           <button
             onClick={onOpenCommandPalette}
-            className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-500 dark:text-slate-400 font-mono transition-colors cursor-pointer"
+            className="hidden md:flex items-center gap-2 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-500 dark:text-slate-400 font-mono transition-colors cursor-pointer"
           >
             <Search className="w-3.5 h-3.5 text-slate-400" />
-            <span className="truncate max-w-[120px]">Search / Cmds...</span>
+            <span className="truncate max-w-[100px]">Cmds...</span>
             <kbd className="px-1.5 py-0.5 text-[9px] font-bold bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700">Ctrl K</kbd>
           </button>
         )}
@@ -215,7 +215,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Desktop System Notification Toggle */}
         <button
           onClick={handleRequestNotification}
-          className={`hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-bold transition-all cursor-pointer ${
+          className={`hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-bold transition-all cursor-pointer ${
             hasNotificationPermission
               ? 'bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400'
               : 'bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20'
@@ -241,7 +241,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={() => setShowRoleMenu(!showRoleMenu)}
             disabled={switchingRole}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold uppercase transition-all cursor-pointer shadow-sm border ${
+            className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl text-[10px] sm:text-xs font-mono font-bold uppercase transition-all cursor-pointer shadow-sm border ${
               activeRole === 'SuperAdmin'
                 ? 'bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-500/30 hover:bg-purple-100 dark:hover:bg-purple-500/25'
                 : activeRole === 'Admin'
@@ -252,9 +252,9 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
             title="Click to switch active RBAC System Role"
           >
-            <Shield className="w-3.5 h-3.5" />
-            <span className="truncate max-w-[90px] sm:max-w-none">{switchingRole ? 'Switching...' : activeRole}</span>
-            <ChevronDown className="w-3 h-3 opacity-60" />
+            <Shield className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate max-w-[55px] xs:max-w-[80px] sm:max-w-none">{switchingRole ? '...' : activeRole}</span>
+            <ChevronDown className="w-3 h-3 opacity-60 shrink-0" />
           </button>
 
           {showRoleMenu && (

@@ -172,7 +172,7 @@ export default function App() {
         />
 
         {/* Main Container */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 xs:p-4 sm:p-6 space-y-4 sm:space-y-6 min-w-0">
           {activeTab === 'dashboard' && <Dashboard token={token} onNavigate={(tab) => setActiveTab(tab)} />}
           {activeTab === 'compute' && <Compute token={token} />}
           {activeTab === 'kubernetes' && <Kubernetes token={token} />}
