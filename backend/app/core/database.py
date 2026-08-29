@@ -8,44 +8,41 @@ from app.core.config import settings
 def _resolve_database_url(url: str) -> str:
     """
     Resolve the database URL for the current environment.
-    
-    For local development with SQLite, use a persistent path in the project's data directory.
-    For production (Vercel, AWS Lambda, etc.), a proper DATABASE_URL must be set to a 
-    managed PostgreSQL database. SQLite is NOT suitable for serverless production 
-    deployments because the filesystem is ephemeral.
+
+    - Serverless (Vercel / AWS Lambda): On serverless platforms, the root filesystem
+      is read-only except for /tmp. If a managed PostgreSQL DATABASE_URL is provided,
+      it is used. Otherwise, SQLite is safely placed in /tmp/aravanta_dev.db.
+    - Local / Docker: SQLite persists to the local data directory or relative path.
+    - URL normalization: Upgrades legacy postgres:// prefixes to postgresql://.
     """
+    if not url:
+        url = "sqlite:///./aravanta_dev.db"
+
+    # Normalize legacy postgres:// scheme to postgresql:// for SQLAlchemy 2.x
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+
     is_serverless = bool(
         os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
     )
-    
-    # If using SQLite with a relative path, convert to absolute path in data directory
-    if url.startswith("sqlite:///") and not url.startswith("sqlite:////"):
-        if is_serverless:
-            # On serverless platforms, SQLite is not suitable - require PostgreSQL
-            raise RuntimeError(
-                "SQLite database detected on serverless platform (Vercel/AWS Lambda). "
-                "Please set the DATABASE_URL environment variable to a managed PostgreSQL "
-                "connection string (e.g., postgresql://user:pass@host:5432/dbname). "
-                "SQLite does not work on read-only serverless filesystems."
-            )
-        # Extract the relative path (e.g., "./aravanta_dev.db" -> "aravanta_dev.db")
-        rel_path = url.replace("sqlite:///", "")
-        # Use a persistent data directory in the project root
-        data_dir = Path(__file__).parent.parent.parent.parent / "data"
-        data_dir.mkdir(exist_ok=True)
-        abs_path = data_dir / rel_path.lstrip("./")
-        return f"sqlite:///{abs_path}"
-    
-    # For absolute SQLite paths or other databases (PostgreSQL, etc.), use as-is
-    # NOTE: On serverless platforms (Vercel, AWS Lambda), you MUST set DATABASE_URL
-    # to a managed PostgreSQL connection string. SQLite will NOT persist across cold starts.
-    if is_serverless and url.startswith("sqlite"):
-        raise RuntimeError(
-            "SQLite database detected on serverless platform (Vercel/AWS Lambda). "
-            "Please set the DATABASE_URL environment variable to a managed PostgreSQL "
-            "connection string (e.g., postgresql://user:pass@host:5432/dbname). "
-            "SQLite does not work on read-only serverless filesystems."
-        )
+
+    if is_serverless:
+        if url.startswith("sqlite"):
+            # Ensure SQLite writes to writable /tmp directory on serverless
+            return "sqlite:////tmp/aravanta_dev.db"
+        return url
+
+    # Local development: persist relative SQLite path in data directory
+    if url.startswith("sqlite:///") and not url.startswith("sqlite:////") and ":memory:" not in url:
+        rel_path = url.replace("sqlite:///", "").lstrip("./")
+        data_dir = Path(__file__).resolve().parent.parent.parent.parent / "data"
+        try:
+            data_dir.mkdir(parents=True, exist_ok=True)
+            abs_path = data_dir / rel_path
+            return f"sqlite:///{abs_path.as_posix()}"
+        except Exception:
+            return f"sqlite:///./{rel_path}"
+
     return url
 
 

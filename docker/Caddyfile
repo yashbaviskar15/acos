@@ -1,0 +1,8 @@
+# Automatic HTTPS (Let's Encrypt) for your domain.
+# Caddy terminates TLS on 443 and reverse-proxies to the internal nginx gateway,
+# which serves the frontend and routes /api/* to the backend services.
+# {$DOMAIN} is read from the caddy container's environment (set in .env).
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy gateway:80
+}

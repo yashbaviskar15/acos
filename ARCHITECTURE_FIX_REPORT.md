@@ -1,6 +1,6 @@
 # ACOS / Aravanta CloudOS — Production Architecture Fix Report
 
-_Browser → `acos-taupe.vercel.app/api/v1/*` → Vercel rewrite → `acos-backend.vercel.app/api/v1/*` → FastAPI. The browser no longer calls the backend domain directly._
+_Browser → `arv-frontend.vercel.app/api/v1/*` → Vercel rewrite → `arv-backend.vercel.app/api/v1/*` → FastAPI. The browser no longer calls the backend domain directly._
 
 ---
 
@@ -38,7 +38,7 @@ _Auth, MFA, models, schemas, and the security module were left functionally inta
 
 Secondary issue: the configuration `allow_origins=["*"]` **with** `allow_credentials=True` is an invalid combination that browsers reject even when the app is healthy.
 
-**Fix:** the app now always initializes (guarded `create_all`), and CORS uses an explicit origin list (`https://acos-taupe.vercel.app` + localhost) that is valid alongside credentials.
+**Fix:** the app now always initializes (guarded `create_all`), and CORS uses an explicit origin list (`https://arv-frontend.vercel.app` + localhost) that is valid alongside credentials.
 
 ---
 
@@ -56,9 +56,9 @@ Note: `/tmp` SQLite is **ephemeral** per cold start. For durable data set `DATAB
 
 ## 4. Exact cause of the 405 registration error
 
-The failing request was `POST https://acos-taupe.vercel.app/api/v1/auth/register` — it hit the **frontend** deployment, not the backend. `frontend/vercel.json` was invalid (two root JSON objects) so its `/api` proxy rewrite was not reliably applied; the SPA catch-all rewrite `"/(.*)" → "/index.html"` then captured the POST and served the static `index.html`. A static asset only answers GET, so Vercel returned **405 Method Not Allowed**.
+The failing request was `POST https://arv-frontend.vercel.app/api/v1/auth/register` — it hit the **frontend** deployment, not the backend. `frontend/vercel.json` was invalid (two root JSON objects) so its `/api` proxy rewrite was not reliably applied; the SPA catch-all rewrite `"/(.*)" → "/index.html"` then captured the POST and served the static `index.html`. A static asset only answers GET, so Vercel returned **405 Method Not Allowed**.
 
-**Fix:** `frontend/vercel.json` is now a single valid JSON object whose **first** rewrite is `"/api/:path*" → "https://acos-backend.vercel.app/api/:path*"`, evaluated before the SPA fallback. The backend route itself was already correct: `POST /api/v1/auth/register` (201) in `arvgate/router.py`, schema `UserRegister{email, password, full_name, role="Developer"}` — matching the frontend payload. No new route was invented.
+**Fix:** `frontend/vercel.json` is now a single valid JSON object whose **first** rewrite is `"/api/:path*" → "https://arv-backend.vercel.app/api/:path*"`, evaluated before the SPA fallback. The backend route itself was already correct: `POST /api/v1/auth/register` (201) in `arvgate/router.py`, schema `UserRegister{email, password, full_name, role="Developer"}` — matching the frontend payload. No new route was invented.
 
 ---
 
@@ -66,7 +66,7 @@ The failing request was `POST https://acos-taupe.vercel.app/api/v1/auth/register
 
 - **One client:** `frontend/src/config/api.ts` exporting `apiFetch(path, options)` and `API_BASE_URL = "/api"`. `lib/api.ts` re-exports it.
 - **Call style:** components call `apiFetch("/v1/…")`; the helper normalizes to `/api/v1/…` (same-origin). Example: `apiFetch("/v1/auth/login", { method: "POST", body: JSON.stringify({ email, password }) })` → `POST /api/v1/auth/login`.
-- **Proxy:** Vercel rewrite sends `/api/*` to `https://acos-backend.vercel.app/api/*`. The browser never addresses the backend domain.
+- **Proxy:** Vercel rewrite sends `/api/*` to `https://arv-backend.vercel.app/api/*`. The browser never addresses the backend domain.
 - **Auth:** injects `Authorization: Bearer <token>` from `options.token` or `localStorage['aravanta_token']`; never emits `Bearer undefined` / `Bearer null`.
 - **Headers/body:** sets `Content-Type: application/json` only when a non-`FormData` body is present and not already set (FormData uploads keep the browser boundary).
 - **Errors:** returns parsed JSON on 2xx; on non-2xx **throws** an `Error` whose message is the backend `detail`/`message`/`error` (falls back to status text / raw text). `error.status` and `error.payload` are attached. Errors are not swallowed.
@@ -79,7 +79,7 @@ The failing request was `POST https://acos-taupe.vercel.app/api/v1/auth/register
 |----------|-----------|-------|
 | `DATABASE_URL` | **Yes for production** | Default is ephemeral SQLite (now `/tmp` on serverless, wiped per cold start). Set to managed Postgres, e.g. `postgresql://user:pass@host:5432/dbname`. `psycopg2-binary` is now bundled to support it. |
 | `SECRET_KEY` | **Yes for production** | JWT (HS256) signing key. Ships with an insecure dev default — override it. |
-| `BACKEND_CORS_ORIGINS` | Optional | Comma-separated allowed origins. Defaults to `https://acos-taupe.vercel.app` + localhost. |
+| `BACKEND_CORS_ORIGINS` | Optional | Comma-separated allowed origins. Defaults to `https://arv-frontend.vercel.app` + localhost. |
 | `ACCESS_TOKEN_EXPIRE_MINUTES`, `ALGORITHM` | Optional | Sensible defaults present. |
 | `REDIS_URL` | Optional | Only if Redis-backed features are enabled. |
 | `VERCEL` | Auto | Set by Vercel; used to trigger the `/tmp` SQLite fallback. |
@@ -102,7 +102,7 @@ python3 -c "import json; json.load(open('vercel.json'))"
 python3 -c "import json; json.load(open('backend/vercel.json'))"
 
 # Confirm no backend domain leaks / no stray clients in frontend source
-grep -rn "acos-backend.vercel.app" frontend/src   # expect: no matches
+grep -rn "arv-backend.vercel.app" frontend/src   # expect: no matches
 grep -rn "fetch(" frontend/src                     # expect: only config/api.ts
 grep -rn "axios\|XMLHttpRequest" frontend/src      # expect: no matches
 ```
@@ -122,7 +122,7 @@ What I verified **statically** instead (relevant because `tsconfig` uses `noUnus
 
 ---
 
-## 9. Any `acos-backend.vercel.app` references left in frontend source?
+## 9. Any `arv-backend.vercel.app` references left in frontend source?
 
 **None in `frontend/src`** (verified by grep). The domain appears only where it must — as the `destination` of the `/api` proxy rewrite in `frontend/vercel.json` and the root `vercel.json`. That is correct and required.
 

@@ -19,24 +19,60 @@ from app.services.arvbilling.router import router as arvbilling_router
 
 logger = logging.getLogger("aravanta.startup")
 
-# Initialize database tables.
-#
-# IMPORTANT: this must never raise at import time. On a read-only serverless
-# filesystem (e.g. Vercel) a failure here would abort loading the entire ASGI
-# application, so every request would return an opaque 500 and the CORS
-# middleware below would never run — which is exactly the "No 'Access-Control-
-# Allow-Origin' header" + 500 symptom this service exhibited. We guard it and
-# log the real cause instead of crashing the app.
-try:
-    Base.metadata.create_all(bind=engine)
-except Exception as exc:  # noqa: BLE001 - defensive startup guard
-    logger.error(
-        "Database initialization failed: %s. If deploying on a read-only "
-        "serverless platform, set the DATABASE_URL environment variable to a "
-        "persistent database (e.g. managed Postgres). The default SQLite file "
-        "cannot be created on a read-only filesystem.",
-        exc,
-    )
+# Initialize database tables and seed default users safely.
+def init_db():
+    try:
+        Base.metadata.create_all(bind=engine)
+        from app.core.database import SessionLocal
+        from app.services.arvgate.models import User
+        from app.core.security import get_password_hash, generate_mfa_secret
+
+        db = SessionLocal()
+        try:
+            # Seed primary administrator account
+            admin_email = "yashbaviskar67@gmail.com"
+            user = db.query(User).filter(User.email == admin_email).first()
+            if not user:
+                new_user = User(
+                    id="usr-yash-admin-001",
+                    account_id="ARV-ACC-100001",
+                    email=admin_email,
+                    full_name="Yash Baviskar",
+                    hashed_password=get_password_hash("Padma@0215"),
+                    role="SuperAdmin",
+                    is_mfa_enabled=False,
+                    mfa_secret=generate_mfa_secret()
+                )
+                db.add(new_user)
+
+            # Seed platform admin account
+            cloud_admin = db.query(User).filter(User.email == "admin@aravanta.cloud").first()
+            if not cloud_admin:
+                new_admin = User(
+                    id="usr-cloud-admin-002",
+                    account_id="ARV-ACC-100002",
+                    email="admin@aravanta.cloud",
+                    full_name="Enterprise Administrator",
+                    hashed_password=get_password_hash("Aravanta@2026!"),
+                    role="SuperAdmin",
+                    is_mfa_enabled=False,
+                    mfa_secret=generate_mfa_secret()
+                )
+                db.add(new_admin)
+
+            db.commit()
+        except Exception as err:
+            logger.warning("Seed error: %s", err)
+            db.rollback()
+        finally:
+            db.close()
+    except Exception as exc:  # noqa: BLE001 - defensive startup guard
+        logger.error(
+            "Database initialization failed: %s.",
+            exc,
+        )
+
+init_db()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -46,13 +82,11 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# Configure CORS. The browser calls the frontend origin, which proxies /api/*
-# to this backend, but we still declare the allowed browser origins explicitly.
-# A wildcard "*" is INVALID together with allow_credentials=True (browsers
-# reject it), so we use an explicit list sourced from settings.
+# Configure CORS. Allows specified origins + all *.vercel.app preview deployments.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -74,7 +108,18 @@ app.include_router(arvwatch_router)
 app.include_router(arvcicd_router)
 app.include_router(arvbilling_router)
 
+@app.get("/", tags=["Root"])
+def root():
+    return {
+        "status": "HEALTHY",
+        "service": "Aravanta CloudOS Backend API",
+        "version": settings.VERSION,
+        "docs": "/docs",
+        "health": "/health"
+    }
+
 @app.get("/health", tags=["Health"])
+@app.get("/api/v1/health", tags=["Health"])
 def health_check():
     return {
         "status": "HEALTHY",

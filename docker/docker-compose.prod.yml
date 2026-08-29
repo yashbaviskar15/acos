@@ -1,0 +1,47 @@
+# Production override for a public VPS. Layer it ON TOP of the base compose:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# What this override adds/changes (the base docker-compose.yml stays untouched):
+#   • Replaces the hardcoded Postgres + Grafana passwords with values from docker/.env.
+#   • Rebuilds arvgate's database URL from POSTGRES_PASSWORD so it matches.
+#   • Adds a Caddy reverse proxy on 80/443 with automatic HTTPS in front of the gateway.
+#
+# Restricting the many internal ports the base file publishes (5432, 6379, 8001-8010,
+# 9090, 3001, ...) is done at your provider's CLOUD firewall (allow only 22/80/443) —
+# Docker bypasses ufw, so an edge firewall is the reliable control. See DEPLOY.md.
+
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in docker/.env}
+
+  arvgate:
+    environment:
+      ARVGATE_DATABASE_URL: postgresql://aravanta:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in docker/.env}@postgres:5432/aravanta_identity
+
+  grafana:
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD:?GF_SECURITY_ADMIN_PASSWORD must be set in docker/.env}
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - gateway
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN must be set in docker/.env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - aravanta
+
+volumes:
+  caddy_data:
+  caddy_config:
