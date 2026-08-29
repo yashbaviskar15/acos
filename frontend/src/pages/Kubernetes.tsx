@@ -30,9 +30,12 @@ export const Kubernetes: React.FC<KubernetesProps> = ({ token }) => {
       if (data) {
         const list = Array.isArray(data) ? data : [];
         setClusters(list);
-        if (list.length > 0 && !selectedCluster) {
-          setSelectedCluster(list[0]);
-        }
+        setSelectedCluster((prev: any) => {
+          if (prev && list.some((c: any) => c.id === prev.id)) {
+            return list.find((c: any) => c.id === prev.id) || prev;
+          }
+          return list[0] || null;
+        });
       }
 
       const sum = await apiFetch<any>('/v1/kubernetes/summary', { token }).catch(() => null);
@@ -58,10 +61,10 @@ export const Kubernetes: React.FC<KubernetesProps> = ({ token }) => {
   }, [token]);
 
   useEffect(() => {
-    if (selectedCluster) {
+    if (selectedCluster?.id) {
       fetchPods(selectedCluster.id);
     }
-  }, [selectedCluster]);
+  }, [selectedCluster?.id]);
 
   const handleCreateCluster = async (e: React.FormEvent) => {
     e.preventDefault();

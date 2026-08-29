@@ -36,9 +36,12 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
       if (data) {
         const list = Array.isArray(data) ? data : [];
         setBuckets(list);
-        if (list.length > 0 && !selectedBucket) {
-          setSelectedBucket(list[0]);
-        }
+        setSelectedBucket((prev: any) => {
+          if (prev && list.some((b: any) => b.id === prev.id)) {
+            return list.find((b: any) => b.id === prev.id) || prev;
+          }
+          return list[0] || null;
+        });
       }
 
       const sum = await apiFetch<any>('/v1/storage/summary', { token }).catch(() => null);
@@ -64,10 +67,10 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
   }, [token]);
 
   useEffect(() => {
-    if (selectedBucket) {
+    if (selectedBucket?.id) {
       fetchObjects(selectedBucket.id);
     }
-  }, [selectedBucket]);
+  }, [selectedBucket?.id]);
 
   const handleCreateBucket = async (e: React.FormEvent) => {
     e.preventDefault();
