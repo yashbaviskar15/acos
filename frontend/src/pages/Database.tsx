@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Database, Plus, Trash2, RefreshCw } from 'lucide-react';
+import { Database, Plus, Trash2, RefreshCw, Terminal, Copy, Check, ShieldCheck } from 'lucide-react';
 import { ModalPortal } from '../components/ModalPortal';
 import { apiFetch } from '../config/api';
 
@@ -12,6 +12,8 @@ export const Databases: React.FC<DatabaseProps> = ({ token }) => {
   const [summary, setSummary] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [connectDb, setConnectDb] = useState<any | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // Form State
   const [name, setName] = useState('');
@@ -21,6 +23,12 @@ export const Databases: React.FC<DatabaseProps> = ({ token }) => {
   const [storageGb, setStorageGb] = useState(100);
   const [multiAz, setMultiAz] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+
+  const handleCopyText = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(id);
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
 
   const fetchDatabases = async () => {
     setLoading(true);
@@ -180,7 +188,13 @@ export const Databases: React.FC<DatabaseProps> = ({ token }) => {
             )}
 
             <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-              <span>Multi-AZ: {db.multi_az ? 'Enabled' : 'Disabled'} • Backup: Active</span>
+              <button
+                onClick={() => setConnectDb(db)}
+                className="px-2.5 py-1 bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-100 flex items-center gap-1 font-bold cursor-pointer"
+                title="View SQL connection string and CLI commands"
+              >
+                <Terminal className="w-3 h-3" /> Connect & CLI
+              </button>
               <button
                 onClick={() => handleDeleteDB(db.id)}
                 className="text-red-600 dark:text-red-400 hover:underline flex items-center gap-1 font-bold cursor-pointer"
@@ -303,6 +317,96 @@ export const Databases: React.FC<DatabaseProps> = ({ token }) => {
             </button>
           </div>
         </form>
+      </ModalPortal>
+
+      {/* Connect DB & SQL/CLI Modal */}
+      <ModalPortal isOpen={!!connectDb} onClose={() => setConnectDb(null)}>
+        {connectDb && (
+          <div className="space-y-4 text-xs font-mono">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Database className="w-4 h-4 text-amber-500" />
+                Connect to {connectDb.name} ({connectDb.engine})
+              </h3>
+              <button onClick={() => setConnectDb(null)} className="text-slate-400 hover:text-white font-bold text-base cursor-pointer">✕</button>
+            </div>
+
+            <div className="p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl space-y-1">
+              <div className="flex items-center gap-1.5 text-amber-800 dark:text-amber-300 font-bold text-[11px]">
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
+                <span>Internal VPC Database Cluster</span>
+              </div>
+              <p className="text-[10px] text-slate-600 dark:text-slate-300">
+                Database engines communicate over dedicated TCP ports ({connectDb.port || '5432'}) using database clients (psql, redis-cli, mongosh, DBeaver) or application connection strings.
+              </p>
+            </div>
+
+            {/* Connection URI */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-slate-400 uppercase font-bold">1. Application Connection String</span>
+                <button
+                  onClick={() => handleCopyText(
+                    connectDb.engine.includes('Redis')
+                      ? `redis://default:arv_db_pass@${connectDb.endpoint}:${connectDb.port || 6379}/0`
+                      : (connectDb.engine.includes('MongoDB')
+                        ? `mongodb://admin:arv_db_pass@${connectDb.endpoint}:${connectDb.port || 27017}/${connectDb.name}?authSource=admin`
+                        : `postgresql://admin:arv_db_pass@${connectDb.endpoint}:${connectDb.port || 5432}/${connectDb.name}?sslmode=require`),
+                    'db-uri'
+                  )}
+                  className="px-2 py-0.5 bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  {copiedKey === 'db-uri' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                  Copy URI
+                </button>
+              </div>
+              <pre className="p-3 bg-slate-900 text-amber-400 rounded-xl text-[10px] overflow-x-auto border border-slate-800 font-mono">
+                {connectDb.engine.includes('Redis')
+                  ? `redis://default:arv_db_pass@${connectDb.endpoint}:${connectDb.port || 6379}/0`
+                  : (connectDb.engine.includes('MongoDB')
+                    ? `mongodb://admin:arv_db_pass@${connectDb.endpoint}:${connectDb.port || 27017}/${connectDb.name}?authSource=admin`
+                    : `postgresql://admin:arv_db_pass@${connectDb.endpoint}:${connectDb.port || 5432}/${connectDb.name}?sslmode=require`)}
+              </pre>
+            </div>
+
+            {/* CLI Command */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-slate-400 uppercase font-bold">2. Native CLI Command</span>
+                <button
+                  onClick={() => handleCopyText(
+                    connectDb.engine.includes('Redis')
+                      ? `redis-cli -h ${connectDb.endpoint} -p ${connectDb.port || 6379}`
+                      : (connectDb.engine.includes('MongoDB')
+                        ? `mongosh "mongodb://${connectDb.endpoint}:${connectDb.port || 27017}/${connectDb.name}"`
+                        : `psql -h ${connectDb.endpoint} -p ${connectDb.port || 5432} -U admin -d ${connectDb.name}`),
+                    'db-cli'
+                  )}
+                  className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  {copiedKey === 'db-cli' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                  Copy Command
+                </button>
+              </div>
+              <pre className="p-3 bg-black text-emerald-400 rounded-xl text-[10px] overflow-x-auto border border-slate-800 font-mono">
+                {connectDb.engine.includes('Redis')
+                  ? `redis-cli -h ${connectDb.endpoint} -p ${connectDb.port || 6379}`
+                  : (connectDb.engine.includes('MongoDB')
+                    ? `mongosh "mongodb://${connectDb.endpoint}:${connectDb.port || 27017}/${connectDb.name}"`
+                    : `psql -h ${connectDb.endpoint} -p ${connectDb.port || 5432} -U admin -d ${connectDb.name}`)}
+              </pre>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => setConnectDb(null)}
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold cursor-pointer"
+              >
+                Close Connection Helper
+              </button>
+            </div>
+          </div>
+        )}
       </ModalPortal>
     </div>
   );

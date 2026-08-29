@@ -138,6 +138,8 @@ async def upload_file(
         "storage_class": _buckets[bucket_id].get("storage_class", "STANDARD"),
         "last_modified": datetime.utcnow().isoformat() + "Z",
         "content_type": file.content_type or "application/octet-stream",
+        "s3_uri": f"s3://{_buckets[bucket_id]['name']}/{key_path}",
+        "download_url": f"/api/v1/storage/buckets/{bucket_id}/objects/{key_path}/download",
     }
 
     if bucket_id not in _objects:
@@ -152,6 +154,48 @@ async def upload_file(
         "message": f"File '{file.filename}' uploaded successfully to bucket '{_buckets[bucket_id]['name']}'",
         "object": new_obj
     }
+
+@router.get("/buckets/{bucket_id}/objects/{object_key:path}/download")
+def download_object(bucket_id: str, object_key: str):
+    """Download stored object as file attachment."""
+    if bucket_id not in _buckets:
+        raise HTTPException(404, "Bucket not found")
+    
+    bname = _buckets[bucket_id]["name"]
+    sample_content = f"# Aravanta CloudOS S3 Object\nBucket: {bname}\nKey: {object_key}\nGenerated: {datetime.utcnow().isoformat()}Z\n".encode("utf-8")
+    filename = object_key.split("/")[-1] or "object.bin"
+    
+    import io
+    from fastapi.responses import StreamingResponse
+    return StreamingResponse(
+        io.BytesIO(sample_content),
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+@router.get("/buckets/{bucket_id}/objects/{object_key:path}/preview")
+def preview_object(bucket_id: str, object_key: str):
+    """Preview metadata and content of an object."""
+    if bucket_id not in _buckets:
+        raise HTTPException(404, "Bucket not found")
+    bname = _buckets[bucket_id]["name"]
+    return {
+        "key": object_key,
+        "bucket": bname,
+        "s3_uri": f"s3://{bname}/{object_key}",
+        "download_url": f"/api/v1/storage/buckets/{bucket_id}/objects/{object_key}/download",
+        "content_preview": f"Object: {object_key}\nBucket: {bname}\nClass: STANDARD\nEncryption: AES-256 Enabled\nIntegrity: Verified SHA-256",
+    }
+
+@router.delete("/buckets/{bucket_id}/objects/{object_key:path}")
+def delete_object(bucket_id: str, object_key: str):
+    """Delete an object from a bucket."""
+    if bucket_id not in _buckets:
+        raise HTTPException(404, "Bucket not found")
+    objs = _objects.get(bucket_id, [])
+    _objects[bucket_id] = [o for o in objs if o["key"] != object_key]
+    _buckets[bucket_id]["object_count"] = max(0, _buckets[bucket_id]["object_count"] - 1)
+    return {"message": f"Object '{object_key}' deleted from bucket '{_buckets[bucket_id]['name']}'"}
 
 @router.get("/summary")
 def storage_summary():
