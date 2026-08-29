@@ -2,7 +2,7 @@
 Aravanta CloudOS — ArvDB Service Router
 Full CRUD for managed database instances.
 """
-import uuid
+import hashlib
 import random
 from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException
@@ -22,6 +22,15 @@ DB_TIERS = [
 
 _databases: dict[str, dict] = {}
 
+def _deterministic_id(prefix: str, name: str) -> str:
+    return f"{prefix}-{hashlib.md5(name.encode()).hexdigest()[:8]}"
+
+def _get_tier_price(tier_id: str) -> float:
+    for t in DB_TIERS:
+        if t["id"] == tier_id:
+            return t["price_hr"]
+    return 0.072
+
 # Seed databases
 _seed_dbs = [
     ("aravanta-core-db", "PostgreSQL 16", "db.arv.large", "arv-us-east-1", 100),
@@ -30,8 +39,13 @@ _seed_dbs = [
     ("user-documents", "MongoDB 7.0", "db.arv.large", "arv-us-west-2", 200),
 ]
 
+random.seed(42)
 for name, engine, tier, region, storage in _seed_dbs:
-    db_id = f"arv-db-{uuid.uuid4().hex[:8]}"
+    db_id = _deterministic_id("arv-db", name)
+    port = "6379" if "Redis" in engine else ("27017" if "MongoDB" in engine else "5432")
+    conn_active = random.randint(5, 120)
+    conn_max = random.choice([100, 200, 500])
+    storage_used = round(storage * random.uniform(0.4, 0.95), 1) if storage > 0 else 0
     _databases[db_id] = {
         "id": db_id,
         "name": name,
@@ -39,12 +53,20 @@ for name, engine, tier, region, storage in _seed_dbs:
         "tier": tier,
         "region": region,
         "storage_gb": storage,
+        "storage_used_gb": storage_used,
         "status": "AVAILABLE",
-        "endpoint": f"{name}.db.aravanta.cloud:5432",
-        "connection_count": random.randint(5, 120),
+        "endpoint": f"{name}.db.aravanta.cloud",
+        "port": port,
+        "connection_count": conn_active,
+        "connections_active": conn_active,
+        "connections_max": conn_max,
+        "latency_ms": round(random.uniform(0.5, 8.0), 1),
+        "iops": random.randint(1000, 15000),
         "created_at": (datetime.utcnow() - timedelta(days=random.randint(10, 100))).isoformat() + "Z",
         "multi_az": True,
+        "monthly_cost_usd": round(_get_tier_price(tier) * 730, 2),
     }
+random.seed()
 
 class CreateDatabaseRequest(BaseModel):
     name: str
@@ -66,7 +88,7 @@ def get_database(db_id: str):
 
 @router.post("/instances", status_code=201)
 def create_database(req: CreateDatabaseRequest):
-    db_id = f"arv-db-{uuid.uuid4().hex[:8]}"
+    db_id = _deterministic_id("arv-db", req.name)
     port = "6379" if "Redis" in req.engine else ("27017" if "MongoDB" in req.engine else "5432")
     new_db = {
         "id": db_id,
@@ -75,11 +97,18 @@ def create_database(req: CreateDatabaseRequest):
         "tier": req.tier,
         "region": req.region,
         "storage_gb": req.storage_gb,
+        "storage_used_gb": 0,
         "status": "AVAILABLE",
-        "endpoint": f"{req.name}.db.aravanta.cloud:{port}",
+        "endpoint": f"{req.name}.db.aravanta.cloud",
+        "port": port,
         "connection_count": 0,
+        "connections_active": 0,
+        "connections_max": 200,
+        "latency_ms": 0,
+        "iops": 0,
         "created_at": datetime.utcnow().isoformat() + "Z",
         "multi_az": req.multi_az,
+        "monthly_cost_usd": round(_get_tier_price(req.tier) * 730, 2),
     }
     _databases[db_id] = new_db
     return new_db
@@ -94,10 +123,13 @@ def delete_database(db_id: str):
 @router.get("/summary")
 def database_summary():
     dbs = list(_databases.values())
+    total_monthly = sum(d.get("monthly_cost_usd", 0) for d in dbs)
     return {
         "total_databases": len(dbs),
+        "total_instances": len(dbs),
         "available": len([d for d in dbs if d["status"] == "AVAILABLE"]),
         "total_storage_gb": sum(d["storage_gb"] for d in dbs),
-        "total_connections": sum(d["connection_count"] for d in dbs),
+        "total_connections": sum(d.get("connections_active", d.get("connection_count", 0)) for d in dbs),
         "engines": list(set(d["engine"] for d in dbs)),
+        "total_monthly_cost": total_monthly,
     }

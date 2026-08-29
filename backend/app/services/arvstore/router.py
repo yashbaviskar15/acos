@@ -2,7 +2,7 @@
 Aravanta CloudOS — ArvStore Service Router
 Full CRUD for object storage buckets and objects with file upload support.
 """
-import uuid
+import hashlib
 import random
 from datetime import datetime, timedelta
 from typing import Optional
@@ -16,6 +16,9 @@ _objects: dict[str, list] = {}
 
 STORAGE_CLASSES = ["STANDARD", "INFREQUENT_ACCESS", "ARCHIVE", "GLACIER"]
 
+def _det_id(prefix: str, name: str) -> str:
+    return f"{prefix}-{hashlib.md5(name.encode()).hexdigest()[:10]}"
+
 # Seed buckets
 _seed_buckets = [
     ("aravanta-assets-prod", "arv-us-east-1", "STANDARD", 156.8, 12400),
@@ -24,8 +27,9 @@ _seed_buckets = [
     ("app-logs-archive", "arv-us-east-1", "ARCHIVE", 1240.0, 45000),
 ]
 
+random.seed(42)
 for bname, region, sclass, size_gb, obj_count in _seed_buckets:
-    bid = f"arv-s3-{uuid.uuid4().hex[:10]}"
+    bid = _det_id("arv-s3", bname)
     created = datetime.utcnow() - timedelta(days=random.randint(30, 365))
     _buckets[bid] = {
         "id": bid,
@@ -44,9 +48,9 @@ for bname, region, sclass, size_gb, obj_count in _seed_buckets:
     exts = [".json", ".csv", ".parquet", ".log", ".tar.gz", ".png", ".jpg", ".mp4", ".yaml", ".sql"]
     dirs = ["data/", "backups/", "logs/", "models/", "config/", "assets/", "exports/"]
     bucket_objects = []
-    for _ in range(min(obj_count, 20)):
+    for i in range(min(obj_count, 20)):
         obj = {
-            "key": f"{random.choice(dirs)}{uuid.uuid4().hex[:8]}{random.choice(exts)}",
+            "key": f"{random.choice(dirs)}{hashlib.md5(f'{bname}-obj-{i}'.encode()).hexdigest()[:8]}{random.choice(exts)}",
             "size_bytes": random.randint(1024, 500_000_000),
             "storage_class": sclass,
             "last_modified": (datetime.utcnow() - timedelta(days=random.randint(0, 90))).isoformat() + "Z",
@@ -54,6 +58,7 @@ for bname, region, sclass, size_gb, obj_count in _seed_buckets:
         }
         bucket_objects.append(obj)
     _objects[bid] = bucket_objects
+random.seed()
 
 class CreateBucketRequest(BaseModel):
     name: str
@@ -74,7 +79,7 @@ def get_bucket(bucket_id: str):
 
 @router.post("/buckets", status_code=201)
 def create_bucket(req: CreateBucketRequest):
-    bid = f"arv-s3-{uuid.uuid4().hex[:10]}"
+    bid = _det_id("arv-s3", req.name)
     bucket = {
         "id": bid,
         "name": req.name,

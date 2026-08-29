@@ -2,7 +2,7 @@
 Aravanta CloudOS — ArvKube Service Router
 Full CRUD for Kubernetes clusters, node pools, and pods.
 """
-import uuid
+import hashlib
 import random
 from datetime import datetime, timedelta
 from typing import Optional
@@ -17,6 +17,9 @@ NODE_SIZES = ["arv.medium", "arv.large", "arv.xlarge", "arv.2xlarge"]
 _clusters: dict[str, dict] = {}
 _pods: dict[str, list] = {}
 
+def _det_id(prefix: str, name: str) -> str:
+    return f"{prefix}-{hashlib.md5(name.encode()).hexdigest()[:10]}"
+
 # Seed clusters
 _seed_clusters = [
     ("aravanta-prod", "1.30.1", "arv-us-east-1", 5, "ACTIVE"),
@@ -27,8 +30,9 @@ _seed_clusters = [
 NAMESPACES = ["default", "kube-system", "aravanta-core", "monitoring", "ingress-nginx"]
 POD_PREFIXES = ["api-server", "web-frontend", "worker", "scheduler", "redis", "postgres", "nginx-ingress", "prometheus", "grafana", "loki", "cert-manager"]
 
+random.seed(42)
 for cname, ver, region, nodes, status in _seed_clusters:
-    cid = f"arv-k8s-{uuid.uuid4().hex[:10]}"
+    cid = _det_id("arv-k8s", cname)
     created = datetime.utcnow() - timedelta(days=random.randint(30, 180))
     _clusters[cid] = {
         "id": cid,
@@ -47,11 +51,11 @@ for cname, ver, region, nodes, status in _seed_clusters:
     # Seed pods per cluster
     pod_count = random.randint(8, 22)
     cluster_pods = []
-    for _ in range(pod_count):
+    for i in range(pod_count):
         prefix = random.choice(POD_PREFIXES)
-        suffix = uuid.uuid4().hex[:8]
+        suffix = hashlib.md5(f"{cname}-pod-{i}".encode()).hexdigest()[:8]
         pod = {
-            "id": f"pod-{uuid.uuid4().hex[:10]}",
+            "id": f"pod-{hashlib.md5(f'{cname}-{i}'.encode()).hexdigest()[:10]}",
             "name": f"{prefix}-{suffix}",
             "namespace": random.choice(NAMESPACES),
             "status": random.choices(["Running", "Running", "Running", "Running", "Pending", "CrashLoopBackOff", "Completed"], weights=[50, 50, 50, 50, 5, 2, 3])[0],
@@ -65,6 +69,7 @@ for cname, ver, region, nodes, status in _seed_clusters:
         cluster_pods.append(pod)
     _pods[cid] = cluster_pods
     _clusters[cid]["pod_count"] = len(cluster_pods)
+random.seed()
 
 class CreateClusterRequest(BaseModel):
     name: str
@@ -88,7 +93,7 @@ def get_cluster(cluster_id: str):
 
 @router.post("/clusters", status_code=201)
 def create_cluster(req: CreateClusterRequest):
-    cid = f"arv-k8s-{uuid.uuid4().hex[:10]}"
+    cid = _det_id("arv-k8s", req.name)
     cluster = {
         "id": cid,
         "name": req.name,
@@ -105,7 +110,6 @@ def create_cluster(req: CreateClusterRequest):
     }
     _clusters[cid] = cluster
     _pods[cid] = []
-    # Simulate quick provisioning
     cluster["status"] = "ACTIVE"
     return cluster
 

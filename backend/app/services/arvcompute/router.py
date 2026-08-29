@@ -2,7 +2,7 @@
 Aravanta CloudOS — ArvCompute Service Router
 Full CRUD for virtual machine instances with in-memory data store.
 """
-import uuid
+import hashlib
 import random
 from datetime import datetime, timedelta
 from typing import Optional
@@ -33,6 +33,9 @@ OS_IMAGES = [
     "Windows Server 2022", "Aravanta CoreOS 1.0"
 ]
 
+def _det_id(prefix: str, name: str) -> str:
+    return f"{prefix}-{hashlib.md5(name.encode()).hexdigest()[:12]}"
+
 def _random_ip():
     return f"10.{random.randint(0,255)}.{random.randint(1,254)}.{random.randint(1,254)}"
 
@@ -53,8 +56,10 @@ _seed_names = [
     ("ci-runner-01", "arv.compute.medium", "Ubuntu 24.04 LTS", "arv-us-west-2"),
     ("bastion-host", "arv.small", "Ubuntu 22.04 LTS", "arv-us-east-1"),
 ]
+
+random.seed(42)
 for name, itype, os_img, region in _seed_names:
-    inst_id = f"arv-i-{uuid.uuid4().hex[:12]}"
+    inst_id = _det_id("arv-i", name)
     launched = datetime.utcnow() - timedelta(days=random.randint(1, 90), hours=random.randint(0, 23))
     _instances[inst_id] = {
         "id": inst_id,
@@ -71,6 +76,7 @@ for name, itype, os_img, region in _seed_names:
         "launched_at": launched.isoformat() + "Z",
         "tags": {"env": random.choice(["production", "staging", "development"]), "team": random.choice(["platform", "backend", "ml", "devops"])},
     }
+random.seed()
 
 # ─── Schemas ────────────────────────────────────────────────────
 class CreateInstanceRequest(BaseModel):
@@ -102,7 +108,7 @@ def get_instance(instance_id: str):
 
 @router.post("/instances", status_code=201)
 def create_instance(req: CreateInstanceRequest):
-    inst_id = f"arv-i-{uuid.uuid4().hex[:12]}"
+    inst_id = _det_id("arv-i", req.name)
     instance = {
         "id": inst_id,
         "name": req.name,
