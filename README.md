@@ -37,7 +37,6 @@ The platform is pre-seeded with administrator accounts and supports instant regi
 
 | Email / Identifier | Password | Default Role | Capabilities |
 | :--- | :--- | :--- | :--- |
-| `yashbaviskar67@gmail.com` | `Padma@0215` | **SuperAdmin** | Full infrastructure control, IAM, RBAC, Billing & Compute |
 | `admin@aravanta.cloud` | `Aravanta@2026!` | **SuperAdmin** | Enterprise root administrator |
 
 > 💡 **Role Switching**: Users can switch dynamically between **SuperAdmin**, **Developer**, **Admin**, and **Viewer** during sign-in, via the top header badge, or inside `User Profile > IAM Settings`.
