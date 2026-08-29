@@ -31,14 +31,6 @@
 
 ---
 
-## 🔑 Demo Access Credentials
-
-The platform is pre-seeded with administrator accounts and supports instant registration:
-
-| Email / Identifier | Password | Default Role | Capabilities |
-| :--- | :--- | :--- | :--- |
-| `admin@aravanta.cloud` | `Aravanta@2026!` | **SuperAdmin** | Enterprise root administrator |
-
 > 💡 **Role Switching**: Users can switch dynamically between **SuperAdmin**, **Developer**, **Admin**, and **Viewer** during sign-in, via the top header badge, or inside `User Profile > IAM Settings`.
 
 ---
