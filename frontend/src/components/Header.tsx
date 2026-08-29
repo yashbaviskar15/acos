@@ -122,7 +122,7 @@ export const Header: React.FC<HeaderProps> = ({
     if (hasNotificationPermission) {
       // Already granted — send a test notification to prove it works
       sendSystemNotification(
-        '✅ Notifications Already Active',
+        ' Notifications Already Active',
         'Aravanta CloudOS desktop notifications are enabled and working!'
       );
       return;
@@ -137,7 +137,7 @@ export const Header: React.FC<HeaderProps> = ({
 
       // Send an immediate system notification to confirm
       sendSystemNotification(
-        '🔔 Aravanta CloudOS Notifications Enabled',
+        ' Aravanta CloudOS Notifications Enabled',
         'You will now receive real-time desktop alerts for auto-scaling events, high CPU warnings, payment confirmations, and security notices.'
       );
 

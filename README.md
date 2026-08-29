@@ -16,26 +16,26 @@
 
 ---
 
-## 🌟 Overview
+##  Overview
 
 **Aravanta CloudOS** provides a single unified control plane for cloud resources — one login, one visual dashboard, and one cohesive API surface with granular Role-Based Access Control (RBAC), multi-factor authentication (MFA), live resource telemetry, and automated multicloud orchestration.
 
-### 🔗 Live Deployments
+###  Live Deployments
 
 | Component | URL | Status |
 | :--- | :--- | :--- |
-| **Frontend Web Console** | [`https://arv-frontend.vercel.app/`](https://arv-frontend.vercel.app/) | 🟢 Operational |
-| **Backend REST API** | [`https://arv-backend.vercel.app/`](https://arv-backend.vercel.app/) | 🟢 Operational |
-| **OpenAPI Docs (Swagger UI)** | [`https://arv-backend.vercel.app/docs`](https://arv-backend.vercel.app/docs) | 🟢 Operational |
-| **Health Check Endpoint** | [`https://arv-backend.vercel.app/api/v1/health`](https://arv-backend.vercel.app/api/v1/health) | 🟢 200 OK |
+| **Frontend Web Console** | [`https://arv-frontend.vercel.app/`](https://arv-frontend.vercel.app/) |  Operational |
+| **Backend REST API** | [`https://arv-backend.vercel.app/`](https://arv-backend.vercel.app/) |  Operational |
+| **OpenAPI Docs (Swagger UI)** | [`https://arv-backend.vercel.app/docs`](https://arv-backend.vercel.app/docs) |  Operational |
+| **Health Check Endpoint** | [`https://arv-backend.vercel.app/api/v1/health`](https://arv-backend.vercel.app/api/v1/health) |  200 OK |
 
 ---
 
-> 💡 **Role Switching**: Users can switch dynamically between **SuperAdmin**, **Developer**, **Admin**, and **Viewer** during sign-in, via the top header badge, or inside `User Profile > IAM Settings`.
+>  **Role Switching**: Users can switch dynamically between **SuperAdmin**, **Developer**, **Admin**, and **Viewer** during sign-in, via the top header badge, or inside `User Profile > IAM Settings`.
 
 ---
 
-## 🛠️ Core Microservices Architecture
+## ️ Core Microservices Architecture
 
 ```
                                ┌─────────────────────────────────────────┐
@@ -69,16 +69,16 @@
 
 ---
 
-## 📂 File Storage: How to Access & Retrieve Uploaded Files
+##  File Storage: How to Access & Retrieve Uploaded Files
 
 When files are uploaded to **ArvStore**, they can be accessed through three methods:
 
 1. **Web Console Direct Download**:
    - In **ArvStore**, click the bucket name to browse objects.
-   - Click the **📥 Download** button on any file row to download it directly to your machine.
-   - Click the **👁️ Preview** button to view file metadata, size, and inline text.
+   - Click the ** Download** button on any file row to download it directly to your machine.
+   - Click the **️ Preview** button to view file metadata, size, and inline text.
 2. **S3 Protocol URI (AWS SDK / CLI)**:
-   - Click the **📋 Copy** button on any file to copy its S3 URI: `s3://[bucket-name]/[folder]/[filename]`.
+   - Click the ** Copy** button on any file to copy its S3 URI: `s3://[bucket-name]/[folder]/[filename]`.
    - Download via AWS CLI:
      ```bash
      aws s3 cp s3://aravanta-assets-prod/uploads/dataset.csv ./local/
@@ -91,7 +91,7 @@ When files are uploaded to **ArvStore**, they can be accessed through three meth
 
 ---
 
-## 🚀 Local Development Setup
+##  Local Development Setup
 
 ### Prerequisites
 - **Node.js** v18+ and **npm**
@@ -128,7 +128,7 @@ Frontend will be live at `http://localhost:5173`.
 
 ---
 
-## 🔒 Security & Compliance
+##  Security & Compliance
 
 - **Authentication**: Stateless cryptographic JWT tokens signed with SHA-256 HMAC.
 - **Role-Based Access Control (RBAC)**: Fine-grained permissions for `SuperAdmin`, `Admin`, `Developer`, and `Viewer`.
@@ -137,7 +137,7 @@ Frontend will be live at `http://localhost:5173`.
 
 ---
 
-## 📄 License & Attribution
+##  License & Attribution
 
 Copyright © 2026 **Aravanta CloudOS**. Developed by [Yash Baviskar](https://github.com/yashbaviskar15). All rights reserved.
  

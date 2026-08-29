@@ -299,7 +299,7 @@ Metrics-server is running and healthy.`);
       <ModalPortal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)}>
         <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3.5">
           <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-wider font-mono">Create Managed K8s Cluster</h3>
-          <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white text-lg font-bold cursor-pointer">✕</button>
+          <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white text-lg font-bold cursor-pointer"></button>
         </div>
 
         <form onSubmit={handleCreateCluster} className="space-y-4 text-xs mt-4">
@@ -398,7 +398,7 @@ Metrics-server is running and healthy.`);
                 <Terminal className="w-4 h-4 text-purple-500" />
                 Connect to {connectCluster.name}
               </h3>
-              <button onClick={() => setConnectCluster(null)} className="text-slate-400 hover:text-white font-bold text-base cursor-pointer">✕</button>
+              <button onClick={() => setConnectCluster(null)} className="text-slate-400 hover:text-white font-bold text-base cursor-pointer"></button>
             </div>
 
             {/* Explanatory Notice */}

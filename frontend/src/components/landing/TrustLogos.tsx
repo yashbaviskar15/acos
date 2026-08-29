@@ -23,7 +23,7 @@ export const TrustLogos: React.FC = () => {
       color: 'hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50/50',
     },
     {
-      title: 'Made in India 🇮🇳',
+      title: 'Made in India ',
       subtitle: 'Local Data Sovereignty',
       icon: Flag,
       color: 'hover:text-amber-600 hover:border-amber-200 hover:bg-amber-50/50',

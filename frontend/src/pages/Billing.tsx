@@ -115,7 +115,7 @@ export const Billing: React.FC = () => {
     generateInvoicePDF(invoiceData);
 
     sendSystemNotification(
-      '📄 Invoice Downloaded',
+      ' Invoice Downloaded',
       `Invoice ${inv.invoice_id} has been downloaded as PDF.`
     );
   };
@@ -190,7 +190,7 @@ export const Billing: React.FC = () => {
             handleGeneratePDF(newInv);
 
             sendSystemNotification(
-              '✅ Payment Successful',
+              ' Payment Successful',
               `₹${planPriceINR.toLocaleString('en-IN')} payment confirmed. Invoice ${verifyData.invoice_id} generated.`
             );
           } catch (err) {
@@ -250,7 +250,7 @@ export const Billing: React.FC = () => {
             <CheckCircle2 className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-base font-black text-emerald-800 dark:text-emerald-300">Payment Successful! ✓</h3>
+            <h3 className="text-base font-black text-emerald-800 dark:text-emerald-300">Payment Successful! </h3>
             <p className="text-xs text-emerald-600 dark:text-emerald-400 font-mono mt-1">
               ₹{paymentSuccess.amount.toLocaleString('en-IN')} received for {paymentSuccess.plan}. Invoice PDF #{paymentSuccess.id} downloaded.
             </p>

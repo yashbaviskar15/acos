@@ -113,7 +113,7 @@ export const Testimonials: React.FC = () => {
                   </div>
 
                   <div className="inline-block px-3 py-1 bg-blue-500/10 border border-blue-500/30 rounded-full text-blue-400 text-[11px] font-mono font-bold">
-                    ⚡ {current.metrics}
+                     {current.metrics}
                   </div>
                 </div>
 

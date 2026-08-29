@@ -71,7 +71,7 @@ export const FloatingSalesChat: React.FC<FloatingSalesChatProps> = () => {
                 <>
                   <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
                     <p className="text-slate-700 font-medium">
-                      👋 Hi! Need custom cloud capacity, migration assistance, or invoice billing?
+                       Hi! Need custom cloud capacity, migration assistance, or invoice billing?
                     </p>
                   </div>
 

@@ -19,11 +19,11 @@ interface CurrencyOption {
 }
 
 const CURRENCIES: CurrencyOption[] = [
-  { code: 'INR', flag: '🇮🇳', label: 'INR ₹' },
-  { code: 'USD', flag: '🇺🇸', label: 'USD $' },
-  { code: 'EUR', flag: '🇪🇺', label: 'EUR €' },
-  { code: 'GBP', flag: '🇬🇧', label: 'GBP £' },
-  { code: 'JPY', flag: '🇯🇵', label: 'JPY ¥' },
+  { code: 'INR', flag: '', label: 'INR ₹' },
+  { code: 'USD', flag: '', label: 'USD $' },
+  { code: 'EUR', flag: '', label: 'EUR €' },
+  { code: 'GBP', flag: '', label: 'GBP £' },
+  { code: 'JPY', flag: '', label: 'JPY ¥' },
 ];
 
 const MODULES = [

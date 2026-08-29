@@ -349,7 +349,7 @@ export const ServicesTabs: React.FC<ServicesTabsProps> = ({ isLoading, onGoToReg
                         transition={{ delay: 0.35 }}
                         className="text-emerald-400 font-semibold pt-1 flex items-center gap-1.5"
                       >
-                        <span>✔ Instance successfully provisioned in 3.8s!</span>
+                        <span> Instance successfully provisioned in 3.8s!</span>
                       </motion.p>
 
                       {/* Output Result Block */}

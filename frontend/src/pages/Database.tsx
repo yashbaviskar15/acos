@@ -214,7 +214,7 @@ export const Databases: React.FC<DatabaseProps> = ({ token }) => {
       <ModalPortal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)}>
         <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3.5">
           <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-wider font-mono">Provision Managed Database</h3>
-          <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white text-lg font-bold cursor-pointer">✕</button>
+          <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white text-lg font-bold cursor-pointer"></button>
         </div>
 
         <form onSubmit={handleCreateDB} className="space-y-4 text-xs mt-4">
@@ -328,7 +328,7 @@ export const Databases: React.FC<DatabaseProps> = ({ token }) => {
                 <Database className="w-4 h-4 text-amber-500" />
                 Connect to {connectDb.name} ({connectDb.engine})
               </h3>
-              <button onClick={() => setConnectDb(null)} className="text-slate-400 hover:text-white font-bold text-base cursor-pointer">✕</button>
+              <button onClick={() => setConnectDb(null)} className="text-slate-400 hover:text-white font-bold text-base cursor-pointer"></button>
             </div>
 
             <div className="p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl space-y-1">

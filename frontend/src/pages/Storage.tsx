@@ -318,7 +318,7 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-slate-600 dark:text-slate-300 pt-1">
                   <div className="bg-white/60 dark:bg-slate-900/60 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
                     <span className="font-bold text-emerald-600 dark:text-emerald-400 block">1. Direct Web Download:</span>
-                    <span>Click the 📥 Download button on any row below.</span>
+                    <span>Click the  Download button on any row below.</span>
                   </div>
                   <div className="bg-white/60 dark:bg-slate-900/60 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
                     <span className="font-bold text-blue-600 dark:text-blue-400 block">2. S3 URI & SDKs:</span>
@@ -326,7 +326,7 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
                   </div>
                   <div className="bg-white/60 dark:bg-slate-900/60 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
                     <span className="font-bold text-purple-600 dark:text-purple-400 block">3. File Preview:</span>
-                    <span>Click 👁️ Preview to view file metadata & text inline.</span>
+                    <span>Click ️ Preview to view file metadata & text inline.</span>
                   </div>
                 </div>
               </div>
@@ -422,7 +422,7 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
             <Upload className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             Upload File to {selectedBucket?.name}
           </h3>
-          <button onClick={() => setShowUploadModal(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white text-lg font-bold cursor-pointer">✕</button>
+          <button onClick={() => setShowUploadModal(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white text-lg font-bold cursor-pointer"></button>
         </div>
 
         {uploadSuccessMsg && (
@@ -485,7 +485,7 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
       <ModalPortal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)}>
         <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3.5">
           <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-wider font-mono">Create Storage Bucket</h3>
-          <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white text-lg font-bold cursor-pointer">✕</button>
+          <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white text-lg font-bold cursor-pointer"></button>
         </div>
 
         <form onSubmit={handleCreateBucket} className="space-y-4 text-xs mt-4">
@@ -580,7 +580,7 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
                 <FileText className="w-4 h-4 text-emerald-500" />
                 Object Inspector & Access
               </h3>
-              <button onClick={() => setPreviewModalObj(null)} className="text-slate-400 hover:text-white font-bold text-base cursor-pointer">✕</button>
+              <button onClick={() => setPreviewModalObj(null)} className="text-slate-400 hover:text-white font-bold text-base cursor-pointer"></button>
             </div>
 
             <div className="space-y-3 bg-slate-50 dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800">

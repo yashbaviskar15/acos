@@ -183,7 +183,7 @@ export const CICD: React.FC = () => {
       <ModalPortal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)}>
         <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3.5">
           <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-wider font-mono">Create New CI/CD Pipeline</h3>
-          <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white text-lg font-bold cursor-pointer">✕</button>
+          <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white text-lg font-bold cursor-pointer"></button>
         </div>
 
         <form onSubmit={handleCreatePipeline} className="space-y-4 text-xs mt-4">

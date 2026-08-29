@@ -218,7 +218,7 @@ export const generateInvoicePDF = (data: InvoiceData): void => {
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(5, 150, 105);
-    doc.text('✓ PAYMENT CONFIRMED', margin + 5, y + 8);
+    doc.text(' PAYMENT CONFIRMED', margin + 5, y + 8);
 
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');

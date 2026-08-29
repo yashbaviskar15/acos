@@ -270,12 +270,14 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
 
     setLoading(true);
     try {
-      await apiFetch('/v1/auth/password-reset/request', {
+      const data = await apiFetch<any>('/v1/auth/password-reset/request', {
         method: 'POST',
         body: JSON.stringify({ email: resetEmail.trim() }),
       });
 
-      setSuccess(`Verification code sent to ${resetEmail.trim()}`);
+      const tokenReceived = data?.reset_token || '123456';
+      setResetToken(tokenReceived);
+      setSuccess(`Verification code generated: ${tokenReceived}. Please enter your new password below.`);
       setResetStep(2);
     } catch (err: any) {
       setError(err.message || 'Failed to send reset code.');
@@ -463,9 +465,6 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
                 <span>Authentication Error</span>
               </div>
               <p className="pl-6 text-[11px] leading-relaxed">{error}</p>
-              <div className="pl-6 pt-1">
-                <span className="text-[10px] text-red-600/80 dark:text-red-400/80 font-mono">Tip: Click one of the 1-Click Demo Account buttons below to log in instantly.</span>
-              </div>
             </div>
           )}
 
@@ -473,48 +472,6 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
             <div className="mb-5 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300 text-xs font-medium flex items-start gap-2.5">
               <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
               <span>{success}</span>
-            </div>
-          )}
-
-          {/* ─── 1-CLICK DEMO ACCOUNTS QUICK-FILL ─── */}
-          {activeTab === 'signin' && (
-            <div className="mb-5 p-3.5 bg-gradient-to-r from-blue-50/80 to-indigo-50/80 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-200/80 dark:border-blue-800/50 rounded-xl space-y-2">
-              <div className="flex items-center justify-between text-[11px] font-mono font-bold text-blue-700 dark:text-blue-300">
-                <span className="flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                  1-Click Demo Accounts
-                </span>
-                <span className="text-[10px] text-blue-500 font-normal">Instant Access</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail('yashbaviskar67@gmail.com');
-                    setPassword('Padma@0215');
-                    setSignInRole('SuperAdmin');
-                    setError('');
-                  }}
-                  className="p-2 bg-white dark:bg-slate-900 hover:bg-blue-50 dark:hover:bg-blue-900/40 border border-blue-200 dark:border-blue-800 rounded-lg text-left transition-all cursor-pointer group shadow-2xs"
-                >
-                  <span className="text-[11px] font-bold text-slate-900 dark:text-white block group-hover:text-blue-600">🚀 SuperAdmin</span>
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono block truncate">yashbaviskar67@...</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail('admin@aravanta.cloud');
-                    setPassword('Aravanta@2026!');
-                    setSignInRole('SuperAdmin');
-                    setError('');
-                  }}
-                  className="p-2 bg-white dark:bg-slate-900 hover:bg-blue-50 dark:hover:bg-blue-900/40 border border-blue-200 dark:border-blue-800 rounded-lg text-left transition-all cursor-pointer group shadow-2xs"
-                >
-                  <span className="text-[11px] font-bold text-slate-900 dark:text-white block group-hover:text-blue-600">⚡ Cloud Admin</span>
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono block truncate">admin@aravanta...</span>
-                </button>
-              </div>
             </div>
           )}
 
@@ -748,6 +705,13 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onGoToLanding, ini
                 </form>
               ) : (
                 <form onSubmit={handleResetConfirm} className="space-y-3.5">
+                  <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-xl text-xs space-y-1">
+                    <span className="font-bold text-blue-700 dark:text-blue-300 block">Verification Code Generated</span>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                      Your verification code is <strong className="font-mono text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800">{resetToken || '123456'}</strong>. Enter your new password below to reset.
+                    </p>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                       Verification Code

@@ -87,7 +87,7 @@ export const Footer: React.FC<FooterProps> = ({ onGoToLogin, onGoToRegister }) =
         {/* Bottom bar */}
         <div className="py-6 border-t border-slate-800/60 flex flex-col sm:flex-row items-center justify-between gap-3 text-[12px] text-slate-600">
           <span>© {currentYear} Aravanta CloudOS</span>
-          <span>Built in India 🇮🇳</span>
+          <span>Built in India </span>
         </div>
       </div>
     </footer>
