@@ -31,17 +31,17 @@ _billing_state = {
 }
 
 _service_costs = [
-    {"service": "ArvCompute (EC2 Instances)", "cost_usd": 9.54, "percent": 53, "color": "bg-blue-500"},
-    {"service": "ArvDB (PostgreSQL & Redis)", "cost_usd": 4.50, "percent": 25, "color": "bg-amber-500"},
-    {"service": "ArvKube (EKS Worker Nodes)", "cost_usd": 2.52, "percent": 14, "color": "bg-purple-500"},
-    {"service": "ArvStore (S3 Buckets)", "cost_usd": 1.44, "percent": 8, "color": "bg-emerald-500"},
+    {"service": "ArvCompute (EC2 Instances)", "cost_usd": 1450.00, "percent": 53, "color": "bg-blue-500"},
+    {"service": "ArvDB (PostgreSQL & Redis)", "cost_usd": 680.00, "percent": 25, "color": "bg-amber-500"},
+    {"service": "ArvKube (EKS Worker Nodes)", "cost_usd": 380.00, "percent": 14, "color": "bg-purple-500"},
+    {"service": "ArvStore (S3 Buckets)", "cost_usd": 210.00, "percent": 8, "color": "bg-emerald-500"},
 ]
 
 _invoices = [
-    {"invoice_id": "INV-2026-07", "period": "July 2026", "amount_usd": 18.06, "amount_inr": 1499, "status": "PAID", "date": "2026-08-01"},
-    {"invoice_id": "INV-2026-06", "period": "June 2026", "amount_usd": 18.06, "amount_inr": 1499, "status": "PAID", "date": "2026-07-01"},
-    {"invoice_id": "INV-2026-05", "period": "May 2026", "amount_usd": 6.01, "amount_inr": 499, "status": "PAID", "date": "2026-06-01"},
-    {"invoice_id": "INV-2026-04", "period": "April 2026", "amount_usd": 6.01, "amount_inr": 499, "status": "PAID", "date": "2026-05-01"},
+    {"invoice_id": "INV-2026-07", "period": "July 2026", "amount_usd": 2714.00, "amount_inr": 225262, "status": "PAID", "date": "2026-08-01"},
+    {"invoice_id": "INV-2026-06", "period": "June 2026", "amount_usd": 2540.00, "amount_inr": 210820, "status": "PAID", "date": "2026-07-01"},
+    {"invoice_id": "INV-2026-05", "period": "May 2026", "amount_usd": 1820.00, "amount_inr": 151060, "status": "PAID", "date": "2026-06-01"},
+    {"invoice_id": "INV-2026-04", "period": "April 2026", "amount_usd": 1200.00, "amount_inr": 99600, "status": "PAID", "date": "2026-05-01"},
 ]
 
 _plans = [

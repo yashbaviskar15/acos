@@ -169,6 +169,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, onNavigate }) => {
     { id: 'billing', name: 'Billing & Costs', desc: 'Cost Breakdown & Monthly Forecast', icon: CreditCard, badge: `₹${metrics?.cost_mtd_usd ? Math.round(metrics.cost_mtd_usd * USD_TO_INR / 1000) + 'K' : '0'} MTD` },
   ];
 
+  const formatCurrencyTick = (val: number) => {
+    if (val >= 100000) return `₹${(val / 100000).toFixed(1)}L`;
+    if (val >= 1000) return `₹${Math.round(val / 1000)}K`;
+    return `₹${val}`;
+  };
+
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
@@ -208,26 +214,93 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, onNavigate }) => {
               className={`px-3.5 py-2 text-xs font-bold rounded-xl border flex items-center gap-1.5 transition-all shadow-sm cursor-pointer ${
                 showWidgetSettings
                   ? 'bg-blue-600 text-white border-blue-600 shadow-blue-600/25'
-                  : 'bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-800'
+                  : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
               }`}
             >
-              <Settings className={`w-3.5 h-3.5 ${showWidgetSettings ? 'animate-spin' : ''}`} />
-              <span>Customize ({enabledCount}/{Object.keys(widgets).length})</span>
+              <Settings className="w-3.5 h-3.5" />
+              <span>Customize ({enabledCount}/8)</span>
             </button>
 
             <button
               onClick={fetchDashboardData}
-              className="px-3.5 py-2 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+              disabled={loading}
+              className="p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+              title="Refresh Telemetry Data"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-              <span>Refresh</span>
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-blue-500' : ''}`} />
             </button>
 
-            <div className="hidden sm:flex items-center gap-2 px-3 py-2 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 rounded-xl text-xs font-mono font-bold">
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-xl text-emerald-700 dark:text-emerald-400 text-xs font-mono font-bold">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>Operational</span>
+              Operational
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* ─── QUICK ACTION INFRASTRUCTURE LAUNCHER ─── */}
+      <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-[11px] font-mono uppercase font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+            <Zap className="w-3.5 h-3.5 text-amber-500" />
+            Quick Infrastructure Actions
+          </span>
+          <span className="text-[10px] text-slate-400 font-mono">1-Click Launchers</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+          <button
+            onClick={() => onNavigate?.('compute')}
+            className="p-3 bg-blue-50/70 hover:bg-blue-100 dark:bg-blue-500/10 dark:hover:bg-blue-500/20 border border-blue-200 dark:border-blue-500/30 rounded-xl text-left transition-all cursor-pointer group"
+          >
+            <Server className="w-4 h-4 text-blue-600 dark:text-blue-400 mb-1.5 group-hover:scale-110 transition-transform" />
+            <span className="text-xs font-bold text-slate-900 dark:text-white block">+ Launch VM</span>
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">ArvCompute</span>
+          </button>
+
+          <button
+            onClick={() => onNavigate?.('kubernetes')}
+            className="p-3 bg-purple-50/70 hover:bg-purple-100 dark:bg-purple-500/10 dark:hover:bg-purple-500/20 border border-purple-200 dark:border-purple-500/30 rounded-xl text-left transition-all cursor-pointer group"
+          >
+            <Boxes className="w-4 h-4 text-purple-600 dark:text-purple-400 mb-1.5 group-hover:scale-110 transition-transform" />
+            <span className="text-xs font-bold text-slate-900 dark:text-white block">+ Deploy K8s</span>
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">ArvKube</span>
+          </button>
+
+          <button
+            onClick={() => onNavigate?.('storage')}
+            className="p-3 bg-emerald-50/70 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/30 rounded-xl text-left transition-all cursor-pointer group"
+          >
+            <HardDrive className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mb-1.5 group-hover:scale-110 transition-transform" />
+            <span className="text-xs font-bold text-slate-900 dark:text-white block">+ New S3 Bucket</span>
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">ArvStore</span>
+          </button>
+
+          <button
+            onClick={() => onNavigate?.('database')}
+            className="p-3 bg-amber-50/70 hover:bg-amber-100 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 border border-amber-200 dark:border-amber-500/30 rounded-xl text-left transition-all cursor-pointer group"
+          >
+            <Database className="w-4 h-4 text-amber-600 dark:text-amber-400 mb-1.5 group-hover:scale-110 transition-transform" />
+            <span className="text-xs font-bold text-slate-900 dark:text-white block">+ Provision DB</span>
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">ArvDB</span>
+          </button>
+
+          <button
+            onClick={() => onNavigate?.('cicd')}
+            className="p-3 bg-indigo-50/70 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-500/30 rounded-xl text-left transition-all cursor-pointer group"
+          >
+            <GitBranch className="w-4 h-4 text-indigo-600 dark:text-indigo-400 mb-1.5 group-hover:scale-110 transition-transform" />
+            <span className="text-xs font-bold text-slate-900 dark:text-white block">+ Run Pipeline</span>
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">CI/CD Release</span>
+          </button>
+
+          <button
+            onClick={() => onNavigate?.('monitoring')}
+            className="p-3 bg-rose-50/70 hover:bg-rose-100 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 border border-rose-200 dark:border-rose-500/30 rounded-xl text-left transition-all cursor-pointer group"
+          >
+            <Activity className="w-4 h-4 text-rose-600 dark:text-rose-400 mb-1.5 group-hover:scale-110 transition-transform" />
+            <span className="text-xs font-bold text-slate-900 dark:text-white block">View Alerts</span>
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">ArvWatch Live</span>
+          </button>
         </div>
       </div>
 
@@ -374,7 +447,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, onNavigate }) => {
                   <BarChart data={costChartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 700 }} />
-                    <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}K`} />
+                    <YAxis tick={{ fontSize: 10 }} tickFormatter={formatCurrencyTick} />
                     <Tooltip content={<CustomTooltip />} />
                     <Bar dataKey="cost" radius={[8, 8, 0, 0]} maxBarSize={50}>
                       {costChartData.map((_: any, index: number) => (
@@ -409,7 +482,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, onNavigate }) => {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="month" tick={{ fontSize: 11, fontWeight: 700 }} />
-                    <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}K`} />
+                    <YAxis tick={{ fontSize: 10 }} tickFormatter={formatCurrencyTick} />
                     <Tooltip content={<CustomTooltip />} />
                     <Area type="monotone" dataKey="spend" stroke="#2563eb" strokeWidth={2.5} fill="url(#spendGrad)" />
                   </AreaChart>
