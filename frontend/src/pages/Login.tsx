@@ -226,12 +226,19 @@ export const Login: React.FC<LoginProps> = ({
       return;
     }
 
+    const targetEmail = (resetEmail || email).trim();
+    if (!targetEmail) {
+      setError('Please provide the account email address.');
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       const data = await apiFetch<any>('/api/v1/auth/password-reset/confirm', {
         method: 'POST',
         body: JSON.stringify({
-          email: resetEmail.trim(),
+          email: targetEmail,
           reset_token: resetCode.trim(),
           new_password: newPassword
         })
@@ -239,7 +246,8 @@ export const Login: React.FC<LoginProps> = ({
       setSuccess(data.message || 'Password reset successfully.');
       setTimeout(() => {
         setActiveTab('signin');
-        setEmail(resetEmail);
+        setEmail(targetEmail);
+        setResetCode('');
       }, 1500);
     } catch (err: any) {
       setError(err.message || 'Password reset failed.');
@@ -650,6 +658,10 @@ export const Login: React.FC<LoginProps> = ({
                 </form>
               ) : (
                 <form onSubmit={handleConfirmReset} className="space-y-3">
+                  <div className="p-3 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-xl text-slate-700 dark:text-slate-300 text-[11px]">
+                    Resetting password for: <strong className="text-blue-600 dark:text-blue-400 font-bold">{resetEmail || email || 'your account'}</strong>
+                  </div>
+
                   <div>
                     <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Verification Code</label>
                     <input
