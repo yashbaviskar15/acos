@@ -210,20 +210,35 @@ def get_workspace_members(
 def invite_workspace_member(
     req: InviteMemberRequest,
     request: Request,
-    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Owner"])),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    existing = db.query(User).filter(User.email == req.email).first()
+    existing = db.query(User).filter(User.email == req.email.strip()).first()
     if existing:
-        raise HTTPException(status_code=400, detail="User already exists in workspace")
+        existing.workspace_id = current_user.workspace_id
+        existing.workspace_name = current_user.workspace_name
+        existing.role = req.role if req.role in ["Admin", "Operator", "Developer", "Viewer"] else "Developer"
+        db.commit()
+        db.refresh(existing)
+        log_audit(db, current_user.email, "MEMBER_INVITE", "Workspace", request, f"Added existing user {existing.full_name} ({existing.email}) to workspace as {req.role}", workspace_id=current_user.workspace_id)
+        return {
+            "message": f"Invitation accepted and {req.email} joined workspace",
+            "member": {
+                "id": existing.id,
+                "email": existing.email,
+                "full_name": existing.full_name,
+                "role": existing.role,
+                "is_active": existing.is_active
+            }
+        }
 
     new_member = User(
         id=str(uuid.uuid4()),
         account_id=f"ARV-ACC-{random.randint(100000, 999999)}",
         workspace_id=current_user.workspace_id,
         workspace_name=current_user.workspace_name,
-        email=req.email,
-        full_name=req.full_name,
+        email=req.email.strip(),
+        full_name=req.full_name.strip() if req.full_name else req.email.split('@')[0],
         hashed_password=get_password_hash("Aravanta@2026!"),
         role=req.role if req.role in ["Admin", "Operator", "Developer", "Viewer"] else "Developer",
         is_mfa_enabled=False
@@ -232,9 +247,19 @@ def invite_workspace_member(
     db.commit()
     db.refresh(new_member)
 
-    log_audit(db, current_user.email, "MEMBER_INVITE", "Workspace", request, f"Invited {req.full_name} ({req.email}) as {req.role}", workspace_id=current_user.workspace_id)
-    return {"message": f"Invitation sent to {req.email}", "member": {"email": req.email, "role": req.role}}
+    log_audit(db, current_user.email, "MEMBER_INVITE", "Workspace", request, f"Invited {new_member.full_name} ({new_member.email}) as {new_member.role}", workspace_id=current_user.workspace_id)
+    return {
+        "message": f"Invitation sent to {req.email}",
+        "member": {
+            "id": new_member.id,
+            "email": new_member.email,
+            "full_name": new_member.full_name,
+            "role": new_member.role,
+            "is_active": new_member.is_active
+        }
+    }
 
+@router.get("/mfa/setup")
 @router.post("/mfa/setup")
 def setup_mfa(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if not current_user.mfa_secret:

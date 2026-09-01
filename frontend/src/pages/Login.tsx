@@ -6,9 +6,13 @@ import {
   CheckCircle2, 
   KeyRound, 
   ArrowLeft,
-  Server,
   Activity,
-  Lock
+  Lock,
+  ShieldCheck,
+  Globe,
+  Layers,
+  Cpu,
+  Boxes
 } from 'lucide-react';
 import { Logo } from '../components/Logo';
 import { apiFetch } from '../config/api';
@@ -42,7 +46,7 @@ export const Login: React.FC<LoginProps> = ({
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPwd, setRegConfirmPwd] = useState('');
   const [regWorkspaceName, setRegWorkspaceName] = useState('');
-  const [regRole, setRegRole] = useState('Developer');
+  const [regRole, setRegRole] = useState('SuperAdmin');
 
   // MFA & Password Reset
   const [mfaCode, setMfaCode] = useState('');
@@ -50,57 +54,47 @@ export const Login: React.FC<LoginProps> = ({
   const [resetEmail, setResetEmail] = useState('');
   const [resetCode, setResetCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [resetStep, setResetStep] = useState<'email' | 'code'>('email');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
   useEffect(() => {
+    setActiveTab(initialTab);
     setError('');
     setSuccess('');
-  }, [activeTab]);
+  }, [initialTab]);
 
+  // Handle standard login
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
-
-    if (!email.trim()) {
-      setError('Please enter your work email or Account ID.');
-      return;
-    }
-    if (!password) {
-      setError('Please enter your password.');
-      return;
-    }
-
     setLoading(true);
+
     try {
       const data = await apiFetch<any>('/api/v1/auth/login', {
         method: 'POST',
         body: JSON.stringify({
           email: email.trim(),
           password: password,
-          role: signInRole,
-        }),
+          role: signInRole
+        })
       });
 
       if (data.is_mfa_required) {
         setMfaUserData(data);
         setActiveTab('mfa');
-        setSuccess('Two-Factor Authentication (MFA) required.');
-        return;
-      }
-
-      onLoginSuccess(
-        {
+        setSuccess('Credentials verified. Please provide your 6-digit TOTP code.');
+      } else {
+        const userObj = {
           id: data.user_id,
-          account_id: data.account_id || 'ARV-ACC-100001',
-          workspace_id: data.workspace_id || 'ws-yash-prod',
-          workspace_name: data.workspace_name || 'Production Cloud Ops',
+          account_id: data.account_id,
+          workspace_id: data.workspace_id,
+          workspace_name: data.workspace_name,
           email: data.email,
-          role: data.role || signInRole,
-          full_name: data.full_name || email.split('@')[0],
-        },
-        data.access_token
-      );
+          full_name: data.full_name,
+          role: data.role
+        };
+        onLoginSuccess(userObj, data.access_token);
+      }
     } catch (err: any) {
       setError(err.message || 'Authentication failed. Please verify credentials.');
     } finally {
@@ -108,135 +102,145 @@ export const Login: React.FC<LoginProps> = ({
     }
   };
 
+  // Handle registration
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
 
-    if (!regFullName.trim()) { setError('Full name is required.'); return; }
-    if (!regEmail.trim()) { setError('Work email is required.'); return; }
-    if (regPassword.length < 8) { setError('Password must be at least 8 characters.'); return; }
-    if (regPassword !== regConfirmPwd) { setError('Passwords do not match.'); return; }
-
-    setLoading(true);
-    try {
-      const data = await apiFetch<any>('/api/v1/auth/register', {
-        method: 'POST',
-        body: JSON.stringify({
-          email: regEmail.trim(),
-          password: regPassword,
-          full_name: regFullName.trim(),
-          workspace_name: regWorkspaceName.trim() || `${regFullName.trim()}'s Workspace`,
-          role: regRole,
-        }),
-      });
-
-      setSuccess(`Account created for ${data.full_name}! Authenticating...`);
-
-      // Auto login
-      try {
-        const loginData = await apiFetch<any>('/api/v1/auth/login', {
-          method: 'POST',
-          body: JSON.stringify({ email: regEmail.trim(), password: regPassword }),
-        });
-
-        setTimeout(() => {
-          onLoginSuccess(
-            {
-              id: loginData.user_id || data.id,
-              account_id: loginData.account_id || data.account_id,
-              workspace_id: loginData.workspace_id || data.workspace_id,
-              workspace_name: loginData.workspace_name || data.workspace_name,
-              email: loginData.email,
-              role: loginData.role || regRole,
-              full_name: regFullName.trim(),
-            },
-            loginData.access_token
-          );
-        }, 400);
-      } catch {
-        setActiveTab('signin');
-        setEmail(regEmail);
-      }
-    } catch (err: any) {
-      setError(err.message || 'Registration failed. Please check form entries.');
-    } finally {
-      setLoading(false);
+    if (regPassword !== regConfirmPwd) {
+      setError('Passwords do not match. Please verify.');
+      return;
     }
-  };
 
-  const handleMfaVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-
-    if (mfaCode.length < 6) {
-      setError('Please enter the 6-digit TOTP code.');
+    if (regPassword.length < 8) {
+      setError('Password must be at least 8 characters long.');
       return;
     }
 
     setLoading(true);
     try {
+      await apiFetch<any>('/api/v1/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: regEmail.trim(),
+          password: regPassword,
+          full_name: regFullName.trim(),
+          role: regRole,
+          workspace_name: regWorkspaceName.trim() || `${regFullName.trim()}'s Workspace`
+        })
+      });
+
+      // Auto login after registration
+      const loginData = await apiFetch<any>('/api/v1/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: regEmail.trim(),
+          password: regPassword,
+          role: regRole
+        })
+      });
+
+      const userObj = {
+        id: loginData.user_id,
+        account_id: loginData.account_id,
+        workspace_id: loginData.workspace_id,
+        workspace_name: loginData.workspace_name,
+        email: loginData.email,
+        full_name: loginData.full_name,
+        role: loginData.role
+      };
+
+      onLoginSuccess(userObj, loginData.access_token);
+    } catch (err: any) {
+      setError(err.message || 'Registration failed. Email might already be registered.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle MFA verification
+  const handleMfaVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      const emailToVerify = mfaUserData?.email || email;
       const data = await apiFetch<any>('/api/v1/auth/mfa/verify', {
         method: 'POST',
-        body: JSON.stringify({ email: mfaUserData?.email || email, mfa_code: mfaCode }),
+        body: JSON.stringify({
+          email: emailToVerify,
+          mfa_code: mfaCode.trim()
+        })
       });
 
-      onLoginSuccess(
-        {
-          id: data.user_id,
-          account_id: data.account_id,
-          workspace_id: data.workspace_id,
-          workspace_name: data.workspace_name,
-          email: data.email,
-          role: data.role || 'Developer',
-          full_name: data.full_name,
-        },
-        data.access_token
-      );
+      const userObj = {
+        id: data.user_id,
+        account_id: data.account_id,
+        workspace_id: data.workspace_id,
+        workspace_name: data.workspace_name,
+        email: data.email,
+        full_name: data.full_name,
+        role: data.role
+      };
+      onLoginSuccess(userObj, data.access_token);
     } catch (err: any) {
-      setError(err.message || 'MFA passcode verification failed.');
+      setError(err.message || 'Invalid MFA code. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleResetRequest = async (e: React.FormEvent) => {
+  // Handle password reset request
+  const handleRequestReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
-
-    if (!resetEmail.trim()) { setError('Email is required.'); return; }
     setLoading(true);
+
     try {
-      const res = await apiFetch<any>('/api/v1/auth/password-reset/request', {
+      const data = await apiFetch<any>('/api/v1/auth/password-reset/request', {
         method: 'POST',
-        body: JSON.stringify({ email: resetEmail.trim() }),
+        body: JSON.stringify({ email: resetEmail.trim() })
       });
-      setSuccess(`Verification code generated for ${resetEmail}. Code: ${res.reset_token || '123456'}`);
-      setResetStep('code');
+      setSuccess(data.message || 'Verification code sent to your email.');
+      if (data.reset_token) {
+        setResetCode(data.reset_token);
+      }
     } catch (err: any) {
-      setError(err.message || 'Reset request failed.');
+      setError(err.message || 'Failed to request reset token.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleResetConfirm = async (e: React.FormEvent) => {
+  // Handle password reset confirmation
+  const handleConfirmReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
 
-    if (!resetCode.trim()) { setError('Enter verification code.'); return; }
-    if (newPassword.length < 8) { setError('New password must be at least 8 characters.'); return; }
+    if (newPassword !== confirmNewPassword) {
+      setError('New passwords do not match.');
+      return;
+    }
 
     setLoading(true);
     try {
-      await apiFetch<any>('/api/v1/auth/password-reset/confirm', {
+      const data = await apiFetch<any>('/api/v1/auth/password-reset/confirm', {
         method: 'POST',
-        body: JSON.stringify({ email: resetEmail.trim(), reset_token: resetCode.trim(), new_password: newPassword }),
+        body: JSON.stringify({
+          email: resetEmail.trim(),
+          reset_token: resetCode.trim(),
+          new_password: newPassword
+        })
       });
-      setSuccess('Password updated successfully! You can now sign in.');
-      setTimeout(() => setActiveTab('signin'), 1200);
+      setSuccess(data.message || 'Password reset successfully.');
+      setTimeout(() => {
+        setActiveTab('signin');
+        setEmail(resetEmail);
+      }, 1500);
     } catch (err: any) {
       setError(err.message || 'Password reset failed.');
     } finally {
@@ -245,69 +249,107 @@ export const Login: React.FC<LoginProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0A1628] flex flex-col justify-center py-8 px-4 sm:px-6 lg:px-8 font-sans selection:bg-blue-600 selection:text-white">
+    <div className="w-screen h-screen min-h-screen m-0 p-0 overflow-hidden bg-slate-900 flex flex-col md:flex-row font-sans selection:bg-blue-500 selection:text-white">
       
-      {/* Top back button */}
-      {onGoToLanding && (
-        <div className="max-w-4xl mx-auto w-full mb-6">
-          <button
-            onClick={onGoToLanding}
-            className="inline-flex items-center gap-2 text-xs font-mono font-bold text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" /> Back to Product Home
-          </button>
-        </div>
-      )}
-
-      {/* Main Split Layout Container */}
-      <div className="max-w-4xl mx-auto w-full bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xl overflow-hidden grid grid-cols-1 md:grid-cols-12">
-        
-        {/* Left Side: Product Identity & Operational Telemetry */}
-        <div className="md:col-span-5 bg-slate-900 text-white p-6 sm:p-8 flex flex-col justify-between border-b md:border-b-0 md:border-r border-slate-800 font-mono">
-          <div className="space-y-6">
+      {/* ── LEFT PANE: SRE Platform Console Deck ── */}
+      <div className="hidden md:flex md:w-[46%] lg:w-[42%] h-full bg-[#0B1528] text-white border-r border-slate-800/80 p-8 lg:p-12 flex-col justify-between overflow-y-auto">
+        <div className="space-y-8">
+          {/* Logo Brand Header */}
+          <div className="flex items-center gap-3">
             <Logo size="md" variant="dark" />
+          </div>
 
-            <div className="space-y-2 pt-4">
-              <h2 className="text-lg font-black text-white font-sans">
-                Aravanta CloudOS Control Plane
-              </h2>
-              <p className="text-xs text-slate-400 font-sans leading-relaxed">
-                Self-service management platform for compute workloads, GitOps release pipelines, and SRE observability.
-              </p>
+          <div className="space-y-3">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-mono font-bold">
+              <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+              Unified Cloud Operations Platform
+            </div>
+            <h1 className="text-2xl lg:text-3xl font-black tracking-tight text-white font-sans leading-tight">
+              A single control plane for multi-cloud workloads.
+            </h1>
+            <p className="text-xs lg:text-sm text-slate-400 font-normal leading-relaxed">
+              Automate GitOps release pipelines, monitor telemetry with sub-second MTTR, and manage isolated infrastructure workloads with zero-trust RBAC.
+            </p>
+          </div>
+
+          {/* Telemetry & SLA Status Strip */}
+          <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-4 space-y-3 font-mono text-xs shadow-inner">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400 flex items-center gap-2">
+                <Activity className="w-3.5 h-3.5 text-emerald-400" /> Control Plane SLA
+              </span>
+              <span className="text-emerald-400 font-bold">99.98% High Availability</span>
             </div>
 
-            {/* Quick Status Block */}
-            <div className="p-3.5 bg-slate-800/80 rounded-2xl border border-slate-700/60 space-y-2 text-xs">
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="text-slate-400 flex items-center gap-1.5"><Activity className="w-3.5 h-3.5 text-emerald-400" /> Platform Status</span>
-                <span className="text-emerald-400 font-bold">99.98% SLA</span>
-              </div>
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="text-slate-400 flex items-center gap-1.5"><Server className="w-3.5 h-3.5 text-blue-400" /> Primary Region</span>
-                <span className="text-white">ap-south-1</span>
-              </div>
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="text-slate-400 flex items-center gap-1.5"><Lock className="w-3.5 h-3.5 text-purple-400" /> Security Mode</span>
-                <span className="text-purple-400 font-bold">Zero Trust</span>
-              </div>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400 flex items-center gap-2">
+                <Globe className="w-3.5 h-3.5 text-blue-400" /> Active Region
+              </span>
+              <span className="text-white font-bold">ap-south-1 (Mumbai, 4 AZs)</span>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400 flex items-center gap-2">
+                <Lock className="w-3.5 h-3.5 text-purple-400" /> IAM Governance
+              </span>
+              <span className="text-purple-400 font-bold">Zero-Trust & TOTP MFA</span>
             </div>
           </div>
 
-          <div className="pt-6 border-t border-slate-800/80 text-[10px] text-slate-500">
-            <span>TLS 1.3 Encrypted Session • MFA Enforced</span>
+          {/* Capability Badges */}
+          <div className="space-y-2">
+            <span className="text-[10px] font-bold font-mono uppercase tracking-wider text-slate-500">Core Capabilities</span>
+            <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+              <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-300 flex items-center gap-2">
+                <Cpu className="w-3.5 h-3.5 text-blue-400" /> Elastic Compute
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-300 flex items-center gap-2">
+                <Boxes className="w-3.5 h-3.5 text-purple-400" /> Kubernetes EKS
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-300 flex items-center gap-2">
+                <Layers className="w-3.5 h-3.5 text-emerald-400" /> GitOps Pipelines
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800/80 text-slate-300 flex items-center gap-2">
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-400" /> SRE Alertmanager
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Right Side: Authentication Forms */}
-        <div className="md:col-span-7 p-6 sm:p-8 space-y-5">
+        {/* Footer info */}
+        <div className="pt-6 border-t border-slate-800/80 flex items-center justify-between text-[11px] font-mono text-slate-500">
+          <span>TLS 1.3 Strict Encrypted Session</span>
+          <span>v1.0.0 Stable</span>
+        </div>
+      </div>
+
+      {/* ── RIGHT PANE: Full-Bleed Authentication Form ── */}
+      <div className="flex-1 h-full bg-white dark:bg-[#070D18] flex flex-col justify-between p-6 sm:p-10 lg:p-14 overflow-y-auto">
+        <div className="w-full max-w-md mx-auto space-y-6 my-auto">
           
-          {/* Navigation Tab Selector */}
-          {activeTab !== 'mfa' && activeTab !== 'forgot' && (
-            <div className="flex items-center gap-2 p-1 bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 font-mono text-xs font-bold">
+          {/* Top Bar: Back to Landing & Mobile Logo */}
+          <div className="flex items-center justify-between gap-4">
+            <div className="md:hidden">
+              <Logo size="sm" />
+            </div>
+            {onGoToLanding && (
               <button
                 type="button"
-                onClick={() => setActiveTab('signin')}
-                className={`flex-1 py-2 rounded-lg transition-all cursor-pointer ${
+                onClick={onGoToLanding}
+                className="inline-flex items-center gap-2 text-xs font-mono font-bold text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer ml-auto"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" /> Back to Home
+              </button>
+            )}
+          </div>
+
+          {/* Tab Switcher */}
+          {activeTab !== 'mfa' && activeTab !== 'forgot' && (
+            <div className="p-1 bg-slate-100 dark:bg-slate-900/90 rounded-2xl border border-slate-200 dark:border-slate-800 font-mono text-xs font-bold flex items-center">
+              <button
+                type="button"
+                onClick={() => { setActiveTab('signin'); setError(''); setSuccess(''); }}
+                className={`flex-1 py-2.5 rounded-xl transition-all cursor-pointer ${
                   activeTab === 'signin'
                     ? 'bg-white dark:bg-[#0F2038] text-slate-900 dark:text-white shadow-sm'
                     : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
@@ -317,34 +359,34 @@ export const Login: React.FC<LoginProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setActiveTab('register')}
-                className={`flex-1 py-2 rounded-lg transition-all cursor-pointer ${
+                onClick={() => { setActiveTab('register'); setError(''); setSuccess(''); }}
+                className={`flex-1 py-2.5 rounded-xl transition-all cursor-pointer ${
                   activeTab === 'register'
                     ? 'bg-white dark:bg-[#0F2038] text-slate-900 dark:text-white shadow-sm'
                     : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
-                Create Account
+                Create Workspace
               </button>
             </div>
           )}
 
           {/* Feedback Messages */}
           {error && (
-            <div className="p-3 bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 rounded-xl text-xs text-rose-700 dark:text-rose-400 flex items-start gap-2 font-mono">
+            <div className="p-3.5 bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 rounded-xl text-xs text-rose-700 dark:text-rose-400 flex items-start gap-2.5 font-mono animate-fadeIn">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
           )}
 
           {success && (
-            <div className="p-3 bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 rounded-xl text-xs text-emerald-700 dark:text-emerald-400 flex items-start gap-2 font-mono">
+            <div className="p-3.5 bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 rounded-xl text-xs text-emerald-700 dark:text-emerald-400 flex items-start gap-2.5 font-mono animate-fadeIn">
               <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{success}</span>
             </div>
           )}
 
-          {/* ── 1. Sign In Form ── */}
+          {/* ── 1. SIGN IN FORM ── */}
           {activeTab === 'signin' && (
             <form onSubmit={handleSignIn} className="space-y-4 font-mono text-xs">
               <div>
@@ -362,11 +404,11 @@ export const Login: React.FC<LoginProps> = ({
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
+                <div className="flex justify-between items-center mb-1">
                   <label className="font-bold text-slate-700 dark:text-slate-300">Password</label>
                   <button
                     type="button"
-                    onClick={() => setActiveTab('forgot')}
+                    onClick={() => { setActiveTab('forgot'); setError(''); setSuccess(''); setResetEmail(email); }}
                     className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
                   >
                     Forgot password?
@@ -393,7 +435,7 @@ export const Login: React.FC<LoginProps> = ({
 
               <div className="grid grid-cols-2 gap-3 pt-1">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Sign-In Role</label>
+                  <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Assigned Role</label>
                   <select
                     value={signInRole}
                     onChange={(e) => setSignInRole(e.target.value)}
@@ -415,7 +457,7 @@ export const Login: React.FC<LoginProps> = ({
                       onChange={(e) => setRememberMe(e.target.checked)}
                       className="rounded text-blue-600 focus:ring-blue-500"
                     />
-                    <span className="text-[11px]">Remember me</span>
+                    <span className="text-[11px]">Remember session</span>
                   </label>
                 </div>
               </div>
@@ -423,14 +465,14 @@ export const Login: React.FC<LoginProps> = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50 mt-2"
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50 mt-2 font-sans"
               >
-                {loading ? 'Authenticating...' : 'Sign In to Workspace'}
+                {loading ? 'Authenticating...' : 'Sign In to Control Plane'}
               </button>
             </form>
           )}
 
-          {/* ── 2. Create Account Form ── */}
+          {/* ── 2. CREATE ACCOUNT FORM ── */}
           {activeTab === 'register' && (
             <form onSubmit={handleRegister} className="space-y-3 font-mono text-xs">
               <div>
@@ -451,7 +493,7 @@ export const Login: React.FC<LoginProps> = ({
                   type="email"
                   value={regEmail}
                   onChange={(e) => setRegEmail(e.target.value)}
-                  placeholder="engineer@company.com"
+                  placeholder="engineer@aravanta.com"
                   required
                   className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white"
                 />
@@ -463,7 +505,8 @@ export const Login: React.FC<LoginProps> = ({
                   type="text"
                   value={regWorkspaceName}
                   onChange={(e) => setRegWorkspaceName(e.target.value)}
-                  placeholder="e.g. Production Cloud Ops"
+                  placeholder="Production SRE Cluster"
+                  required
                   className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white"
                 />
               </div>
@@ -495,14 +538,15 @@ export const Login: React.FC<LoginProps> = ({
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Default Workspace Role</label>
+                <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Workspace System Role</label>
                 <select
                   value={regRole}
                   onChange={(e) => setRegRole(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-slate-300 font-bold cursor-pointer"
                 >
-                  <option value="Admin">Admin (Full Control)</option>
-                  <option value="Operator">Operator (SRE)</option>
+                  <option value="SuperAdmin">SuperAdmin (Full Platform Control)</option>
+                  <option value="Admin">Admin (Workspace Admin)</option>
+                  <option value="Operator">Operator (SRE & Release)</option>
                   <option value="Developer">Developer</option>
                   <option value="Viewer">Viewer (Read-Only)</option>
                 </select>
@@ -511,21 +555,23 @@ export const Login: React.FC<LoginProps> = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50 mt-2"
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50 mt-2 font-sans"
               >
                 {loading ? 'Creating Workspace...' : 'Create Operational Workspace'}
               </button>
             </form>
           )}
 
-          {/* ── 3. MFA Verification Form ── */}
+          {/* ── 3. MFA CODE VERIFICATION STEP ── */}
           {activeTab === 'mfa' && (
             <form onSubmit={handleMfaVerify} className="space-y-4 font-mono text-xs">
-              <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-center space-y-2">
-                <KeyRound className="w-8 h-8 mx-auto text-blue-600 dark:text-blue-400" />
-                <h3 className="font-bold text-slate-900 dark:text-white">Enter Two-Factor Authenticator Code</h3>
+              <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 text-center space-y-2">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <h3 className="font-bold text-slate-900 dark:text-white font-sans text-sm">Enter Authenticator Passcode</h3>
                 <p className="text-[11px] text-slate-500 font-sans">
-                  Open Google Authenticator or Authy to retrieve your 6-digit TOTP passcode.
+                  Open Google Authenticator or Authy to retrieve your 6-digit TOTP code for <strong className="text-blue-600">{mfaUserData?.email || email}</strong>.
                 </p>
               </div>
 
@@ -536,75 +582,86 @@ export const Login: React.FC<LoginProps> = ({
                   value={mfaCode}
                   onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ''))}
                   placeholder="000000"
-                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-center text-xl font-bold tracking-widest text-slate-900 dark:text-white"
+                  autoFocus
+                  required
+                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-center text-2xl font-bold tracking-widest text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setActiveTab('signin')}
-                  className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-xl"
+                  onClick={() => { setActiveTab('signin'); setError(''); }}
+                  className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={loading || mfaCode.length < 6}
-                  className="flex-1 py-2.5 bg-blue-600 text-white font-bold rounded-xl disabled:opacity-50"
+                  className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50"
                 >
-                  {loading ? 'Verifying...' : 'Verify MFA'}
+                  {loading ? 'Verifying...' : 'Verify TOTP'}
                 </button>
               </div>
             </form>
           )}
 
-          {/* ── 4. Forgot Password Flow ── */}
+          {/* ── 4. FORGOT PASSWORD STEP ── */}
           {activeTab === 'forgot' && (
             <div className="space-y-4 font-mono text-xs">
-              {resetStep === 'email' ? (
-                <form onSubmit={handleResetRequest} className="space-y-4">
+              {!resetCode ? (
+                <form onSubmit={handleRequestReset} className="space-y-4">
+                  <div className="space-y-1">
+                    <h3 className="font-bold text-slate-900 dark:text-white font-sans text-sm">Reset Account Password</h3>
+                    <p className="text-[11px] text-slate-500 font-sans">
+                      Enter your account email to generate a secure reset token.
+                    </p>
+                  </div>
+
                   <div>
-                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Account Work Email</label>
+                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Email Address</label>
                     <input
                       type="email"
                       value={resetEmail}
                       onChange={(e) => setResetEmail(e.target.value)}
-                      placeholder="engineer@company.com"
+                      placeholder="name@company.com"
                       required
                       className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white"
                     />
                   </div>
+
                   <div className="flex gap-2">
                     <button
                       type="button"
                       onClick={() => setActiveTab('signin')}
                       className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl font-bold"
                     >
-                      Back
+                      Back to Sign In
                     </button>
                     <button
                       type="submit"
                       disabled={loading}
-                      className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-bold"
+                      className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-bold shadow-md"
                     >
-                      {loading ? 'Sending...' : 'Send Reset Code'}
+                      {loading ? 'Sending...' : 'Request Reset Code'}
                     </button>
                   </div>
                 </form>
               ) : (
-                <form onSubmit={handleResetConfirm} className="space-y-3">
+                <form onSubmit={handleConfirmReset} className="space-y-3">
                   <div>
-                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">6-Digit Reset Code</label>
+                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Verification Code</label>
                     <input
                       type="text"
                       value={resetCode}
                       onChange={(e) => setResetCode(e.target.value)}
-                      placeholder="123456"
+                      placeholder="6-digit reset code"
                       required
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white font-bold"
                     />
                   </div>
+
                   <div>
                     <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">New Password</label>
                     <input
@@ -613,22 +670,51 @@ export const Login: React.FC<LoginProps> = ({
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="Min. 8 characters"
                       required
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white"
                     />
                   </div>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full py-2.5 bg-blue-600 text-white rounded-xl font-bold"
-                  >
-                    {loading ? 'Updating...' : 'Set New Password'}
-                  </button>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Confirm New Password</label>
+                    <input
+                      type="password"
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      placeholder="Repeat new password"
+                      required
+                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('signin')}
+                      className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl font-bold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-bold shadow-md"
+                    >
+                      {loading ? 'Saving...' : 'Set New Password'}
+                    </button>
+                  </div>
                 </form>
               )}
             </div>
           )}
+
+        </div>
+
+        {/* Right Pane Footer */}
+        <div className="w-full max-w-md mx-auto pt-6 text-center text-[11px] font-mono text-slate-400">
+          Aravanta CloudOS Control Plane • Multi-Tenant Enterprise SRE
         </div>
       </div>
+
     </div>
   );
 };
