@@ -74,7 +74,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
 
   const fetchWorkspaceMembers = async () => {
     try {
-      const data = await apiFetch<any[]>('/api/v1/auth/workspace/members');
+      const data = await apiFetch<any[]>('/api/v1/auth/workspace/members', { token: localStorage.getItem('aravanta_token') });
       if (Array.isArray(data) && data.length > 0) {
         setMembers(data);
       } else {
@@ -104,7 +104,8 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
           full_name: fullName.trim(),
           workspace_name: workspaceName.trim(),
           timezone: timezone,
-        })
+        }),
+        token: localStorage.getItem('aravanta_token')
       });
 
       onUpdateUser({
@@ -142,7 +143,8 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
         body: JSON.stringify({
           old_password: oldPassword,
           new_password: newPassword,
-        })
+        }),
+        token: localStorage.getItem('aravanta_token')
       });
 
       setOldPassword('');
@@ -150,7 +152,12 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
       setConfirmPassword('');
       showToast('Password changed successfully.');
     } catch (err: any) {
-      setErrorMessage(err.message || 'Password change failed.');
+      const msg = err.message || 'Password change failed.';
+      if (msg.includes('credentials') || msg.includes('401')) {
+        setErrorMessage('Session expired. Please log out and sign in again to change your password.');
+      } else {
+        setErrorMessage(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -161,11 +168,16 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const data = await apiFetch<any>('/api/v1/auth/mfa/setup', { method: 'POST' });
+      const data = await apiFetch<any>('/api/v1/auth/mfa/setup', { method: 'POST', token: localStorage.getItem('aravanta_token') });
       setMfaSetupData(data);
       setMfaModalOpen(true);
     } catch (err: any) {
-      showToast(`Failed to initialize 2FA: ${err.message}`);
+      const msg = err.message || 'Unknown error';
+      if (msg.includes('credentials') || msg.includes('401')) {
+        setErrorMessage('Session expired. Please log out and sign in again to set up 2FA.');
+      } else {
+        showToast(`Failed to initialize 2FA: ${msg}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -180,7 +192,8 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
     try {
       await apiFetch<any>('/api/v1/auth/mfa/enable', {
         method: 'POST',
-        body: JSON.stringify({ mfa_code: mfaVerifyCode.trim() })
+        body: JSON.stringify({ mfa_code: mfaVerifyCode.trim() }),
+        token: localStorage.getItem('aravanta_token')
       });
 
       setIsMfaEnabled(true);
@@ -199,7 +212,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
   const handleDisableMfa = async () => {
     setLoading(true);
     try {
-      await apiFetch<any>('/api/v1/auth/mfa/disable', { method: 'POST' });
+      await apiFetch<any>('/api/v1/auth/mfa/disable', { method: 'POST', token: localStorage.getItem('aravanta_token') });
       setIsMfaEnabled(false);
       onUpdateUser({ ...user, is_mfa_enabled: false });
       showToast('Two-Factor Authentication disabled.');
@@ -226,7 +239,8 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
           email: inviteEmail.trim(),
           full_name: inviteName.trim(),
           role: inviteRole,
-        })
+        }),
+        token: localStorage.getItem('aravanta_token')
       });
 
       showToast(res.message || `Invitation sent to ${inviteEmail}.`);
@@ -306,7 +320,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => { setActiveTab(tab.id as any); setErrorMessage(null); }}
               className={`px-3.5 py-2 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-2 shrink-0 ${
                 activeTab === tab.id
                   ? 'bg-blue-600 text-white shadow-md'

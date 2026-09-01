@@ -178,12 +178,12 @@ export const Automation: React.FC<{ token: string | null }> = ({ token }) => {
                   <div className="mt-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1.5 text-xs">
                     <span className="text-[10px] text-slate-400 uppercase font-bold">Execution Step Sequence</span>
                     <div className="flex items-center gap-1.5 flex-wrap mt-1">
-                      {wf.actions.map((act, i) => (
+                      {(wf.actions || []).map((act, i) => (
                         <React.Fragment key={i}>
                           <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-[10px] font-bold">
                             {act}
                           </span>
-                          {i < wf.actions.length - 1 && <span className="text-slate-400">→</span>}
+                          {i < (wf.actions || []).length - 1 && <span className="text-slate-400">→</span>}
                         </React.Fragment>
                       ))}
                     </div>

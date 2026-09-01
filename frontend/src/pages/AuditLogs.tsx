@@ -51,13 +51,14 @@ export const AuditLogs: React.FC<{ token: string | null }> = ({ token }) => {
     downloadAnchor.remove();
   };
 
-  const filtered = logs.filter(l => {
-    const matchesSearch = l.user_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          l.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          l.resource.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  const filtered = (logs || []).filter(l => {
+    if (!l) return false;
+    const matchesSearch = (l.user_email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (l.action || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (l.resource || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (l.details || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          l.ip_address.includes(searchTerm);
-    const matchesAction = selectedAction === 'all' || l.action.toLowerCase() === selectedAction.toLowerCase();
+                          (l.ip_address || '').includes(searchTerm);
+    const matchesAction = selectedAction === 'all' || (l.action || '').toLowerCase() === selectedAction.toLowerCase();
     return matchesSearch && matchesAction;
   });
 

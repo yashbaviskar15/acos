@@ -151,10 +151,11 @@ export const Backups: React.FC<{ token: string | null }> = ({ token }) => {
     });
   };
 
-  const filtered = backups.filter(b => {
-    return b.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           b.resource_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           b.resource_type.toLowerCase().includes(searchTerm.toLowerCase());
+  const filtered = (backups || []).filter(b => {
+    if (!b) return false;
+    return (b.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+           (b.resource_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+           (b.resource_type || '').toLowerCase().includes(searchTerm.toLowerCase());
   });
 
   const totalSizeGb = (backups.reduce((acc, curr) => acc + (curr.size_mb || 0), 0) / 1024).toFixed(1);
@@ -278,11 +279,11 @@ export const Backups: React.FC<{ token: string | null }> = ({ token }) => {
                     </td>
 
                     <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300 font-bold">
-                      {bsp.size_mb > 1024 ? `${(bsp.size_mb / 1024).toFixed(1)} GB` : `${bsp.size_mb} MB`}
+                      {(bsp.size_mb || 0) > 1024 ? `${((bsp.size_mb || 0) / 1024).toFixed(1)} GB` : `${bsp.size_mb || 0} MB`}
                     </td>
 
-                    <td className="py-3.5 px-4 text-slate-500">{bsp.restore_point.replace('T', ' ').replace('Z', '')}</td>
-                    <td className="py-3.5 px-4 text-slate-600 dark:text-slate-400">{bsp.retention_days} Days</td>
+                    <td className="py-3.5 px-4 text-slate-500">{(bsp.restore_point || '').replace('T', ' ').replace('Z', '')}</td>
+                    <td className="py-3.5 px-4 text-slate-600 dark:text-slate-400">{bsp.retention_days || 30} Days</td>
 
                     <td className="py-3.5 px-4">
                       <span className="flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400">
