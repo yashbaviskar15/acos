@@ -16,6 +16,7 @@ from app.services.arvedge.router import router as arvedge_router
 from app.services.arvwatch.router import router as arvwatch_router
 from app.services.arvcicd.router import router as arvcicd_router
 from app.services.arvbilling.router import router as arvbilling_router
+from app.services.arvoperations.router import router as arvoperations_router
 
 logger = logging.getLogger("aravanta.startup")
 
@@ -107,6 +108,7 @@ app.include_router(arvedge_router)
 app.include_router(arvwatch_router)
 app.include_router(arvcicd_router)
 app.include_router(arvbilling_router)
+app.include_router(arvoperations_router)
 
 @app.get("/", tags=["Root"])
 def root():

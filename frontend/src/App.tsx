@@ -2,6 +2,17 @@ import { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { Dashboard } from './pages/Dashboard';
+import { Infrastructure } from './pages/Infrastructure';
+import { Applications } from './pages/Applications';
+import { Deployments } from './pages/Deployments';
+import { Containers } from './pages/Containers';
+import { Logs } from './pages/Logs';
+import { Alerts } from './pages/Alerts';
+import { Incidents } from './pages/Incidents';
+import { Automation } from './pages/Automation';
+import { Backups } from './pages/Backups';
+import { AuditLogs } from './pages/AuditLogs';
+import { Settings } from './pages/Settings';
 import { Compute } from './pages/Compute';
 import { Kubernetes } from './pages/Kubernetes';
 import { Storage } from './pages/Storage';
@@ -23,8 +34,6 @@ export default function App() {
     return saved ? JSON.parse(saved) : null;
   });
 
-  // ─── Persist authViewState across reloads ───
-  // Read from localStorage on mount so the page stays where it was after reload
   const [authViewState, setAuthViewState] = useState<'landing' | 'login' | 'register'>(() => {
     const saved = localStorage.getItem('aravanta_auth_view');
     if (saved === 'login' || saved === 'register' || saved === 'landing') {
@@ -33,7 +42,6 @@ export default function App() {
     return 'landing';
   });
 
-  // Remember current page tab across browser refreshes for authenticated users
   const [activeTab, setActiveTab] = useState<string>(() => {
     return localStorage.getItem('aravanta_active_tab') || 'dashboard';
   });
@@ -42,7 +50,6 @@ export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
-  // Persist token
   useEffect(() => {
     if (token) {
       localStorage.setItem('aravanta_token', token);
@@ -51,7 +58,6 @@ export default function App() {
     }
   }, [token]);
 
-  // Persist user
   useEffect(() => {
     if (user) {
       localStorage.setItem('aravanta_user', JSON.stringify(user));
@@ -60,21 +66,18 @@ export default function App() {
     }
   }, [user]);
 
-  // Persist current tab
-  useEffect(() => {
-    localStorage.setItem('aravanta_active_tab', activeTab);
-  }, [activeTab]);
-
-  // ─── Persist authViewState to localStorage on change ───
   useEffect(() => {
     localStorage.setItem('aravanta_auth_view', authViewState);
   }, [authViewState]);
 
+  useEffect(() => {
+    localStorage.setItem('aravanta_active_tab', activeTab);
+  }, [activeTab]);
+
   const handleLoginSuccess = (userData: any, newToken: string) => {
-    setUser(userData);
     setToken(newToken);
-    // Clear the auth view state once logged in
-    localStorage.removeItem('aravanta_auth_view');
+    setUser(userData);
+    setAuthViewState('landing');
   };
 
   const handleLogout = () => {
@@ -83,68 +86,65 @@ export default function App() {
     localStorage.removeItem('aravanta_token');
     localStorage.removeItem('aravanta_user');
     localStorage.removeItem('aravanta_active_tab');
-    localStorage.removeItem('aravanta_auth_view');
     setAuthViewState('landing');
   };
 
-  // ─── Unauthenticated Views ───
   if (!token) {
-    if (authViewState === 'landing') {
+    if (authViewState === 'login' || authViewState === 'register') {
       return (
-        <>
-          <LandingPage
-            onGoToLogin={() => setAuthViewState('login')}
-            onGoToRegister={() => setAuthViewState('register')}
-            onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
-          />
-          <CommandPalette
-            isOpen={isCommandPaletteOpen}
-            onClose={() => setIsCommandPaletteOpen(false)}
-            onNavigate={() => {
-              setIsCommandPaletteOpen(false);
-              setAuthViewState('login');
-            }}
-          />
-        </>
+        <Login 
+          onLoginSuccess={handleLoginSuccess}
+          initialTab={authViewState === 'register' ? 'register' : 'signin'}
+          onGoToLanding={() => setAuthViewState('landing')}
+        />
       );
     }
 
     return (
-      <Login
-        onLoginSuccess={handleLoginSuccess}
-        onGoToLanding={() => setAuthViewState('landing')}
-        initialTab={authViewState === 'register' ? 'register' : 'signin'}
+      <LandingPage
+        onGoToLogin={() => setAuthViewState('login')}
+        onGoToRegister={() => setAuthViewState('register')}
+        onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
       />
     );
   }
 
-  // ─── Authenticated Console ───
   const getTabTitle = () => {
     switch (activeTab) {
-      case 'dashboard': return 'Dashboard Command Center';
-      case 'compute': return 'ArvCompute — Virtual Machines';
-      case 'kubernetes': return 'ArvKube — Managed Kubernetes Clusters';
+      case 'dashboard': return 'Dashboard & Fleet SRE Console';
+      case 'infrastructure': return 'Infrastructure — Multi-Cloud Resource Inventory';
+      case 'applications': return 'Applications — Microservices Catalog & Workloads';
+      case 'deployments': return 'Deployments — GitOps Release Pipeline & Rollback Engine';
+      case 'containers': return 'Containers — Pod Fleet Telemetry & Live Logs';
+      case 'monitoring': return 'ArvWatch — Observability Hub & Telemetry Engine';
+      case 'logs': return 'Log Explorer — Real-Time Stdout/Stderr Stream';
+      case 'alerts': return 'Alertmanager — Firing Rules & Alert Triage';
+      case 'incidents': return 'Incidents — War-Room Incident Command Center';
+      case 'automation': return 'Automation — Self-Healing Runbooks & Playbooks';
+      case 'backups': return 'Backups — Disaster Recovery & 1-Click Snapshot Restore';
+      case 'compute': return 'ArvCompute — Virtual Machines (EC2/GCE Equivalent)';
+      case 'kubernetes': return 'ArvKube — Managed Kubernetes (EKS/GKE Equivalent)';
       case 'storage': return 'ArvStore — S3 Object Storage Buckets';
-      case 'database': return 'ArvDB — Managed Database Engines';
-      case 'cicd': return 'CI/CD Pipelines & Artifact Releases';
-      case 'monitoring': return 'ArvWatch — Telemetry & Metrics';
-      case 'security': return 'Security, RBAC & Audit Trail';
-      case 'billing': return 'Billing & Cost Analytics (INR ₹)';
-      case 'profile': return 'User Profile & IAM Settings';
-      case 'guide': return 'Getting Started — Service Usage Guide';
+      case 'database': return 'ArvDB — Managed Database Engines (Postgres/Redis/MySQL)';
+      case 'cicd': return 'CI/CD Pipelines & Container Artifact Releases';
+      case 'security': return 'Security & Granular RBAC Permissions Matrix';
+      case 'audit': return 'Security Audit Trail & Compliance Log Stream';
+      case 'billing': return 'Billing, FinOps & Cost Analytics (INR ₹)';
+      case 'settings': return 'Platform Settings & SRE Microservices Health Matrix';
+      case 'profile': return 'User Profile & IAM API Credentials';
+      case 'guide': return 'Operations Guide & SOP Documentation';
       default: return 'Aravanta CloudOS Control Plane';
     }
   };
 
   const getTabSubtitle = () => {
-    const region = 'arv-us-east-1';
     const userName = user?.full_name || user?.email?.split('@')[0] || 'User';
-    return `Environment: Production • Region: ${region} • User: ${userName}`;
+    return `Environment: Production • Control Plane: Active • User: ${userName}`;
   };
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-slate-100 dark:bg-[#0A1628] text-slate-900 dark:text-slate-100 flex font-sans transition-colors duration-300">
-      {/* Fixed Sidebar Container */}
+      {/* Fixed Sidebar */}
       <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -154,7 +154,7 @@ export default function App() {
         onClose={() => setIsMobileMenuOpen(false)}
       />
 
-      {/* Main Right Area */}
+      {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-screen min-w-0 overflow-hidden">
         <Header
           title={getTabTitle()}
@@ -171,15 +171,28 @@ export default function App() {
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
         />
 
-        {/* Main Container */}
+        {/* Dynamic Route Pages */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 xs:p-4 sm:p-6 space-y-4 sm:space-y-6 min-w-0">
           {activeTab === 'dashboard' && <Dashboard token={token} onNavigate={(tab) => setActiveTab(tab)} />}
+          {activeTab === 'infrastructure' && <Infrastructure token={token} />}
+          {activeTab === 'applications' && <Applications token={token} />}
+          {activeTab === 'deployments' && <Deployments token={token} />}
+          {activeTab === 'containers' && <Containers token={token} />}
+          {activeTab === 'monitoring' && <Monitoring token={token} />}
+          {activeTab === 'logs' && <Logs token={token} />}
+          {activeTab === 'alerts' && <Alerts token={token} onNavigate={(tab) => setActiveTab(tab)} />}
+          {activeTab === 'incidents' && <Incidents token={token} />}
+          {activeTab === 'automation' && <Automation token={token} />}
+          {activeTab === 'backups' && <Backups token={token} />}
+          {activeTab === 'audit' && <AuditLogs token={token} />}
+          {activeTab === 'settings' && <Settings token={token} />}
+          
+          {/* Cloud Resources */}
           {activeTab === 'compute' && <Compute token={token} />}
           {activeTab === 'kubernetes' && <Kubernetes token={token} />}
           {activeTab === 'storage' && <Storage token={token} />}
           {activeTab === 'database' && <Databases token={token} />}
           {activeTab === 'cicd' && <CICD />}
-          {activeTab === 'monitoring' && <Monitoring token={token} />}
           {activeTab === 'security' && <Security token={token} />}
           {activeTab === 'billing' && <Billing />}
           {activeTab === 'profile' && (

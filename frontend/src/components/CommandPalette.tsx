@@ -1,5 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Server, Boxes, HardDrive, Database, GitBranch, Activity, ShieldCheck, CreditCard, User, BookOpen, Terminal, ArrowRight, X } from 'lucide-react';
+import { 
+  Search, 
+  Server, 
+  Boxes, 
+  HardDrive, 
+  Database, 
+  GitBranch, 
+  Activity, 
+  ShieldCheck, 
+  CreditCard, 
+  User, 
+  BookOpen, 
+  Terminal, 
+  ArrowRight, 
+  X,
+  Layers,
+  Box,
+  FileText,
+  Bell,
+  ShieldAlert,
+  Zap,
+  Settings as SettingsIcon,
+  FileCheck
+} from 'lucide-react';
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -11,27 +34,38 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
   const [query, setQuery] = useState('');
 
   const commands = [
-    { id: 'dashboard', label: 'Go to Dashboard Command Center', category: 'Navigation', icon: Activity, tab: 'dashboard' },
-    { id: 'compute', label: 'ArvCompute — Virtual Machine Instances', category: 'Compute', icon: Server, tab: 'compute' },
-    { id: 'launch-vm', label: 'Launch New Virtual Machine (arv.medium)', category: 'Actions', icon: Server, tab: 'compute' },
-    { id: 'kubernetes', label: 'ArvKube — Managed Kubernetes Clusters', category: 'Containers', icon: Boxes, tab: 'kubernetes' },
-    { id: 'create-k8s', label: 'Deploy New Kubernetes Cluster (v1.29)', category: 'Actions', icon: Boxes, tab: 'kubernetes' },
-    { id: 'storage', label: 'ArvStore — S3 Object Storage Buckets', category: 'Storage', icon: HardDrive, tab: 'storage' },
-    { id: 'create-bucket', label: 'Create New S3 Storage Bucket', category: 'Actions', icon: HardDrive, tab: 'storage' },
-    { id: 'database', label: 'ArvDB — Managed Database Instances', category: 'Databases', icon: Database, tab: 'database' },
-    { id: 'create-db', label: 'Provision New PostgreSQL / MySQL Database', category: 'Actions', icon: Database, tab: 'database' },
-    { id: 'cicd', label: 'CI/CD Pipelines & Container Builds', category: 'DevOps', icon: GitBranch, tab: 'cicd' },
-    { id: 'trigger-build', label: 'Trigger CI/CD Build Runner', category: 'Actions', icon: GitBranch, tab: 'cicd' },
-    { id: 'monitoring', label: 'ArvWatch — Telemetry & Active Alert Center', category: 'Observability', icon: Activity, tab: 'monitoring' },
-    { id: 'security', label: 'Security Center & Audit Log Trail', category: 'Security', icon: ShieldCheck, tab: 'security' },
-    { id: 'billing', label: 'Billing & Cost Analytics (INR ₹)', category: 'Finance', icon: CreditCard, tab: 'billing' },
-    { id: 'profile', label: 'User Profile & API Credentials', category: 'Account', icon: User, tab: 'profile' },
-    { id: 'guide', label: 'Getting Started — Service Usage Guide', category: 'Documentation', icon: BookOpen, tab: 'guide' },
+    { id: 'dashboard', label: 'Dashboard & SRE Operations Console', category: 'Operations', icon: Activity, tab: 'dashboard' },
+    { id: 'infrastructure', label: 'Infrastructure — Multi-Cloud Resource Inventory', category: 'Operations', icon: Server, tab: 'infrastructure' },
+    { id: 'applications', label: 'Applications — Microservices Catalog & Scaling', category: 'Operations', icon: Layers, tab: 'applications' },
+    { id: 'deployments', label: 'Deployments — GitOps Pipeline & Rollback Engine', category: 'Operations', icon: GitBranch, tab: 'deployments' },
+    { id: 'containers', label: 'Containers — Kubernetes Pods & Live Logs', category: 'Operations', icon: Box, tab: 'containers' },
+    
+    { id: 'monitoring', label: 'Monitoring — Observability & Telemetry Gauges', category: 'Observability', icon: Activity, tab: 'monitoring' },
+    { id: 'logs', label: 'Log Explorer — Real-Time Stdout/Stderr Stream', category: 'Observability', icon: FileText, tab: 'logs' },
+    { id: 'alerts', label: 'Alertmanager — Firing Alerts & Triage Rules', category: 'Observability', icon: Bell, tab: 'alerts' },
+    { id: 'incidents', label: 'Incidents — War-Room Command & RCA Notes', category: 'Observability', icon: ShieldAlert, tab: 'incidents' },
+    
+    { id: 'automation', label: 'Automation — Self-Healing Runbooks & Workflows', category: 'Reliability', icon: Zap, tab: 'automation' },
+    { id: 'backups', label: 'Backups — Disaster Recovery & 1-Click Restore', category: 'Reliability', icon: HardDrive, tab: 'backups' },
+    { id: 'cicd', label: 'CI/CD Pipelines & Container Builds', category: 'Reliability', icon: GitBranch, tab: 'cicd' },
+
+    { id: 'compute', label: 'ArvCompute — Virtual Machines', category: 'Cloud Resources', icon: Server, tab: 'compute' },
+    { id: 'kubernetes', label: 'ArvKube — Managed Kubernetes Clusters', category: 'Cloud Resources', icon: Boxes, tab: 'kubernetes' },
+    { id: 'storage', label: 'ArvStore — S3 Object Storage', category: 'Cloud Resources', icon: HardDrive, tab: 'storage' },
+    { id: 'database', label: 'ArvDB — Managed Database Engines', category: 'Cloud Resources', icon: Database, tab: 'database' },
+
+    { id: 'security', label: 'Security & RBAC Permission Matrix', category: 'Governance', icon: ShieldCheck, tab: 'security' },
+    { id: 'audit', label: 'Audit Logs — Tamper-Evident Security Log', category: 'Governance', icon: FileCheck, tab: 'audit' },
+    { id: 'billing', label: 'Billing & FinOps Cost Analytics (INR ₹)', category: 'Governance', icon: CreditCard, tab: 'billing' },
+    { id: 'settings', label: 'Platform Settings & SRE Microservice Health', category: 'Governance', icon: SettingsIcon, tab: 'settings' },
+    { id: 'profile', label: 'User Profile & API Credentials', category: 'Governance', icon: User, tab: 'profile' },
+    { id: 'guide', label: 'Operations Guide & SOP Documentation', category: 'Help', icon: BookOpen, tab: 'guide' },
   ];
 
   const filtered = commands.filter(c =>
     c.label.toLowerCase().includes(query.toLowerCase()) ||
-    c.category.toLowerCase().includes(query.toLowerCase())
+    c.category.toLowerCase().includes(query.toLowerCase()) ||
+    c.tab.toLowerCase().includes(query.toLowerCase())
   );
 
   useEffect(() => {
@@ -65,11 +99,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Type a command or search resources (e.g. 'compute', 'database', 'k8s')..."
+            placeholder="Type a command or jump to page (e.g. 'incidents', 'logs', 'deploy', 'backups')..."
             className="w-full bg-transparent text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none font-mono"
           />
           <kbd className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 rounded border border-slate-200 dark:border-slate-700">ESC</kbd>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1 cursor-pointer">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -95,7 +129,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
                       <Icon className="w-4 h-4" />
                     </div>
                     <div>
-                      <p className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{cmd.label}</p>
+                      <p className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors font-mono">{cmd.label}</p>
                       <p className="text-[10px] text-slate-400 font-mono">{cmd.category}</p>
                     </div>
                   </div>
@@ -110,7 +144,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
         <div className="p-3 bg-slate-50 dark:bg-slate-900/60 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-[10px] text-slate-500 font-mono">
           <div className="flex items-center gap-2">
             <Terminal className="w-3.5 h-3.5 text-blue-500" />
-            <span>Aravanta CloudOS Command Palette</span>
+            <span>Aravanta Cloud Operations Command Palette</span>
           </div>
           <span>Press <kbd className="px-1.5 py-0.5 bg-slate-200 dark:bg-slate-800 rounded font-bold text-slate-700 dark:text-slate-300">Ctrl+K</kbd> anytime</span>
         </div>

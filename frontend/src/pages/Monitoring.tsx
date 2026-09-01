@@ -1,184 +1,215 @@
-import React, { useState, useEffect } from 'react';
-import { Activity, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  Activity, 
+  RefreshCw, 
+  Cpu, 
+  HardDrive, 
+  Network
+} from 'lucide-react';
 import { apiFetch } from '../config/api';
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart, Bar, LineChart, Line
+} from 'recharts';
 
-interface MonitoringProps {
-  token: string | null;
-}
-
-export const Monitoring: React.FC<MonitoringProps> = ({ token }) => {
+export const Monitoring: React.FC<{ token: string | null }> = ({ token }) => {
   const [metrics, setMetrics] = useState<any>(null);
-  const [alerts, setAlerts] = useState<any[]>([]);
-  const [health, setHealth] = useState<any>(null);
+  const [timeseries, setTimeseries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedRange, setSelectedRange] = useState<string>('24h');
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [m, a, h] = await Promise.all([
-        apiFetch<any>('/v1/monitoring/metrics', { token }).catch(() => null),
-        apiFetch<any[]>('/v1/monitoring/alerts', { token }).catch(() => null),
-        apiFetch<any>('/v1/monitoring/health', { token }).catch(() => null),
+      const [m, ts] = await Promise.all([
+        apiFetch<any>('/api/v1/monitoring/metrics', { token }).catch(() => null),
+        apiFetch<any[]>(`/api/v1/monitoring/metrics/timeseries?time_range=${selectedRange}`, { token }).catch(() => []),
       ]);
       if (m) setMetrics(m);
-      if (a) setAlerts(Array.isArray(a) ? a : []);
-      if (h) setHealth(h);
+      if (Array.isArray(ts)) setTimeseries(ts);
     } catch (err) {
-      console.error(err);
+      console.error('Failed to fetch monitoring telemetry:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedRange, token]);
 
   useEffect(() => {
     fetchData();
-  }, [token]);
-
-  const handleAlertAction = async (alertId: string, action: 'acknowledge' | 'resolve') => {
-    try {
-      await apiFetch(`/v1/monitoring/alerts/${alertId}/${action}`, {
-        method: 'POST',
-        token,
-      });
-      fetchData();
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  }, [fetchData]);
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm">
+    <div className="space-y-6 font-mono text-xs">
+      {/* Top Header & Range Controls */}
+      <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <Activity className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-            ArvWatch System Monitoring & Alerting
-          </h2>
-          <p className="text-xs text-slate-600 dark:text-slate-400 font-mono mt-0.5">Real-time microservice health, Alertmanager rules, and telemetry</p>
+            <h2 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">
+              ArvWatch Observability Hub & Telemetry Engine
+            </h2>
+          </div>
+          <p className="text-slate-500 text-[11px] mt-0.5">Real-time SRE metrics, P95 latency distribution, and throughput</p>
         </div>
 
-        <button
-          onClick={fetchData}
-          className="p-2.5 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-colors cursor-pointer"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-        </button>
+        {/* Time Range Selector */}
+        <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shrink-0">
+          {['5m', '15m', '1h', '6h', '24h', '7d'].map((range) => (
+            <button
+              key={range}
+              onClick={() => setSelectedRange(range)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                selectedRange === range
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              {range}
+            </button>
+          ))}
+          <button
+            onClick={fetchData}
+            disabled={loading}
+            className="p-1.5 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer ml-1"
+            title="Refresh telemetry"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
 
-      {/* Metrics Row */}
+      {/* SRE KPI Metric Gauges */}
       {metrics && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 font-mono">
-          <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm">
-            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">Requests / Hour</span>
-            <p className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white mt-1">{metrics.total_requests_1h.toLocaleString()}</p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm">
+            <div className="flex justify-between items-center text-slate-500 text-[10px] font-bold uppercase">
+              <span>Fleet CPU Load</span>
+              <Cpu className="w-4 h-4 text-blue-500" />
+            </div>
+            <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">{metrics.cpu_usage_percent}%</p>
+            <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
+              <div className="bg-blue-500 h-full" style={{ width: `${metrics.cpu_usage_percent}%` }} />
+            </div>
           </div>
-          <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm">
-            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase">System Uptime</span>
-            <p className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 mt-1">{metrics.uptime_percent}%</p>
+
+          <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm">
+            <div className="flex justify-between items-center text-slate-500 text-[10px] font-bold uppercase">
+              <span>RAM Allocation</span>
+              <HardDrive className="w-4 h-4 text-purple-500" />
+            </div>
+            <p className="text-2xl font-black text-purple-600 dark:text-purple-400 mt-1">{metrics.memory_usage_percent}%</p>
+            <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
+              <div className="bg-purple-500 h-full" style={{ width: `${metrics.memory_usage_percent}%` }} />
+            </div>
           </div>
-          <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm">
-            <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase">P95 Latency</span>
-            <p className="text-2xl sm:text-3xl font-black text-blue-600 dark:text-blue-400 mt-1">{metrics.p95_latency_ms} ms</p>
+
+          <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm">
+            <div className="flex justify-between items-center text-slate-500 text-[10px] font-bold uppercase">
+              <span>P95 HTTP Latency</span>
+              <Activity className="w-4 h-4 text-emerald-500" />
+            </div>
+            <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">{metrics.p95_latency_ms} ms</p>
+            <p className="text-[10px] text-slate-400 mt-1">SLO target: &lt; 200ms</p>
           </div>
-          <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm">
-            <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold uppercase">Error Rate</span>
-            <p className="text-2xl sm:text-3xl font-black text-purple-600 dark:text-purple-400 mt-1">{metrics.error_rate_percent}%</p>
+
+          <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm">
+            <div className="flex justify-between items-center text-slate-500 text-[10px] font-bold uppercase">
+              <span>Network In / Out</span>
+              <Network className="w-4 h-4 text-blue-500" />
+            </div>
+            <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">{metrics.network_in_mbps} Mbps</p>
+            <p className="text-[10px] text-slate-400 mt-1">Outbound: {metrics.network_out_mbps} Mbps</p>
           </div>
         </div>
       )}
 
-      {/* Main Grid: Active Alerts & Health Status */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Active Alert Center */}
-        <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4 shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-            <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider font-mono flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-500" />
-              Active System Alert Center
-            </h3>
-            <span className="px-2.5 py-0.5 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 text-amber-700 dark:text-amber-400 rounded-full text-xs font-mono font-bold">
-              {alerts.filter(a => a.status === 'firing').length} Firing
-            </span>
+      {/* Chart 1: CPU, Memory, & Disk I/O Utilization */}
+      <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h3 className="text-sm font-black text-slate-900 dark:text-white">Compute, Memory, & Disk I/O Saturation</h3>
+            <p className="text-slate-500 text-[11px]">Aggregated cluster utilization over {selectedRange}</p>
           </div>
-
-          <div className="space-y-3">
-            {alerts.map((a) => (
-              <div
-                key={a.id}
-                className={`p-4 rounded-xl border text-xs space-y-2 ${
-                  a.severity === 'critical'
-                    ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30'
-                    : (a.severity === 'warning' ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30' : 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30')
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${a.severity === 'critical' ? 'bg-red-500 animate-ping' : 'bg-amber-500'}`}></span>
-                    {a.title}
-                  </span>
-                  <span className="font-mono text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
-                    {a.service}
-                  </span>
-                </div>
-
-                <p className="text-slate-600 dark:text-slate-300 font-mono text-[11px] leading-relaxed">{a.message}</p>
-
-                <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800/60 text-[10px] font-mono text-slate-500 dark:text-slate-400">
-                  <span>Fired at: {a.fired_at.split('T')[1].slice(0, 5)} UTC</span>
-                  {a.status === 'firing' && (
-                    <div className="space-x-2">
-                      <button
-                        onClick={() => handleAlertAction(a.id, 'acknowledge')}
-                        className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold rounded-lg cursor-pointer"
-                      >
-                        Ack
-                      </button>
-                      <button
-                        onClick={() => handleAlertAction(a.id, 'resolve')}
-                        className="px-2.5 py-1 bg-emerald-50 dark:bg-emerald-500/20 hover:bg-emerald-100 dark:hover:bg-emerald-500/30 text-emerald-700 dark:text-emerald-400 font-bold rounded-lg cursor-pointer"
-                      >
-                        Resolve
-                      </button>
-                    </div>
-                  )}
-                  {a.status !== 'firing' && (
-                    <span className="text-emerald-600 dark:text-emerald-400 font-bold uppercase">{a.status}</span>
-                  )}
-                </div>
-              </div>
-            ))}
+          <div className="flex items-center gap-3 text-[10px] font-bold">
+            <span className="flex items-center gap-1 text-blue-500">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-500" /> CPU Load %
+            </span>
+            <span className="flex items-center gap-1 text-purple-500">
+              <span className="w-2.5 h-2.5 rounded-full bg-purple-500" /> RAM Memory %
+            </span>
+            <span className="flex items-center gap-1 text-amber-500">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Disk I/O %
+            </span>
           </div>
         </div>
 
-        {/* Microservices Health Matrix */}
-        <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4 shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-            <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider font-mono flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              Microservice Health Matrix
-            </h3>
-            {health && (
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30">
-                {health.overall}
-              </span>
-            )}
-          </div>
+        <div className="h-64 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={timeseries}>
+              <defs>
+                <linearGradient id="monCpuGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
+                </linearGradient>
+                <linearGradient id="monRamGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.3} />
+              <XAxis dataKey="time_label" stroke="#64748b" tick={{ fontSize: 10 }} />
+              <YAxis stroke="#64748b" tick={{ fontSize: 10 }} />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.75rem', fontSize: '11px', color: '#fff' }}
+              />
+              <Area type="monotone" dataKey="cpu" name="CPU %" stroke="#2563eb" strokeWidth={2} fillOpacity={1} fill="url(#monCpuGrad)" />
+              <Area type="monotone" dataKey="memory" name="RAM %" stroke="#8b5cf6" strokeWidth={2} fillOpacity={1} fill="url(#monRamGrad)" />
+              <Area type="monotone" dataKey="disk_io" name="Disk I/O %" stroke="#f59e0b" strokeWidth={1.5} fill="none" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
 
-          <div className="divide-y divide-slate-200 dark:divide-slate-800/80 font-mono">
-            {health?.services?.map((svc: any, i: number) => (
-              <div key={i} className="py-3 flex items-center justify-between text-xs">
-                <span className="font-bold text-slate-900 dark:text-slate-200">{svc.name}</span>
-                <div className="flex items-center gap-4 text-[11px]">
-                  <span className="text-slate-500 dark:text-slate-400 font-bold">{svc.latency_ms} ms</span>
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                    svc.status === 'healthy' ? 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30' : 'bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30'
-                  }`}>
-                    {svc.status.toUpperCase()}
-                  </span>
-                </div>
-              </div>
-            ))}
+      {/* Chart 2: Request Rate & Latency Response */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+          <div>
+            <h3 className="text-sm font-black text-slate-900 dark:text-white">HTTP Request Volume & Throughput</h3>
+            <p className="text-slate-500 text-[11px]">Requests ingested across edge proxies</p>
+          </div>
+          <div className="h-56 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={timeseries}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.3} />
+                <XAxis dataKey="time_label" stroke="#64748b" tick={{ fontSize: 10 }} />
+                <YAxis stroke="#64748b" tick={{ fontSize: 10 }} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.75rem', fontSize: '11px', color: '#fff' }}
+                />
+                <Bar dataKey="requests" name="Requests" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+          <div>
+            <h3 className="text-sm font-black text-slate-900 dark:text-white">P95 Latency & Error Rate Profile</h3>
+            <p className="text-slate-500 text-[11px]">Millisecond latency and 5xx percentages</p>
+          </div>
+          <div className="h-56 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={timeseries}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.3} />
+                <XAxis dataKey="time_label" stroke="#64748b" tick={{ fontSize: 10 }} />
+                <YAxis stroke="#64748b" tick={{ fontSize: 10 }} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.75rem', fontSize: '11px', color: '#fff' }}
+                />
+                <Line type="monotone" dataKey="p95_latency" name="P95 ms" stroke="#10b981" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="errors" name="Errors" stroke="#ef4444" strokeWidth={1.5} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </div>

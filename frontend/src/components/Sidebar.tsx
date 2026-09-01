@@ -1,18 +1,25 @@
 import React from 'react';
 import { 
   LayoutDashboard, 
+  Layers, 
   Server, 
   Boxes, 
+  GitBranch, 
+  Box, 
+  Activity, 
+  FileText, 
+  Bell, 
+  ShieldAlert, 
+  Zap, 
   HardDrive, 
   Database, 
-  GitBranch, 
-  Activity, 
   ShieldCheck, 
-  CreditCard,
-  User,
-  LogOut,
+  CreditCard, 
+  Settings as SettingsIcon, 
+  BookOpen, 
+  LogOut, 
   X,
-  BookOpen
+  FileCheck
 } from 'lucide-react';
 import { Logo } from './Logo';
 
@@ -25,6 +32,17 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
+interface NavSection {
+  title: string;
+  items: {
+    id: string;
+    label: string;
+    icon: React.ElementType;
+    badge?: string;
+    count?: string;
+  }[];
+}
+
 export const Sidebar: React.FC<SidebarProps> = ({ 
   activeTab, 
   setActiveTab, 
@@ -33,22 +51,57 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpen = false,
   onClose
 }) => {
-  const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: 'LIVE' },
-    { id: 'compute', label: 'ArvCompute', icon: Server, count: 'VMs' },
-    { id: 'kubernetes', label: 'ArvKube', icon: Boxes, count: 'Clusters' },
-    { id: 'storage', label: 'ArvStore', icon: HardDrive, count: 'Buckets' },
-    { id: 'database', label: 'ArvDB', icon: Database, count: 'Instances' },
-    { id: 'cicd', label: 'CI/CD Pipelines', icon: GitBranch },
-    { id: 'monitoring', label: 'ArvWatch', icon: Activity },
-    { id: 'security', label: 'Security & Audit', icon: ShieldCheck },
-    { id: 'billing', label: 'Billing & Costs', icon: CreditCard, count: 'INR ₹' },
-    { id: 'guide', label: 'Getting Started', icon: BookOpen, badge: 'NEW' },
-    { id: 'profile', label: 'User Profile', icon: User, badge: 'TRIAL' },
+  const sections: NavSection[] = [
+    {
+      title: 'OPERATIONS',
+      items: [
+        { id: 'dashboard', label: 'Overview', icon: LayoutDashboard, badge: 'PROD' },
+        { id: 'infrastructure', label: 'Infrastructure', icon: Server, count: '28' },
+        { id: 'applications', label: 'Applications', icon: Layers, count: '5' },
+        { id: 'deployments', label: 'Deployments', icon: GitBranch },
+        { id: 'containers', label: 'Containers', icon: Box, count: '11' },
+      ]
+    },
+    {
+      title: 'OBSERVABILITY',
+      items: [
+        { id: 'monitoring', label: 'Monitoring', icon: Activity },
+        { id: 'logs', label: 'Log Explorer', icon: FileText, badge: 'LIVE' },
+        { id: 'alerts', label: 'Alerts', icon: Bell, count: '6' },
+        { id: 'incidents', label: 'Incidents', icon: ShieldAlert, badge: 'P1' },
+      ]
+    },
+    {
+      title: 'AUTOMATION & RELIABILITY',
+      items: [
+        { id: 'automation', label: 'Automation', icon: Zap },
+        { id: 'backups', label: 'Backups & DR', icon: HardDrive },
+        { id: 'cicd', label: 'CI/CD Pipelines', icon: GitBranch },
+      ]
+    },
+    {
+      title: 'CLOUD RESOURCES',
+      items: [
+        { id: 'compute', label: 'Compute VMs', icon: Server },
+        { id: 'kubernetes', label: 'Kubernetes', icon: Boxes },
+        { id: 'database', label: 'Databases', icon: Database },
+        { id: 'storage', label: 'Object Storage', icon: HardDrive },
+      ]
+    },
+    {
+      title: 'GOVERNANCE & PLATFORM',
+      items: [
+        { id: 'security', label: 'Security & RBAC', icon: ShieldCheck },
+        { id: 'audit', label: 'Audit Logs', icon: FileCheck },
+        { id: 'billing', label: 'Billing & FinOps', icon: CreditCard },
+        { id: 'settings', label: 'Platform Settings', icon: SettingsIcon },
+        { id: 'guide', label: 'Operations Guide', icon: BookOpen },
+      ]
+    }
   ];
 
-  const displayName = user?.full_name || user?.email?.split('@')[0] || 'Yashbaviskar47';
-  const displayRole = user?.role || user?.roles?.[0] || 'Developer';
+  const displayName = user?.full_name || user?.email?.split('@')[0] || 'Yash Baviskar';
+  const displayRole = user?.role || user?.roles?.[0] || 'SuperAdmin';
   const initial = displayName.charAt(0).toUpperCase();
 
   const handleTabClick = (id: string) => {
@@ -58,7 +111,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* Mobile Drawer Backdrop */}
+      {/* Mobile Backdrop */}
       {isOpen && (
         <div 
           onClick={onClose}
@@ -66,19 +119,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
         />
       )}
 
-      {/* Sidebar Main Container */}
+      {/* Sidebar Container */}
       <aside
         className={`w-64 bg-white dark:bg-[#0F2038] border-r border-slate-200 dark:border-slate-800 flex flex-col h-screen fixed md:sticky top-0 left-0 transition-transform duration-300 shadow-xl z-[95] md:z-30 shrink-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
-        {/* Sidebar Brand Header */}
+        {/* Brand Header */}
         <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
           <div className="cursor-pointer" onClick={() => handleTabClick('dashboard')}>
             <Logo size="md" />
           </div>
 
-          {/* Close button for mobile drawer */}
           {onClose && (
             <button
               onClick={onClose}
@@ -89,77 +141,86 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
-        {/* Navigation Menu Items */}
-        <nav className="flex-1 overflow-y-auto p-3 space-y-1.5">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => handleTabClick(item.id)}
-                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer group ${
-                  isActive
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25 dark:bg-[#C9A84C]/25 dark:text-[#E8D48B] dark:border dark:border-[#C9A84C]/50'
-                    : 'text-slate-700 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <Icon 
-                    className={`w-4 h-4 transition-colors ${
-                      isActive 
-                        ? 'text-white dark:text-[#C9A84C]' 
-                        : 'text-blue-600 dark:text-blue-400 group-hover:text-blue-500 dark:group-hover:text-blue-300'
-                    }`} 
-                  />
-                  <span className="truncate">{item.label}</span>
-                </div>
+        {/* Categorized Navigation Menu */}
+        <nav className="flex-1 overflow-y-auto p-3 space-y-4">
+          {sections.map((sec, secIdx) => (
+            <div key={secIdx} className="space-y-1">
+              <span className="px-3 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                {sec.title}
+              </span>
+              <div className="space-y-0.5 pt-0.5">
+                {sec.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeTab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => handleTabClick(item.id)}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer group ${
+                        isActive
+                          ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
+                          : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <Icon 
+                          className={`w-4 h-4 shrink-0 transition-colors ${
+                            isActive 
+                              ? 'text-white' 
+                              : 'text-blue-600 dark:text-blue-400 group-hover:text-blue-500'
+                          }`} 
+                        />
+                        <span className="truncate">{item.label}</span>
+                      </div>
 
-                {item.badge && (
-                  <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider rounded-md ${
-                    isActive
-                      ? 'bg-white/20 text-white dark:bg-emerald-500/20 dark:text-emerald-300'
-                      : 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30'
-                  }`}>
-                    {item.badge}
-                  </span>
-                )}
+                      {item.badge && (
+                        <span className={`px-1.5 py-0.5 text-[9px] font-extrabold uppercase rounded ${
+                          isActive
+                            ? 'bg-white/20 text-white'
+                            : (item.badge === 'P1' ? 'bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30' : 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30')
+                        }`}>
+                          {item.badge}
+                        </span>
+                      )}
 
-                {item.count && !item.badge && (
-                  <span className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded-md ${
-                    isActive
-                      ? 'bg-white/20 text-white dark:bg-slate-800 dark:text-slate-200'
-                      : 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700/80'
-                  }`}>
-                    {item.count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+                      {item.count && !item.badge && (
+                        <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded ${
+                          isActive
+                            ? 'bg-white/20 text-white'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                        }`}>
+                          {item.count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
         {/* User Profile Footer */}
         <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0A1628]">
-          <div className="flex items-center justify-between p-3 rounded-xl bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 shadow-sm">
+          <div className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 shadow-sm">
             <div 
               onClick={() => handleTabClick('profile')}
-              className="flex items-center gap-3 overflow-hidden cursor-pointer group"
+              className="flex items-center gap-2.5 overflow-hidden cursor-pointer group min-w-0"
             >
-              <div className="w-9 h-9 rounded-full bg-blue-600 dark:bg-blue-500 text-white font-black text-sm flex items-center justify-center shrink-0 shadow-md group-hover:scale-105 transition-transform">
+              <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-md">
                 {initial}
               </div>
               <div className="truncate">
-                <p className="text-xs font-black text-slate-900 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-[#C9A84C] transition-colors">{displayName}</p>
-                <p className="text-[10px] text-blue-600 dark:text-[#C9A84C] font-mono font-bold capitalize">{displayRole}</p>
+                <p className="text-xs font-bold text-slate-900 dark:text-white truncate group-hover:text-blue-600 transition-colors">{displayName}</p>
+                <p className="text-[10px] text-blue-600 dark:text-blue-400 font-mono font-bold capitalize truncate">{displayRole}</p>
               </div>
             </div>
             <button 
               onClick={onLogout}
               title="Logout"
-              className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
+              className="text-slate-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
             >
-              <LogOut className="w-4.5 h-4.5" />
+              <LogOut className="w-4 h-4" />
             </button>
           </div>
         </div>

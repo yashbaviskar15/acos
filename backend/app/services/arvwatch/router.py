@@ -51,20 +51,37 @@ def get_metrics():
     }
 
 @router.get("/metrics/timeseries")
-def get_timeseries():
-    """Return 24h of hourly CPU/RAM/Network data points."""
+def get_timeseries(time_range: str = "24h"):
+    """Return CPU/RAM/Network/Latency/ErrorRate data points based on time range (5m, 15m, 1h, 6h, 24h, 7d)."""
     now = datetime.utcnow()
     points = []
-    for i in range(24):
-        ts = now - timedelta(hours=23 - i)
+    
+    # Define step count and delta interval based on selected range
+    range_config = {
+        "5m": (10, timedelta(seconds=30), "%H:%M:%S"),
+        "15m": (15, timedelta(minutes=1), "%H:%M"),
+        "1h": (12, timedelta(minutes=5), "%H:%M"),
+        "6h": (18, timedelta(minutes=20), "%H:%M"),
+        "24h": (24, timedelta(hours=1), "%H:%M"),
+        "7d": (14, timedelta(hours=12), "%b %d %H:%M"),
+    }
+    
+    count, delta, time_fmt = range_config.get(time_range, (24, timedelta(hours=1), "%H:%M"))
+    
+    for i in range(count):
+        ts = now - delta * (count - 1 - i)
         points.append({
             "timestamp": ts.isoformat() + "Z",
-            "cpu": round(random.uniform(25, 75), 1),
-            "memory": round(random.uniform(45, 85), 1),
+            "time_label": ts.strftime(time_fmt),
+            "cpu": round(random.uniform(25, 78), 1),
+            "memory": round(random.uniform(45, 82), 1),
+            "disk_io": round(random.uniform(15, 65), 1),
             "network_in": round(random.uniform(40, 250), 1),
             "network_out": round(random.uniform(20, 130), 1),
+            "p95_latency": round(random.uniform(28, 160), 1),
             "requests": random.randint(3000, 15000),
-            "errors": random.randint(0, 50),
+            "errors": random.randint(0, 35),
+            "error_rate": round(random.uniform(0.01, 0.45), 2),
         })
     return points
 
@@ -77,6 +94,14 @@ def acknowledge_alert(alert_id: str):
     for a in _alerts:
         if a["id"] == alert_id:
             a["status"] = "acknowledged"
+            return a
+    return {"message": "Alert not found"}
+
+@router.post("/alerts/{alert_id}/mute")
+def mute_alert(alert_id: str):
+    for a in _alerts:
+        if a["id"] == alert_id:
+            a["status"] = "muted"
             return a
     return {"message": "Alert not found"}
 
