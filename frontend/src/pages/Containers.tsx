@@ -118,17 +118,22 @@ export const Containers: React.FC<{ token: string | null }> = ({ token }) => {
     }
   };
 
-  const filtered = containers.filter(c => {
-    const matchesSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          c.app.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          c.image.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          c.node.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || c.status.toLowerCase() === statusFilter.toLowerCase();
+  const filtered = (containers || []).filter(c => {
+    if (!c) return false;
+    const name = (c.name || '').toLowerCase();
+    const app = (c.app || '').toLowerCase();
+    const image = (c.image || '').toLowerCase();
+    const node = (c.node || '').toLowerCase();
+    const status = (c.status || '').toLowerCase();
+    const query = searchTerm.toLowerCase();
+
+    const matchesSearch = name.includes(query) || app.includes(query) || image.includes(query) || node.includes(query);
+    const matchesStatus = statusFilter === 'all' || status === statusFilter.toLowerCase();
     return matchesSearch && matchesStatus;
   });
 
-  const runningCount = containers.filter(c => c.status.toUpperCase() === 'RUNNING').length;
-  const crashCount = containers.filter(c => c.status.toUpperCase() === 'CRASHLOOPBACKOFF').length;
+  const runningCount = (containers || []).filter(c => (c?.status || '').toUpperCase() === 'RUNNING').length;
+  const crashCount = (containers || []).filter(c => (c?.status || '').toUpperCase() === 'CRASHLOOPBACKOFF').length;
 
   return (
     <div className="space-y-6">

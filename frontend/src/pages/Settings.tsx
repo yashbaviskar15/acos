@@ -71,7 +71,7 @@ export const Settings: React.FC<{ token: string | null }> = ({ token }) => {
               <span>Querying microservices health matrix...</span>
             </div>
           ) : (
-            healthData?.services.map((svc) => (
+            (healthData?.services || []).map((svc) => (
               <div 
                 key={svc.name}
                 className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 flex items-center justify-between"

@@ -39,9 +39,9 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
 
   const handleDownloadObject = (obj: any) => {
     // Direct browser trigger to download endpoint or generate client blob
-    const fileName = obj.key.split('/').pop() || 'file.bin';
-    const sampleContent = `# Aravanta CloudOS S3 Object\nBucket: ${selectedBucket?.name}\nKey: ${obj.key}\nStorage Class: ${obj.storage_class}\nSize: ${obj.size_bytes} bytes\nLast Modified: ${obj.last_modified}\n`;
-    const blob = new Blob([sampleContent], { type: obj.content_type || 'text/plain' });
+    const fileName = (obj?.key || 'file.bin').split('/').pop() || 'file.bin';
+    const sampleContent = `# Aravanta CloudOS S3 Object\nBucket: ${selectedBucket?.name || 'bucket'}\nKey: ${obj?.key}\nStorage Class: ${obj?.storage_class}\nSize: ${obj?.size_bytes || 0} bytes\nLast Modified: ${obj?.last_modified || new Date().toISOString()}\n`;
+    const blob = new Blob([sampleContent], { type: obj?.content_type || 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

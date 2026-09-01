@@ -147,16 +147,21 @@ export const Incidents: React.FC<{ token: string | null }> = ({ token }) => {
     }
   };
 
-  const filtered = incidents.filter(inc => {
-    const matchesSearch = inc.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          inc.number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          inc.summary.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || inc.status.toLowerCase() === statusFilter.toLowerCase();
+  const filtered = (incidents || []).filter(inc => {
+    if (!inc) return false;
+    const title = (inc.title || '').toLowerCase();
+    const number = (inc.number || inc.id || '').toLowerCase();
+    const summary = (inc.summary || '').toLowerCase();
+    const status = (inc.status || '').toLowerCase();
+    const query = searchTerm.toLowerCase();
+
+    const matchesSearch = title.includes(query) || number.includes(query) || summary.includes(query);
+    const matchesStatus = statusFilter === 'all' || status === statusFilter.toLowerCase();
     return matchesSearch && matchesStatus;
   });
 
-  const activeIncidents = incidents.filter(i => i.status.toLowerCase() !== 'resolved').length;
-  const p1Count = incidents.filter(i => i.severity.includes('P1') && i.status.toLowerCase() !== 'resolved').length;
+  const activeIncidents = (incidents || []).filter(i => (i?.status || '').toLowerCase() !== 'resolved').length;
+  const p1Count = (incidents || []).filter(i => (i?.severity || '').includes('P1') && (i?.status || '').toLowerCase() !== 'resolved').length;
 
   return (
     <div className="space-y-6">

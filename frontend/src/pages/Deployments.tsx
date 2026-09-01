@@ -154,13 +154,19 @@ export const Deployments: React.FC<{ token: string | null }> = ({ token }) => {
     }
   };
 
-  const filteredDeployments = deployments.filter(d => {
-    const matchesSearch = d.application_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          d.version.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          d.commit_message.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          d.commit_hash.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesEnv = selectedEnv === 'all' || d.environment.toLowerCase() === selectedEnv.toLowerCase();
-    const matchesStatus = selectedStatus === 'all' || d.status.toLowerCase() === selectedStatus.toLowerCase();
+  const filteredDeployments = (deployments || []).filter(d => {
+    if (!d) return false;
+    const appName = (d.application_name || '').toLowerCase();
+    const version = (d.version || '').toLowerCase();
+    const commitMsg = (d.commit_message || '').toLowerCase();
+    const commitHash = (d.commit_hash || '').toLowerCase();
+    const env = (d.environment || '').toLowerCase();
+    const status = (d.status || '').toLowerCase();
+    const query = searchTerm.toLowerCase();
+
+    const matchesSearch = appName.includes(query) || version.includes(query) || commitMsg.includes(query) || commitHash.includes(query);
+    const matchesEnv = selectedEnv === 'all' || env === selectedEnv.toLowerCase();
+    const matchesStatus = selectedStatus === 'all' || status === selectedStatus.toLowerCase();
     return matchesSearch && matchesEnv && matchesStatus;
   });
 

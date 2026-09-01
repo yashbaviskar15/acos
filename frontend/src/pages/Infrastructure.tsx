@@ -86,16 +86,24 @@ export const Infrastructure: React.FC<{ token: string | null }> = ({ token }) =>
   }, [token]);
 
   // Filter logic
-  const filteredResources = resources.filter((res) => {
+  const filteredResources = (resources || []).filter((res) => {
+    if (!res) return false;
+    const name = (res.name || '').toLowerCase();
+    const type = (res.type || '').toLowerCase();
+    const region = (res.region || '').toLowerCase();
+    const env = (res.env || '').toLowerCase();
+    const status = (res.status || '').toLowerCase();
+    const query = searchTerm.toLowerCase();
+
     const matchesSearch = 
-      res.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      res.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      res.region.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      Object.entries(res.tags || {}).some(([k, v]) => `${k}:${v}`.toLowerCase().includes(searchTerm.toLowerCase()));
+      name.includes(query) ||
+      type.includes(query) ||
+      region.includes(query) ||
+      Object.entries(res.tags || {}).some(([k, v]) => `${k}:${v}`.toLowerCase().includes(query));
     
-    const matchesEnv = selectedEnv === 'all' || res.env.toLowerCase() === selectedEnv.toLowerCase();
-    const matchesType = selectedType === 'all' || res.type.toLowerCase() === selectedType.toLowerCase();
-    const matchesStatus = selectedStatus === 'all' || res.status.toLowerCase() === selectedStatus.toLowerCase();
+    const matchesEnv = selectedEnv === 'all' || env === selectedEnv.toLowerCase();
+    const matchesType = selectedType === 'all' || type === selectedType.toLowerCase();
+    const matchesStatus = selectedStatus === 'all' || status === selectedStatus.toLowerCase();
 
     return matchesSearch && matchesEnv && matchesType && matchesStatus;
   });

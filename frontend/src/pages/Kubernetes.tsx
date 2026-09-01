@@ -40,7 +40,9 @@ node-1.arv-us-east-1     Ready    master   42d   v1.30.1
 node-2.arv-us-east-1     Ready    worker   42d   v1.30.1
 node-3.arv-us-east-1     Ready    worker   42d   v1.30.1`);
     } else if (terminalCmd.includes('get pods')) {
-      setTerminalLogs(pods.map(p => `${p.namespace.padEnd(16)} ${p.name.padEnd(28)} ${p.status.padEnd(12)} restarts=${p.restarts}`).join('\n') || 'No pods found in namespace.');
+      setTerminalLogs(
+        (pods || []).map(p => `${(p?.namespace || 'default').padEnd(16)} ${(p?.name || 'pod').padEnd(28)} ${(p?.status || 'Running').padEnd(12)} restarts=${p?.restarts || 0}`).join('\n') || 'No pods found in namespace.'
+      );
     } else if (terminalCmd.includes('cluster-info')) {
       setTerminalLogs(`Kubernetes control plane is running at ${connectCluster?.endpoint || 'https://k8s.aravanta.cloud:6443'}
 CoreDNS is running at ${connectCluster?.endpoint || 'https://k8s.aravanta.cloud:6443'}/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy

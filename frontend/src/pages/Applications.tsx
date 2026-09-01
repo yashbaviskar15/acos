@@ -197,11 +197,16 @@ export const Applications: React.FC<{ token: string | null }> = ({ token }) => {
     }
   };
 
-  const filteredApps = apps.filter(a => {
-    const matchesSearch = a.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          a.version.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          a.repository.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesEnv = selectedEnv === 'all' || a.environment.toLowerCase() === selectedEnv.toLowerCase();
+  const filteredApps = (apps || []).filter(a => {
+    if (!a) return false;
+    const name = (a.name || '').toLowerCase();
+    const version = (a.version || '').toLowerCase();
+    const repo = (a.repository || '').toLowerCase();
+    const env = (a.environment || '').toLowerCase();
+    const query = searchTerm.toLowerCase();
+
+    const matchesSearch = name.includes(query) || version.includes(query) || repo.includes(query);
+    const matchesEnv = selectedEnv === 'all' || env === selectedEnv.toLowerCase();
     return matchesSearch && matchesEnv;
   });
 

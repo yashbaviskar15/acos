@@ -26,24 +26,47 @@ import { GettingStarted } from './pages/GettingStarted';
 import { CommandPalette } from './components/CommandPalette';
 import { Login } from './pages/Login';
 import { LandingPage } from './pages/LandingPage';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 export default function App() {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('aravanta_token'));
+  const [token, setToken] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('aravanta_token');
+    } catch {
+      return null;
+    }
+  });
+
   const [user, setUser] = useState<any>(() => {
-    const saved = localStorage.getItem('aravanta_user');
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem('aravanta_user');
+      if (saved && saved !== 'undefined' && saved !== 'null') {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('Error parsing stored user from localStorage:', e);
+    }
+    return null;
   });
 
   const [authViewState, setAuthViewState] = useState<'landing' | 'login' | 'register'>(() => {
-    const saved = localStorage.getItem('aravanta_auth_view');
-    if (saved === 'login' || saved === 'register' || saved === 'landing') {
-      return saved;
+    try {
+      const saved = localStorage.getItem('aravanta_auth_view');
+      if (saved === 'login' || saved === 'register' || saved === 'landing') {
+        return saved;
+      }
+    } catch {
+      // Fallback
     }
     return 'landing';
   });
 
   const [activeTab, setActiveTab] = useState<string>(() => {
-    return localStorage.getItem('aravanta_active_tab') || 'dashboard';
+    try {
+      return localStorage.getItem('aravanta_active_tab') || 'dashboard';
+    } catch {
+      return 'dashboard';
+    }
   });
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -51,27 +74,35 @@ export default function App() {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
   useEffect(() => {
-    if (token) {
-      localStorage.setItem('aravanta_token', token);
-    } else {
-      localStorage.removeItem('aravanta_token');
-    }
+    try {
+      if (token) {
+        localStorage.setItem('aravanta_token', token);
+      } else {
+        localStorage.removeItem('aravanta_token');
+      }
+    } catch {}
   }, [token]);
 
   useEffect(() => {
-    if (user) {
-      localStorage.setItem('aravanta_user', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('aravanta_user');
-    }
+    try {
+      if (user) {
+        localStorage.setItem('aravanta_user', JSON.stringify(user));
+      } else {
+        localStorage.removeItem('aravanta_user');
+      }
+    } catch {}
   }, [user]);
 
   useEffect(() => {
-    localStorage.setItem('aravanta_auth_view', authViewState);
+    try {
+      localStorage.setItem('aravanta_auth_view', authViewState);
+    } catch {}
   }, [authViewState]);
 
   useEffect(() => {
-    localStorage.setItem('aravanta_active_tab', activeTab);
+    try {
+      localStorage.setItem('aravanta_active_tab', activeTab);
+    } catch {}
   }, [activeTab]);
 
   const handleLoginSuccess = (userData: any, newToken: string) => {
@@ -83,29 +114,35 @@ export default function App() {
   const handleLogout = () => {
     setToken(null);
     setUser(null);
-    localStorage.removeItem('aravanta_token');
-    localStorage.removeItem('aravanta_user');
-    localStorage.removeItem('aravanta_active_tab');
+    try {
+      localStorage.removeItem('aravanta_token');
+      localStorage.removeItem('aravanta_user');
+      localStorage.removeItem('aravanta_active_tab');
+    } catch {}
     setAuthViewState('landing');
   };
 
   if (!token) {
     if (authViewState === 'login' || authViewState === 'register') {
       return (
-        <Login 
-          onLoginSuccess={handleLoginSuccess}
-          initialTab={authViewState === 'register' ? 'register' : 'signin'}
-          onGoToLanding={() => setAuthViewState('landing')}
-        />
+        <ErrorBoundary>
+          <Login 
+            onLoginSuccess={handleLoginSuccess}
+            initialTab={authViewState === 'register' ? 'register' : 'signin'}
+            onGoToLanding={() => setAuthViewState('landing')}
+          />
+        </ErrorBoundary>
       );
     }
 
     return (
-      <LandingPage
-        onGoToLogin={() => setAuthViewState('login')}
-        onGoToRegister={() => setAuthViewState('register')}
-        onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
-      />
+      <ErrorBoundary>
+        <LandingPage
+          onGoToLogin={() => setAuthViewState('login')}
+          onGoToRegister={() => setAuthViewState('register')}
+          onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+        />
+      </ErrorBoundary>
     );
   }
 
@@ -171,41 +208,54 @@ export default function App() {
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
         />
 
-        {/* Dynamic Route Pages */}
+        {/* Dynamic Route Pages with Error Boundary Protection */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 xs:p-4 sm:p-6 space-y-4 sm:space-y-6 min-w-0">
-          {activeTab === 'dashboard' && <Dashboard token={token} onNavigate={(tab) => setActiveTab(tab)} />}
-          {activeTab === 'infrastructure' && <Infrastructure token={token} />}
-          {activeTab === 'applications' && <Applications token={token} />}
-          {activeTab === 'deployments' && <Deployments token={token} />}
-          {activeTab === 'containers' && <Containers token={token} />}
-          {activeTab === 'monitoring' && <Monitoring token={token} />}
-          {activeTab === 'logs' && <Logs token={token} />}
-          {activeTab === 'alerts' && <Alerts token={token} onNavigate={(tab) => setActiveTab(tab)} />}
-          {activeTab === 'incidents' && <Incidents token={token} />}
-          {activeTab === 'automation' && <Automation token={token} />}
-          {activeTab === 'backups' && <Backups token={token} />}
-          {activeTab === 'audit' && <AuditLogs token={token} />}
-          {activeTab === 'settings' && <Settings token={token} />}
-          
-          {/* Cloud Resources */}
-          {activeTab === 'compute' && <Compute token={token} />}
-          {activeTab === 'kubernetes' && <Kubernetes token={token} />}
-          {activeTab === 'storage' && <Storage token={token} />}
-          {activeTab === 'database' && <Databases token={token} />}
-          {activeTab === 'cicd' && <CICD />}
-          {activeTab === 'security' && <Security token={token} />}
-          {activeTab === 'billing' && <Billing />}
-          {activeTab === 'profile' && (
-            <Profile
-              user={user}
-              onUpdateUser={(updatedUser: any, newToken?: string) => {
-                setUser(updatedUser);
-                if (newToken) setToken(newToken);
-              }}
-              onNavigateToBilling={() => setActiveTab('billing')}
-            />
-          )}
-          {activeTab === 'guide' && <GettingStarted onNavigate={(tab) => setActiveTab(tab)} />}
+          <ErrorBoundary onReset={() => setActiveTab('dashboard')}>
+            {activeTab === 'dashboard' && <Dashboard token={token} onNavigate={(tab) => setActiveTab(tab)} />}
+            {activeTab === 'infrastructure' && <Infrastructure token={token} />}
+            {activeTab === 'applications' && <Applications token={token} />}
+            {activeTab === 'deployments' && <Deployments token={token} />}
+            {activeTab === 'containers' && <Containers token={token} />}
+            {activeTab === 'monitoring' && <Monitoring token={token} />}
+            {activeTab === 'logs' && <Logs token={token} />}
+            {activeTab === 'alerts' && <Alerts token={token} onNavigate={(tab) => setActiveTab(tab)} />}
+            {activeTab === 'incidents' && <Incidents token={token} />}
+            {activeTab === 'automation' && <Automation token={token} />}
+            {activeTab === 'backups' && <Backups token={token} />}
+            {activeTab === 'audit' && <AuditLogs token={token} />}
+            {activeTab === 'settings' && <Settings token={token} />}
+            
+            {/* Cloud Resources */}
+            {activeTab === 'compute' && <Compute token={token} />}
+            {activeTab === 'kubernetes' && <Kubernetes token={token} />}
+            {activeTab === 'storage' && <Storage token={token} />}
+            {activeTab === 'database' && <Databases token={token} />}
+            {activeTab === 'cicd' && <CICD />}
+            {activeTab === 'security' && <Security token={token} />}
+            {activeTab === 'billing' && <Billing />}
+            {activeTab === 'profile' && (
+              <Profile
+                user={user}
+                onUpdateUser={(updatedUser: any, newToken?: string) => {
+                  setUser(updatedUser);
+                  if (newToken) setToken(newToken);
+                }}
+                onNavigateToBilling={() => setActiveTab('billing')}
+              />
+            )}
+            {activeTab === 'guide' && <GettingStarted onNavigate={(tab) => setActiveTab(tab)} />}
+            
+            {/* Fallback for unhandled tab */}
+            {![
+              'dashboard', 'infrastructure', 'applications', 'deployments', 
+              'containers', 'monitoring', 'logs', 'alerts', 'incidents', 
+              'automation', 'backups', 'audit', 'settings', 'compute', 
+              'kubernetes', 'storage', 'database', 'cicd', 'security', 
+              'billing', 'profile', 'guide'
+            ].includes(activeTab) && (
+              <Dashboard token={token} onNavigate={(tab) => setActiveTab(tab)} />
+            )}
+          </ErrorBoundary>
         </main>
 
         <CommandPalette

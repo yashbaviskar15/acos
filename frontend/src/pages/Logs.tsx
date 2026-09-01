@@ -84,7 +84,7 @@ export const Logs: React.FC<{ token: string | null }> = ({ token }) => {
   };
 
   const getLevelStyle = (level: string) => {
-    switch (level.toUpperCase()) {
+    switch ((level || '').toUpperCase()) {
       case 'ERROR':
         return {
           bg: 'bg-rose-500/15 text-rose-400 border-rose-500/30',
