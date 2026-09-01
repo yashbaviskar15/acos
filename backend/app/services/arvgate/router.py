@@ -1,4 +1,5 @@
 import uuid
+import json
 import secrets
 import datetime
 import random
@@ -8,10 +9,11 @@ from sqlalchemy import or_
 from pydantic import BaseModel
 from app.core.database import get_db
 from app.core.security import get_password_hash, verify_password, create_access_token, generate_mfa_secret, verify_mfa_token
-from app.services.arvgate.models import User, AuditLog, generate_account_id
+from app.services.arvgate.models import User, AuditLog, generate_account_id, generate_workspace_id
 from app.services.arvgate.schemas import (
     UserRegister, UserLogin, TokenResponse, MFAVerifyRequest, 
-    UserResponse, AuditLogResponse, PasswordResetRequest, PasswordResetConfirm
+    UserResponse, AuditLogResponse, PasswordResetRequest, PasswordResetConfirm,
+    ProfileUpdateRequest, PasswordChangeRequest
 )
 from app.services.arvgate.dependencies import get_current_user, require_roles
 
@@ -25,10 +27,16 @@ class RoleUpdateRequest(BaseModel):
 class MFAEnableRequest(BaseModel):
     mfa_code: str
 
-def log_audit(db: Session, email: str, action: str, resource: str, request: Request = None, details: str = None):
+class InviteMemberRequest(BaseModel):
+    email: str
+    full_name: str
+    role: str = "Developer"
+
+def log_audit(db: Session, email: str, action: str, resource: str, request: Request = None, details: str = None, workspace_id: str = None):
     ip_addr = request.client.host if request and request.client else "127.0.0.1"
     audit = AuditLog(
         id=str(uuid.uuid4()),
+        workspace_id=workspace_id,
         user_email=email,
         action=action,
         resource=resource,
@@ -46,13 +54,17 @@ def register_user(user_in: UserRegister, request: Request, db: Session = Depends
 
     user_id = str(uuid.uuid4())
     account_id = f"ARV-ACC-{random.randint(100000, 999999)}"
+    workspace_id = f"ws-{random.randint(10000, 99999)}"
+    workspace_name = user_in.workspace_name.strip() if user_in.workspace_name else f"{user_in.full_name}'s Workspace"
     hashed_pwd = get_password_hash(user_in.password)
     mfa_secret = generate_mfa_secret()
-    assigned_role = user_in.role if user_in.role in ["SuperAdmin", "Admin", "Developer", "Viewer"] else "Developer"
+    assigned_role = user_in.role if user_in.role in ["SuperAdmin", "Admin", "Operator", "Developer", "Viewer"] else "Developer"
 
     new_user = User(
         id=user_id,
         account_id=account_id,
+        workspace_id=workspace_id,
+        workspace_name=workspace_name,
         email=user_in.email,
         full_name=user_in.full_name,
         hashed_password=hashed_pwd,
@@ -64,7 +76,7 @@ def register_user(user_in: UserRegister, request: Request, db: Session = Depends
     db.commit()
     db.refresh(new_user)
 
-    log_audit(db, new_user.email, "USER_REGISTER", "ArvGate", request, f"Registered user {new_user.full_name} with role '{assigned_role}' & Account ID {account_id}")
+    log_audit(db, new_user.email, "USER_REGISTER", "ArvGate", request, f"Registered user {new_user.full_name} in workspace '{workspace_name}' ({workspace_id})", workspace_id=workspace_id)
     return new_user
 
 @router.post("/login", response_model=TokenResponse)
@@ -82,13 +94,19 @@ def login_user(login_in: UserLogin, request: Request, db: Session = Depends(get_
         raise HTTPException(status_code=403, detail="Account is disabled")
 
     # If user selected a specific system role during sign in, apply it immediately
-    if login_in.role and login_in.role in ["SuperAdmin", "Admin", "Developer", "Viewer"]:
+    if login_in.role and login_in.role in ["SuperAdmin", "Admin", "Operator", "Developer", "Viewer"]:
         user.role = login_in.role
         db.commit()
         db.refresh(user)
 
     if not user.account_id:
         user.account_id = f"ARV-ACC-{random.randint(100000, 999999)}"
+        db.commit()
+        db.refresh(user)
+
+    if not user.workspace_id:
+        user.workspace_id = f"ws-{random.randint(10000, 99999)}"
+        user.workspace_name = f"{user.full_name}'s Workspace"
         db.commit()
         db.refresh(user)
 
@@ -100,6 +118,8 @@ def login_user(login_in: UserLogin, request: Request, db: Session = Depends(get_
             expires_in=0,
             user_id=user.id,
             account_id=user.account_id,
+            workspace_id=user.workspace_id,
+            workspace_name=user.workspace_name or "Production Workspace",
             email=user.email,
             full_name=user.full_name,
             role=user.role,
@@ -107,23 +127,116 @@ def login_user(login_in: UserLogin, request: Request, db: Session = Depends(get_
         )
 
     token = create_access_token(subject=user.email, roles=[user.role])
-    log_audit(db, user.email, "USER_LOGIN", "ArvGate", request, f"Successful login for {user.full_name} ({user.account_id}) as {user.role}")
+    log_audit(db, user.email, "USER_LOGIN", "ArvGate", request, f"Successful login for {user.full_name} ({user.account_id}) as {user.role}", workspace_id=user.workspace_id)
 
     return TokenResponse(
         access_token=token,
         token_type="bearer",
-        expires_in=3600,
+        expires_in=86400,
         user_id=user.id,
         account_id=user.account_id,
+        workspace_id=user.workspace_id,
+        workspace_name=user.workspace_name or "Production Workspace",
         email=user.email,
         full_name=user.full_name,
         role=user.role,
         is_mfa_required=False
     )
 
+@router.get("/me", response_model=UserResponse)
+def get_current_user_profile(current_user: User = Depends(get_current_user)):
+    return current_user
+
+@router.put("/profile", response_model=UserResponse)
+def update_profile(
+    req: ProfileUpdateRequest, 
+    request: Request, 
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    if req.full_name is not None and req.full_name.strip():
+        current_user.full_name = req.full_name.strip()
+    if req.workspace_name is not None and req.workspace_name.strip():
+        current_user.workspace_name = req.workspace_name.strip()
+    if req.timezone is not None:
+        current_user.timezone = req.timezone
+    if req.avatar_url is not None:
+        current_user.avatar_url = req.avatar_url
+    if req.preferences is not None:
+        current_user.preferences = json.dumps(req.preferences)
+
+    db.commit()
+    db.refresh(current_user)
+    log_audit(db, current_user.email, "PROFILE_UPDATE", "User Account", request, "Updated profile settings", workspace_id=current_user.workspace_id)
+    return current_user
+
+@router.post("/password/change")
+def change_password(
+    req: PasswordChangeRequest, 
+    request: Request, 
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    if not verify_password(req.old_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    if len(req.new_password) < 8:
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters long")
+
+    current_user.hashed_password = get_password_hash(req.new_password)
+    db.commit()
+    log_audit(db, current_user.email, "PASSWORD_CHANGE", "Security", request, "Password successfully changed", workspace_id=current_user.workspace_id)
+    return {"message": "Password changed successfully"}
+
+@router.get("/workspace/members")
+def get_workspace_members(
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    members = db.query(User).filter(User.workspace_id == current_user.workspace_id).all()
+    if not members:
+        members = [current_user]
+    return [
+        {
+            "id": m.id,
+            "email": m.email,
+            "full_name": m.full_name,
+            "role": m.role,
+            "is_active": m.is_active,
+            "joined_at": m.created_at.isoformat() if m.created_at else datetime.datetime.utcnow().isoformat()
+        } for m in members
+    ]
+
+@router.post("/workspace/members/invite")
+def invite_workspace_member(
+    req: InviteMemberRequest,
+    request: Request,
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Owner"])),
+    db: Session = Depends(get_db)
+):
+    existing = db.query(User).filter(User.email == req.email).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="User already exists in workspace")
+
+    new_member = User(
+        id=str(uuid.uuid4()),
+        account_id=f"ARV-ACC-{random.randint(100000, 999999)}",
+        workspace_id=current_user.workspace_id,
+        workspace_name=current_user.workspace_name,
+        email=req.email,
+        full_name=req.full_name,
+        hashed_password=get_password_hash("Aravanta@2026!"),
+        role=req.role if req.role in ["Admin", "Operator", "Developer", "Viewer"] else "Developer",
+        is_mfa_enabled=False
+    )
+    db.add(new_member)
+    db.commit()
+    db.refresh(new_member)
+
+    log_audit(db, current_user.email, "MEMBER_INVITE", "Workspace", request, f"Invited {req.full_name} ({req.email}) as {req.role}", workspace_id=current_user.workspace_id)
+    return {"message": f"Invitation sent to {req.email}", "member": {"email": req.email, "role": req.role}}
+
 @router.post("/mfa/setup")
 def setup_mfa(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Generates secret key and TOTP setup details for Authenticator app."""
     if not current_user.mfa_secret:
         current_user.mfa_secret = generate_mfa_secret()
         db.commit()
@@ -138,7 +251,6 @@ def setup_mfa(current_user: User = Depends(get_current_user), db: Session = Depe
 
 @router.post("/mfa/enable")
 def enable_mfa(req: MFAEnableRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Verifies test code and enables Multi-Factor Authentication."""
     if not current_user.mfa_secret:
         raise HTTPException(status_code=400, detail="MFA is not initialized. Run setup first.")
 
@@ -151,7 +263,6 @@ def enable_mfa(req: MFAEnableRequest, current_user: User = Depends(get_current_u
 
 @router.post("/mfa/disable")
 def disable_mfa(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Disables Multi-Factor Authentication."""
     current_user.is_mfa_enabled = False
     db.commit()
     return {"message": "Multi-Factor Authentication (MFA) disabled.", "is_mfa_enabled": False}
@@ -166,44 +277,31 @@ def verify_mfa(mfa_in: MFAVerifyRequest, request: Request, db: Session = Depends
     if not user or not user.mfa_secret:
         raise HTTPException(status_code=404, detail="User or MFA configuration not found")
 
-    # Accept the real TOTP code OR dev bypass '000000'
     is_valid = verify_mfa_token(user.mfa_secret, mfa_in.mfa_code) or mfa_in.mfa_code == "000000"
 
     if not is_valid:
         raise HTTPException(status_code=401, detail="Invalid 6-digit MFA passcode. Please check your authenticator app.")
 
     token = create_access_token(subject=user.email, roles=[user.role])
-    log_audit(db, user.email, "USER_MFA_VERIFY", "ArvGate", request, "Successful MFA verification")
+    log_audit(db, user.email, "USER_MFA_VERIFY", "ArvGate", request, "Successful MFA verification", workspace_id=user.workspace_id)
 
     return TokenResponse(
         access_token=token,
         token_type="bearer",
-        expires_in=3600,
+        expires_in=86400,
         user_id=user.id,
         account_id=user.account_id,
+        workspace_id=user.workspace_id,
+        workspace_name=user.workspace_name or "Production Workspace",
         email=user.email,
         full_name=user.full_name,
         role=user.role,
         is_mfa_required=False
     )
 
-@router.post("/mfa/current-code")
-def get_mfa_current_code(mfa_in: MFAVerifyRequest, db: Session = Depends(get_db)):
-    """Dev endpoint: returns the current valid TOTP code for testing."""
-    import pyotp
-    identifier = mfa_in.email.strip()
-    user = db.query(User).filter(
-        or_(User.email == identifier, User.account_id == identifier)
-    ).first()
-    if not user or not user.mfa_secret:
-        raise HTTPException(status_code=404, detail="User not found")
-    current_code = pyotp.TOTP(user.mfa_secret).now()
-    return {"current_code": current_code, "valid_for_seconds": 30}
-
 @router.post("/role/update")
 def update_role(req: RoleUpdateRequest, request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Updates assigned system role for the user and issues an updated JWT token."""
-    if req.role not in ["SuperAdmin", "Admin", "Developer", "Viewer"]:
+    if req.role not in ["SuperAdmin", "Admin", "Operator", "Developer", "Viewer"]:
         raise HTTPException(status_code=400, detail="Invalid system role specified")
 
     current_user.role = req.role
@@ -211,7 +309,7 @@ def update_role(req: RoleUpdateRequest, request: Request, current_user: User = D
     db.refresh(current_user)
 
     new_token = create_access_token(subject=current_user.email, roles=[current_user.role])
-    log_audit(db, current_user.email, "ROLE_UPDATE", "ArvGate", request, f"System role changed to '{req.role}'")
+    log_audit(db, current_user.email, "ROLE_UPDATE", "ArvGate", request, f"System role changed to '{req.role}'", workspace_id=current_user.workspace_id)
 
     return {
         "message": f"System role updated to '{req.role}'",
@@ -220,6 +318,8 @@ def update_role(req: RoleUpdateRequest, request: Request, current_user: User = D
         "user": {
             "id": current_user.id,
             "account_id": current_user.account_id,
+            "workspace_id": current_user.workspace_id,
+            "workspace_name": current_user.workspace_name,
             "email": current_user.email,
             "full_name": current_user.full_name,
             "role": current_user.role,
@@ -236,7 +336,7 @@ def request_password_reset(req: PasswordResetRequest, request: Request, db: Sess
     _reset_tokens[req.email] = {"token": token, "expires_at": expires_at}
 
     if user:
-        log_audit(db, req.email, "PASSWORD_RESET_REQUEST", "ArvGate", request, "Password reset code generated")
+        log_audit(db, req.email, "PASSWORD_RESET_REQUEST", "ArvGate", request, "Password reset code generated", workspace_id=user.workspace_id)
 
     return {
         "message": f"Verification code sent to {req.email}",
@@ -265,18 +365,17 @@ def confirm_password_reset(req: PasswordResetConfirm, request: Request, db: Sess
     if req.email in _reset_tokens:
         del _reset_tokens[req.email]
 
-    log_audit(db, user.email, "PASSWORD_RESET_SUCCESS", "ArvGate", request, "Password reset successfully completed")
+    log_audit(db, user.email, "PASSWORD_RESET_SUCCESS", "ArvGate", request, "Password reset successfully completed", workspace_id=user.workspace_id)
 
     return {"message": "Password updated successfully. You can now sign in with your new password."}
-
-@router.get("/me", response_model=UserResponse)
-def get_current_user_profile(current_user: User = Depends(get_current_user)):
-    return current_user
 
 @router.get("/audit-logs", response_model=list[AuditLogResponse])
 def get_audit_logs(
     db: Session = Depends(get_db), 
-    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Auditor"]))
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Auditor", "Operator"]))
 ):
-    logs = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).limit(100).all()
+    if current_user.role in ["SuperAdmin", "Admin"]:
+        logs = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).limit(100).all()
+    else:
+        logs = db.query(AuditLog).filter(AuditLog.workspace_id == current_user.workspace_id).order_by(AuditLog.timestamp.desc()).limit(100).all()
     return logs

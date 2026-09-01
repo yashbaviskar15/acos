@@ -1,555 +1,536 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Zap, ArrowUpRight, RefreshCw, FileText, CheckCircle2, CreditCard, Clock, Download, ShieldCheck, IndianRupee, ExternalLink, Check, Sparkles } from 'lucide-react';
-import { generateInvoicePDF, InvoiceData } from '../utils/pdfGenerator';
-import { sendSystemNotification } from '../utils/notifications';
+import React, { useState, useEffect } from 'react';
+import { 
+  CreditCard, 
+  Download, 
+  CheckCircle2, 
+  Plus, 
+  Trash2, 
+  Check, 
+  RefreshCw,
+  X
+} from 'lucide-react';
 import { apiFetch } from '../config/api';
+import { StatusBadge } from '../components/StatusBadge';
+import { ModalPortal } from '../components/ModalPortal';
 
-declare global {
-  interface Window {
-    Razorpay: any;
-  }
+interface PaymentMethodItem {
+  id: string;
+  brand: string;
+  last4: string;
+  exp_month: number;
+  exp_year: number;
+  is_default: boolean;
+  holder_name: string;
+}
+
+interface InvoiceItem {
+  id: string;
+  date: string;
+  period: string;
+  amount_inr: number;
+  status: string;
+  payment_method: string;
+  download_url?: string;
 }
 
 export const Billing: React.FC = () => {
   const [summary, setSummary] = useState<any>(null);
-  const [breakdown, setBreakdown] = useState<any[]>([]);
-  const [invoices, setInvoices] = useState<any[]>([]);
-  const [plans, setPlans] = useState<any[]>([]);
-  const [selectedPlan, setSelectedPlan] = useState<string>('pro');
+  const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [budgetCap, setBudgetCap] = useState<number>(5000);
-  const [updatingBudget, setUpdatingBudget] = useState(false);
-  const [budgetMsg, setBudgetMsg] = useState('');
-  const [processingPayment, setProcessingPayment] = useState(false);
-  const [paymentSuccess, setPaymentSuccess] = useState<any>(null);
-  const [razorpayLoaded, setRazorpayLoaded] = useState(false);
 
-  const USD_TO_INR = 83;
+  // Add Card Modal
+  const [addCardOpen, setAddCardOpen] = useState(false);
+  const [cardHolder, setCardHolder] = useState('');
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardExp, setCardExp] = useState('');
+  const [cardCvv, setCardCvv] = useState('');
+  const [cardBrand, setCardBrand] = useState('visa');
+  const [setAsDefault, setSetAsDefault] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  // Load Razorpay SDK
-  useEffect(() => {
-    if (document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]')) {
-      setRazorpayLoaded(true);
-      return;
-    }
-    const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.async = true;
-    script.onload = () => setRazorpayLoaded(true);
-    script.onerror = () => console.warn('Razorpay SDK failed to load');
-    document.body.appendChild(script);
-  }, []);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const fetchBillingData = async () => {
     setLoading(true);
     try {
-      const [sData, bData, iData, pData] = await Promise.all([
-        apiFetch<any>('/v1/billing/summary').catch(() => null),
-        apiFetch<any[]>('/v1/billing/breakdown').catch(() => null),
-        apiFetch<any[]>('/v1/billing/invoices').catch(() => null),
-        apiFetch<any[]>('/v1/billing/plans').catch(() => null),
+      const [sum, invs, pms] = await Promise.all([
+        apiFetch<any>('/api/v1/operations/billing/summary').catch(() => null),
+        apiFetch<InvoiceItem[]>('/api/v1/operations/billing/invoices').catch(() => []),
+        apiFetch<PaymentMethodItem[]>('/api/v1/operations/billing/payment-methods').catch(() => []),
       ]);
-      if (sData) {
-        setSummary(sData);
-        setBudgetCap(Math.round(sData.monthly_budget_usd * USD_TO_INR));
-      }
-      if (bData) setBreakdown(Array.isArray(bData) ? bData : []);
-      if (iData) setInvoices(Array.isArray(iData) ? iData : []);
-      if (pData) setPlans(Array.isArray(pData) ? pData : []);
+
+      if (sum) setSummary(sum);
+      if (Array.isArray(invs)) setInvoices(invs);
+      if (Array.isArray(pms)) setPaymentMethods(pms);
     } catch (err) {
-      console.error("Failed to load Billing data:", err);
+      console.error('Failed to fetch billing data:', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchBillingData();
+  }, []);
 
-  const handleUpdateBudget = async (e: React.FormEvent) => {
+  const handleAddPaymentMethod = async (e: React.FormEvent) => {
     e.preventDefault();
-    setUpdatingBudget(true);
-    setBudgetMsg('');
+    if (!cardNumber || !cardHolder) return;
+
+    setActionLoading(true);
     try {
-      const usdCap = Math.round(budgetCap / USD_TO_INR);
-      await apiFetch('/v1/billing/budget', {
-        method: 'POST',
-        body: JSON.stringify({ monthly_budget_usd: usdCap }),
-      });
-      setBudgetMsg('Monthly budget limit updated successfully!');
-      fetchData();
-      setTimeout(() => setBudgetMsg(''), 3000);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setUpdatingBudget(false);
-    }
-  };
+      const [expMonthStr, expYearStr] = cardExp.split('/');
+      const expMonth = parseInt(expMonthStr) || 12;
+      const expYear = parseInt(`20${expYearStr || '28'}`) || 2028;
 
-  const handleGeneratePDF = (inv: any) => {
-    const inrAmt = inv.amount_inr || Math.round((inv.amount_usd || 18) * USD_TO_INR);
-    const subtotal = Math.round(inrAmt * 0.847);
-    const tax = Math.round(inrAmt * 0.0765);
-
-    const invoiceData: InvoiceData = {
-      invoice_id: inv.invoice_id,
-      date: inv.date,
-      period: inv.period,
-      payment_id: inv.payment_id || `pay_${inv.invoice_id.replace(/[^a-zA-Z0-9]/g, '')}`,
-      order_id: inv.order_id,
-      customer_name: 'Aravanta Cloud User',
-      customer_email: 'admin@aravanta.cloud',
-      services: [
-        { name: 'ArvCompute VM Instances (Linux/Windows)', amount: Math.round(subtotal * 0.53) },
-        { name: 'ArvKube Managed Kubernetes Clusters', amount: Math.round(subtotal * 0.14) },
-        { name: 'ArvStore Object Storage & Data Transfer', amount: Math.round(subtotal * 0.08) },
-        { name: 'ArvDB PostgreSQL & Redis Engines', amount: Math.round(subtotal * 0.25) },
-      ],
-      subtotal,
-      cgst: tax,
-      sgst: tax,
-      total: inrAmt
-    };
-
-    generateInvoicePDF(invoiceData);
-
-    sendSystemNotification(
-      ' Invoice Downloaded',
-      `Invoice ${inv.invoice_id} has been downloaded as PDF.`
-    );
-  };
-
-  const getPlanDetails = () => {
-    const planObj = plans.find(p => p.id === selectedPlan);
-    if (planObj) return planObj;
-    return { id: 'pro', name: 'Pro Developer Tier', price_inr: 1499 };
-  };
-
-  const handleRazorpayPayment = async (customPlanId?: string) => {
-    const activePlan = customPlanId ? plans.find(p => p.id === customPlanId) : getPlanDetails();
-    const planName = activePlan?.name || 'Pro Developer Tier';
-    const planPriceINR = activePlan?.price_inr || 1499;
-
-    if (!razorpayLoaded) {
-      alert('Payment gateway is loading. Please try again in a moment.');
-      return;
-    }
-
-    setProcessingPayment(true);
-
-    try {
-      // Step 1: Create order on backend in paise (₹ x 100)
-      const amountInPaise = planPriceINR * 100;
-      const orderData = await apiFetch<any>('/v1/billing/create-order', {
+      await apiFetch('/api/v1/operations/billing/payment-methods', {
         method: 'POST',
         body: JSON.stringify({
-          amount: amountInPaise,
-          currency: 'INR',
-          description: `Aravanta CloudOS ${planName} Subscription`
+          brand: cardBrand,
+          last4: cardNumber.replace(/\s/g, '').slice(-4),
+          exp_month: expMonth,
+          exp_year: expYear,
+          holder_name: cardHolder.trim(),
+          set_as_default: setAsDefault,
         })
       });
 
-      // Step 2: Open Razorpay Checkout (direct payment mode — no server order_id needed for test keys)
-      const options = {
-        key: 'rzp_test_1DP5mmOlF5G5ag',
-        amount: amountInPaise,
-        currency: 'INR',
-        name: 'Aravanta CloudOS',
-        description: `${planName} Subscription — ₹${planPriceINR}/mo`,
-        handler: async function (response: any) {
-          // Step 3: Verify payment on backend
-          try {
-            const verifyData = await apiFetch<any>('/v1/billing/verify-payment', {
-              method: 'POST',
-              body: JSON.stringify({
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_order_id: response.razorpay_order_id || orderData.order_id || '',
-                razorpay_signature: response.razorpay_signature || '',
-                amount_inr: planPriceINR
-              })
-            });
-
-            // Add new invoice
-            const newInv = {
-              invoice_id: verifyData.invoice_id,
-              period: `${new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })}`,
-              amount_usd: roundTwo(planPriceINR / USD_TO_INR),
-              amount_inr: planPriceINR,
-              status: 'PAID',
-              date: new Date().toISOString().split('T')[0],
-              payment_id: verifyData.payment_id,
-              order_id: verifyData.order_id,
-            };
-
-            setInvoices(prev => [newInv, ...prev]);
-            setPaymentSuccess({ amount: planPriceINR, plan: planName, id: verifyData.invoice_id });
-            setTimeout(() => setPaymentSuccess(null), 6000);
-
-            // Generate PDF automatically
-            handleGeneratePDF(newInv);
-
-            sendSystemNotification(
-              ' Payment Successful',
-              `₹${planPriceINR.toLocaleString('en-IN')} payment confirmed. Invoice ${verifyData.invoice_id} generated.`
-            );
-          } catch (err) {
-            console.error('Payment verification failed:', err);
-          }
-          setProcessingPayment(false);
-        },
-        prefill: {
-          name: 'Aravanta Cloud User',
-          email: 'admin@aravanta.cloud',
-          contact: '+919876543210'
-        },
-        notes: {
-          purpose: `${planName} Subscription`,
-          plan: planName
-        },
-        theme: {
-          color: '#2563EB',
-          backdrop_color: 'rgba(15, 32, 56, 0.85)'
-        },
-        modal: {
-          ondismiss: function () {
-            setProcessingPayment(false);
-          },
-          escape: true,
-          animation: true,
-          confirm_close: true
-        }
-      };
-
-      const rzp = new window.Razorpay(options);
-      rzp.on('payment.failed', function (response: any) {
-        console.error('Payment failed:', response.error);
-        setProcessingPayment(false);
-        alert(`Payment failed: ${response.error.description}`);
-      });
-      rzp.open();
-    } catch (err) {
-      console.error('Payment initiation failed:', err);
-      setProcessingPayment(false);
-      alert('Failed to initiate payment. Please try again.');
+      showToast('Payment method added successfully.');
+      setAddCardOpen(false);
+      setCardHolder('');
+      setCardNumber('');
+      setCardExp('');
+      setCardCvv('');
+      fetchBillingData();
+    } catch (err: any) {
+      showToast(`Error adding card: ${err.message}`);
+    } finally {
+      setActionLoading(false);
     }
   };
 
-  const roundTwo = (num: number) => Math.round(num * 100) / 100;
+  const handleRemoveCard = async (pmId: string) => {
+    try {
+      await apiFetch(`/api/v1/operations/billing/payment-methods/${pmId}`, { method: 'DELETE' });
+      setPaymentMethods(prev => prev.filter(p => p.id !== pmId));
+      showToast('Payment method removed.');
+    } catch (err: any) {
+      showToast(`Error: ${err.message}`);
+    }
+  };
 
-  const mtdSpendINR = summary ? Math.round(summary.mtd_spend_usd * USD_TO_INR) : 1494;
-  const forecastINR = summary ? Math.round(summary.projected_spend_usd * USD_TO_INR) : 2075;
-  const budgetUsedPercent = summary ? Math.round((summary.mtd_spend_usd / summary.monthly_budget_usd) * 100) : 30;
+  const handleSetDefault = async (pmId: string) => {
+    try {
+      await apiFetch(`/api/v1/operations/billing/payment-methods/${pmId}/default`, { method: 'POST' });
+      setPaymentMethods(prev => prev.map(p => ({ ...p, is_default: p.id === pmId })));
+      showToast('Default payment method updated.');
+    } catch (err: any) {
+      showToast(`Error: ${err.message}`);
+    }
+  };
+
+  const handlePlanChange = async (planCode: string) => {
+    try {
+      const res = await apiFetch<any>('/api/v1/operations/billing/plan/change', {
+        method: 'POST',
+        body: JSON.stringify({ plan_code: planCode, billing_cycle: 'monthly' })
+      });
+      showToast(res.message || 'Subscription plan updated.');
+      fetchBillingData();
+    } catch (err: any) {
+      showToast(`Plan update failed: ${err.message}`);
+    }
+  };
+
+  const usage = summary?.usage || {
+    plan_name: "Team Cloud Operations",
+    plan_code: "team",
+    price_inr: 2499,
+    renewal_date: "October 01, 2026",
+    metrics: {
+      vcpu_used: 24, vcpu_limit: 64,
+      ram_gb_used: 48, ram_gb_limit: 128,
+      storage_gb_used: 1420, storage_gb_limit: 5000,
+      deployments_month: 48, deployments_limit: 200,
+      bandwidth_gb_used: 340, bandwidth_gb_limit: 1000
+    }
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Payment Success Banner */}
-      {paymentSuccess && (
-        <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-2xl p-5 flex items-center gap-4 shadow-sm">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-600 flex items-center justify-center shrink-0">
-            <CheckCircle2 className="w-6 h-6" />
-          </div>
-          <div>
-            <h3 className="text-base font-black text-emerald-800 dark:text-emerald-300">Payment Successful! </h3>
-            <p className="text-xs text-emerald-600 dark:text-emerald-400 font-mono mt-1">
-              ₹{paymentSuccess.amount.toLocaleString('en-IN')} received for {paymentSuccess.plan}. Invoice PDF #{paymentSuccess.id} downloaded.
-            </p>
-          </div>
+    <div className="space-y-6 font-mono text-xs max-w-6xl mx-auto">
+      
+      {/* Toast Alert */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white dark:bg-white dark:text-slate-900 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-slate-700 animate-fadeIn font-mono text-xs font-bold">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 dark:text-emerald-600" />
+          <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* 10-Day Free Trial & Affordable Subscription Notice Banner */}
-      <div className="bg-gradient-to-r from-amber-50 to-blue-50 dark:from-amber-500/10 dark:via-blue-900/20 dark:to-[#0F2038] border border-amber-200 dark:border-amber-500/30 rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm relative overflow-hidden">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold shrink-0">
-            <Clock className="w-6 h-6" />
+      {/* Header Plan Card */}
+      <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2.5">
+            <CreditCard className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <h2 className="text-base font-black text-slate-900 dark:text-white uppercase">
+              FinOps & Subscription Management
+            </h2>
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">10-Day Free Trial Active</h3>
-              <span className="px-2.5 py-0.5 rounded-md text-[10px] font-mono font-bold bg-amber-500 text-black uppercase">8 Days Left</span>
-            </div>
-            <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 font-mono">
-              Affordable developer plans starting at just <strong className="text-blue-600 dark:text-blue-400">₹499/month</strong> ($6/mo).
-            </p>
-          </div>
-        </div>
-
-        <button
-          onClick={() => handleRazorpayPayment('starter')}
-          disabled={processingPayment}
-          className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-black text-xs rounded-xl shadow-lg shadow-blue-600/30 transition-all cursor-pointer whitespace-nowrap disabled:opacity-60 flex items-center gap-2"
-        >
-          <IndianRupee className="w-4 h-4" />
-          {processingPayment ? 'Processing...' : 'Subscribe Starter Plan (₹499/mo)'}
-        </button>
-      </div>
-
-      {/* Affordable Subscription Pricing Plans */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase font-mono tracking-wider flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              Affordable Cloud Subscription Plans (INR ₹)
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">Select a developer-friendly tier tailored to your workload</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {plans.map((plan) => {
-            const isSelected = selectedPlan === plan.id;
-            return (
-              <div
-                key={plan.id}
-                onClick={() => setSelectedPlan(plan.id)}
-                className={`p-5 rounded-2xl border cursor-pointer transition-all relative ${
-                  isSelected
-                    ? 'bg-blue-50/60 dark:bg-blue-500/10 border-blue-500 shadow-md ring-2 ring-blue-500/20'
-                    : 'bg-white dark:bg-[#0F2038] border-slate-200 dark:border-slate-800 hover:border-blue-300'
-                }`}
-              >
-                {plan.popular && (
-                  <span className="absolute -top-3 right-4 px-3 py-0.5 rounded-full text-[9px] font-black bg-blue-600 text-white uppercase shadow-sm">
-                    MOST POPULAR
-                  </span>
-                )}
-
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">{plan.name}</h4>
-                  <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300'}`}>
-                    {isSelected && <Check className="w-3 h-3" />}
-                  </div>
-                </div>
-
-                <div className="mt-3 flex items-baseline gap-1 font-mono">
-                  <span className="text-2xl font-black text-slate-900 dark:text-white">₹{plan.price_inr.toLocaleString('en-IN')}</span>
-                  <span className="text-xs text-slate-500 dark:text-slate-400">/{plan.period}</span>
-                  <span className="text-[10px] text-slate-400 ml-auto">(${plan.price_usd})</span>
-                </div>
-
-                <ul className="mt-4 space-y-2 text-xs text-slate-600 dark:text-slate-300 font-mono border-t border-slate-200 dark:border-slate-800 pt-3">
-                  <li className="flex items-center gap-2">
-                    <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                    <span>{plan.vms} Included</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                    <span>{plan.k8s} Kubernetes</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                    <span>{plan.storage} Storage</span>
-                  </li>
-                </ul>
-
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleRazorpayPayment(plan.id); }}
-                  disabled={processingPayment}
-                  className={`mt-5 w-full py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                    isSelected
-                      ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md'
-                      : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-800 dark:text-slate-200'
-                  }`}
-                >
-                  <CreditCard className="w-3.5 h-3.5" />
-                  <span>Pay ₹{plan.price_inr.toLocaleString('en-IN')} Now</span>
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm">
-        <div>
-          <h2 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-            <Zap className="w-5 h-5 text-blue-600" />
-            Billing & Cost Management Analytics (INR ₹)
-          </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">Real-time expenditure, forecasts, and payment receipts • Powered by Razorpay</p>
-        </div>
-
-        <button
-          onClick={fetchData}
-          className="p-2.5 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-colors cursor-pointer"
-          title="Refresh Billing Data"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-        </button>
-      </div>
-
-      {/* KPI Cards in INR */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm">
-          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono uppercase font-bold">Month-to-Date Spend (MTD)</span>
-          <h3 className="text-2xl sm:text-3xl font-black text-blue-600 dark:text-blue-400 mt-2">
-            ₹{mtdSpendINR.toLocaleString('en-IN')}
-          </h3>
-          <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-2 flex items-center gap-1 font-mono font-bold">
-            <ArrowUpRight className="w-3.5 h-3.5" />
-            +2.1% vs previous period
+          <p className="text-slate-500 text-[11px]">
+            Active Subscription: <strong className="text-blue-600">{usage.plan_name}</strong> • Next Renewal: {usage.renewal_date}
           </p>
         </div>
 
-        <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm">
-          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono uppercase font-bold">End-of-Month Forecast</span>
-          <h3 className="text-2xl sm:text-3xl font-black text-purple-600 dark:text-purple-400 mt-2">
-            ₹{forecastINR.toLocaleString('en-IN')}
-          </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 font-mono">Based on active resource usage</p>
-        </div>
-
-        <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm">
-          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono uppercase font-bold">Monthly Budget Cap</span>
-          <h3 className="text-2xl sm:text-3xl font-black text-amber-600 dark:text-amber-400 mt-2">
-            ₹{budgetCap.toLocaleString('en-IN')}
-          </h3>
-          <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-2 font-mono font-bold">{budgetUsedPercent}% of quota consumed</p>
+        <div className="flex items-center gap-3">
+          <div className="text-right">
+            <p className="text-2xl font-black text-slate-900 dark:text-white">₹{usage.price_inr}</p>
+            <span className="text-[10px] text-slate-400 font-bold uppercase">/ MONTHLY BILLED</span>
+          </div>
+          <button
+            onClick={fetchBillingData}
+            disabled={loading}
+            className="p-2 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-xl bg-slate-100 dark:bg-slate-800 transition-colors cursor-pointer"
+            title="Refresh billing data"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
         </div>
       </div>
 
-      {/* Main Grid: Breakdown + Budget */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Cost Breakdown */}
-        <div className="lg:col-span-2 bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4 shadow-sm">
-          <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase font-mono tracking-wider flex items-center gap-2">
-            <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            Service Cost Breakdown (INR ₹)
-          </h3>
-          {breakdown.length > 0 ? (
-            <div className="space-y-4">
-              {breakdown.map((item, idx) => {
-                const inrCost = Math.round(item.cost_usd * USD_TO_INR);
-                return (
-                  <div key={idx} className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs font-mono">
-                      <span className="font-bold text-slate-900 dark:text-white">{item.service}</span>
-                      <span className="text-slate-600 dark:text-slate-400">₹{inrCost.toLocaleString('en-IN')} ({item.percent}%)</span>
-                    </div>
-                    <div className="w-full h-2.5 rounded-full bg-slate-100 dark:bg-slate-900 overflow-hidden">
-                      <div className={`h-full rounded-full transition-all duration-700 ${item.color}`} style={{ width: `${item.percent}%` }}></div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-xs text-slate-500 font-mono">
-              {loading ? 'Loading cost breakdown...' : 'No cost data available'}
-            </div>
-          )}
+      {/* Resource Utilization Meters */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm space-y-2">
+          <div className="flex justify-between items-center text-slate-500 text-[10px] font-bold uppercase">
+            <span>vCPU Cores</span>
+            <span className="text-slate-900 dark:text-white">{usage.metrics.vcpu_used} / {usage.metrics.vcpu_limit}</span>
+          </div>
+          <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+            <div className="bg-blue-600 h-full" style={{ width: `${(usage.metrics.vcpu_used / usage.metrics.vcpu_limit) * 100}%` }} />
+          </div>
         </div>
 
-        {/* Budget Management */}
-        <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4 flex flex-col justify-between shadow-sm">
+        <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm space-y-2">
+          <div className="flex justify-between items-center text-slate-500 text-[10px] font-bold uppercase">
+            <span>Memory RAM</span>
+            <span className="text-slate-900 dark:text-white">{usage.metrics.ram_gb_used}GB / {usage.metrics.ram_gb_limit}GB</span>
+          </div>
+          <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+            <div className="bg-purple-600 h-full" style={{ width: `${(usage.metrics.ram_gb_used / usage.metrics.ram_gb_limit) * 100}%` }} />
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm space-y-2">
+          <div className="flex justify-between items-center text-slate-500 text-[10px] font-bold uppercase">
+            <span>Object & DB Storage</span>
+            <span className="text-slate-900 dark:text-white">{usage.metrics.storage_gb_used}GB / {usage.metrics.storage_gb_limit}GB</span>
+          </div>
+          <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+            <div className="bg-amber-600 h-full" style={{ width: `${(usage.metrics.storage_gb_used / usage.metrics.storage_gb_limit) * 100}%` }} />
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm space-y-2">
+          <div className="flex justify-between items-center text-slate-500 text-[10px] font-bold uppercase">
+            <span>Monthly Deployments</span>
+            <span className="text-slate-900 dark:text-white">{usage.metrics.deployments_month} / {usage.metrics.deployments_limit}</span>
+          </div>
+          <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+            <div className="bg-emerald-600 h-full" style={{ width: `${(usage.metrics.deployments_month / usage.metrics.deployments_limit) * 100}%` }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Payment Methods Section */}
+      <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-5">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase font-mono tracking-wider flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-blue-600" />
-              INR Budget Cap Threshold
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Configure automated budget notifications when spend exceeds monthly limit.</p>
+            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase">Saved Payment Methods</h3>
+            <p className="text-slate-500 text-[11px] mt-0.5">Securely processed via PCI-DSS compliant payment tokenization</p>
           </div>
 
-          {budgetMsg && (
-            <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2 font-bold">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>{budgetMsg}</span>
-            </div>
-          )}
+          <button
+            onClick={() => setAddCardOpen(true)}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-colors flex items-center gap-2 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Payment Method</span>
+          </button>
+        </div>
 
-          <form onSubmit={handleUpdateBudget} className="space-y-3">
-            <div>
-              <label className="block text-xs font-mono font-bold text-slate-700 dark:text-slate-300 mb-1">Monthly Limit (₹ INR)</label>
-              <input
-                type="number"
-                min="500"
-                step="500"
-                value={budgetCap}
-                onChange={(e) => setBudgetCap(Number(e.target.value))}
-                className="w-full px-4 py-3 text-xs font-mono font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white focus:border-blue-600 focus:outline-none"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={updatingBudget}
-              className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-blue-600/20 transition-all cursor-pointer"
+        {/* Cards Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {paymentMethods.map((pm) => (
+            <div
+              key={pm.id}
+              className={`p-4 rounded-2xl border transition-all flex flex-col justify-between ${
+                pm.is_default 
+                  ? 'bg-blue-50/50 dark:bg-blue-950/20 border-blue-300 dark:border-blue-700/60 shadow-sm'
+                  : 'bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800'
+              }`}
             >
-              {updatingBudget ? 'Saving...' : 'Update Budget Threshold'}
-            </button>
-          </form>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-black uppercase text-xs tracking-wider text-slate-900 dark:text-white">
+                    {pm.brand}
+                  </span>
+                  {pm.is_default && (
+                    <span className="px-2 py-0.5 rounded bg-blue-600 text-white text-[9px] font-bold uppercase">
+                      DEFAULT
+                    </span>
+                  )}
+                </div>
+
+                <div className="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-widest">
+                  •••• •••• •••• {pm.last4}
+                </div>
+
+                <div className="flex justify-between text-[11px] text-slate-500">
+                  <span>Expires: {pm.exp_month}/{pm.exp_year}</span>
+                  <span className="truncate max-w-[120px]">{pm.holder_name}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-200 dark:border-slate-800 text-[11px]">
+                {!pm.is_default ? (
+                  <button
+                    onClick={() => handleSetDefault(pm.id)}
+                    className="text-blue-600 dark:text-blue-400 font-bold hover:underline cursor-pointer"
+                  >
+                    Set as default
+                  </button>
+                ) : (
+                  <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                    <Check className="w-3 h-3" /> Default
+                  </span>
+                )}
+
+                <button
+                  onClick={() => handleRemoveCard(pm.id)}
+                  className="text-rose-600 dark:text-rose-400 hover:text-rose-700 p-1 rounded transition-colors cursor-pointer"
+                  title="Remove card"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
       {/* Invoices Table */}
-      <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
-        <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-          <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase font-mono tracking-wider flex items-center gap-2">
-            <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            Tax Invoice History & Receipts (INR ₹)
-          </h3>
-          <button
-            onClick={() => handleRazorpayPayment()}
-            disabled={processingPayment}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-2 disabled:opacity-60"
-          >
-            <CreditCard className="w-4 h-4" />
-            {processingPayment ? 'Processing...' : 'Make Payment'}
-            <ExternalLink className="w-3 h-3" />
-          </button>
+      <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
+        <div>
+          <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase">Invoices & Billing History</h3>
+          <p className="text-slate-500 text-[11px] mt-0.5">Download official tax invoices and transaction records</p>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-mono">
-              <tr>
-                <th className="p-4">Invoice ID</th>
-                <th className="p-4">Billing Period</th>
-                <th className="p-4">Amount (₹ INR)</th>
-                <th className="p-4">Status</th>
-                <th className="p-4">Payment Date</th>
-                <th className="p-4 text-right">Download</th>
+            <thead>
+              <tr className="border-b border-slate-200 dark:border-slate-800 font-bold text-slate-500 bg-slate-50/50 dark:bg-slate-900/50">
+                <th className="py-3 px-4">Invoice #</th>
+                <th className="py-3 px-4">Billing Date</th>
+                <th className="py-3 px-4">Period</th>
+                <th className="py-3 px-4">Amount (INR)</th>
+                <th className="py-3 px-4">Status</th>
+                <th className="py-3 px-4 text-right">Receipt</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-900 dark:text-slate-100 font-mono">
-              {invoices.length > 0 ? invoices.map((inv) => {
-                const inrAmt = inv.amount_inr || Math.round((inv.amount_usd || 18) * USD_TO_INR);
-                return (
-                  <tr key={inv.invoice_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                    <td className="p-4 font-bold text-blue-600 dark:text-blue-400">{inv.invoice_id}</td>
-                    <td className="p-4">{inv.period}</td>
-                    <td className="p-4 font-black">₹{inrAmt.toLocaleString('en-IN')}</td>
-                    <td className="p-4">
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30">
-                        {inv.status}
-                      </span>
-                    </td>
-                    <td className="p-4 text-slate-500 dark:text-slate-400">{inv.date}</td>
-                    <td className="p-4 text-right">
-                      <button
-                        onClick={() => handleGeneratePDF({ ...inv, amount_inr: inrAmt })}
-                        className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-500/10 hover:text-blue-600 dark:hover:text-blue-400 text-slate-700 dark:text-slate-300 font-bold rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1.5 text-xs border border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-500/30"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        PDF Invoice
-                      </button>
-                    </td>
-                  </tr>
-                );
-              }) : (
-                <tr>
-                  <td colSpan={6} className="p-8 text-center text-slate-500">
-                    {loading ? 'Loading invoices...' : 'No invoices found'}
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {invoices.map((inv) => (
+                <tr key={inv.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
+                  <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">{inv.id}</td>
+                  <td className="py-3.5 px-4 text-slate-500">{inv.date}</td>
+                  <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">{inv.period}</td>
+                  <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">₹{inv.amount_inr}</td>
+                  <td className="py-3.5 px-4">
+                    <StatusBadge status={inv.status} size="sm" />
+                  </td>
+                  <td className="py-3.5 px-4 text-right">
+                    <button
+                      onClick={() => showToast(`Downloading tax invoice ${inv.id}...`)}
+                      className="px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-bold flex items-center gap-1.5 ml-auto cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" /> PDF
+                    </button>
                   </td>
                 </tr>
-              )}
+              ))}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Plan Upgrade Selector */}
+      <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
+        <div>
+          <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase">Subscription Plans</h3>
+          <p className="text-slate-500 text-[11px] mt-0.5">Scale tier limits instantly without downtime</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className={`p-4 rounded-xl border flex flex-col justify-between ${usage.plan_code === 'developer' ? 'border-blue-600 bg-blue-50/20' : 'border-slate-200 dark:border-slate-800'}`}>
+            <div className="space-y-2">
+              <span className="font-bold text-slate-900 dark:text-white">Developer Starter</span>
+              <p className="text-lg font-black text-slate-900 dark:text-white">₹499 <span className="text-xs font-normal text-slate-500">/ mo</span></p>
+              <p className="text-[11px] text-slate-500">8 vCPUs • 16GB RAM • 500GB Storage</p>
+            </div>
+            <button
+              onClick={() => handlePlanChange('developer')}
+              disabled={usage.plan_code === 'developer'}
+              className="mt-4 py-2 w-full bg-slate-100 dark:bg-slate-800 rounded-lg font-bold hover:bg-slate-200 disabled:opacity-50"
+            >
+              {usage.plan_code === 'developer' ? 'Current Plan' : 'Select Developer'}
+            </button>
+          </div>
+
+          <div className={`p-4 rounded-xl border flex flex-col justify-between ${usage.plan_code === 'team' ? 'border-blue-600 bg-blue-50/20' : 'border-slate-200 dark:border-slate-800'}`}>
+            <div className="space-y-2">
+              <span className="font-bold text-blue-600">Team Cloud Operations</span>
+              <p className="text-lg font-black text-blue-600">₹2,499 <span className="text-xs font-normal text-slate-500">/ mo</span></p>
+              <p className="text-[11px] text-slate-500">64 vCPUs • 128GB RAM • 5,000GB Storage</p>
+            </div>
+            <button
+              onClick={() => handlePlanChange('team')}
+              disabled={usage.plan_code === 'team'}
+              className="mt-4 py-2 w-full bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50"
+            >
+              {usage.plan_code === 'team' ? 'Current Plan' : 'Select Team'}
+            </button>
+          </div>
+
+          <div className={`p-4 rounded-xl border flex flex-col justify-between ${usage.plan_code === 'enterprise' ? 'border-blue-600 bg-blue-50/20' : 'border-slate-200 dark:border-slate-800'}`}>
+            <div className="space-y-2">
+              <span className="font-bold text-purple-600">Enterprise Control Plane</span>
+              <p className="text-lg font-black text-purple-600">₹14,999 <span className="text-xs font-normal text-slate-500">/ mo</span></p>
+              <p className="text-[11px] text-slate-500">256 vCPUs • 512GB RAM • 25,000GB Storage</p>
+            </div>
+            <button
+              onClick={() => handlePlanChange('enterprise')}
+              disabled={usage.plan_code === 'enterprise'}
+              className="mt-4 py-2 w-full bg-slate-100 dark:bg-slate-800 rounded-lg font-bold hover:bg-slate-200 disabled:opacity-50"
+            >
+              {usage.plan_code === 'enterprise' ? 'Current Plan' : 'Select Enterprise'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Add Payment Method Modal */}
+      {addCardOpen && (
+        <ModalPortal isOpen={addCardOpen} onClose={() => setAddCardOpen(false)} maxWidth="max-w-md">
+          <div className="space-y-4 font-mono text-xs">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-black text-slate-900 dark:text-white font-sans">Add Payment Method</h3>
+              <button onClick={() => setAddCardOpen(false)} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
+            </div>
+
+            <form onSubmit={handleAddPaymentMethod} className="space-y-3">
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Card Brand</label>
+                <select
+                  value={cardBrand}
+                  onChange={(e) => setCardBrand(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white cursor-pointer"
+                >
+                  <option value="visa">Visa</option>
+                  <option value="mastercard">Mastercard</option>
+                  <option value="amex">American Express</option>
+                  <option value="rupay">RuPay</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Cardholder Name</label>
+                <input
+                  type="text"
+                  value={cardHolder}
+                  onChange={(e) => setCardHolder(e.target.value)}
+                  placeholder="Yash Baviskar"
+                  required
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Card Number</label>
+                <input
+                  type="text"
+                  maxLength={19}
+                  value={cardNumber}
+                  onChange={(e) => setCardNumber(e.target.value)}
+                  placeholder="4242 •••• •••• 4242"
+                  required
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Expires (MM/YY)</label>
+                  <input
+                    type="text"
+                    maxLength={5}
+                    value={cardExp}
+                    onChange={(e) => setCardExp(e.target.value)}
+                    placeholder="12/28"
+                    required
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">CVV / CVC</label>
+                  <input
+                    type="password"
+                    maxLength={4}
+                    value={cardCvv}
+                    onChange={(e) => setCardCvv(e.target.value)}
+                    placeholder="•••"
+                    required
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <label className="flex items-center gap-2 cursor-pointer text-slate-600 dark:text-slate-400">
+                  <input
+                    type="checkbox"
+                    checked={setAsDefault}
+                    onChange={(e) => setSetAsDefault(e.target.checked)}
+                    className="rounded text-blue-600"
+                  />
+                  <span>Set as default payment method</span>
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setAddCardOpen(false)}
+                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-xl font-bold"
+                >
+                  {actionLoading ? 'Saving...' : 'Save Card'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </ModalPortal>
+      )}
     </div>
   );
 };

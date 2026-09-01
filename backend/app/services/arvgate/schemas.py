@@ -1,11 +1,12 @@
 import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, EmailStr
 
 class UserRegister(BaseModel):
     email: EmailStr
     password: str
     full_name: str
+    workspace_name: Optional[str] = "Production Cloud Ops"
     role: Optional[str] = "Developer"
 
 class UserLogin(BaseModel):
@@ -19,6 +20,8 @@ class TokenResponse(BaseModel):
     expires_in: int
     user_id: str
     account_id: Optional[str] = None
+    workspace_id: Optional[str] = None
+    workspace_name: Optional[str] = None
     email: str
     full_name: Optional[str] = None
     role: str
@@ -36,14 +39,29 @@ class PasswordResetConfirm(BaseModel):
     reset_token: str
     new_password: str
 
+class PasswordChangeRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+class ProfileUpdateRequest(BaseModel):
+    full_name: Optional[str] = None
+    workspace_name: Optional[str] = None
+    timezone: Optional[str] = None
+    avatar_url: Optional[str] = None
+    preferences: Optional[Dict[str, Any]] = None
+
 class UserResponse(BaseModel):
     id: str
     account_id: Optional[str] = None
+    workspace_id: Optional[str] = None
+    workspace_name: Optional[str] = None
     email: str
     full_name: str
     role: str
     is_active: bool
     is_mfa_enabled: bool
+    avatar_url: Optional[str] = None
+    timezone: Optional[str] = None
     created_at: datetime.datetime
 
     class Config:
@@ -51,6 +69,7 @@ class UserResponse(BaseModel):
 
 class AuditLogResponse(BaseModel):
     id: str
+    workspace_id: Optional[str] = None
     user_email: str
     action: str
     resource: str

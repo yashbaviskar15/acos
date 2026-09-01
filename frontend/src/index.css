@@ -2,22 +2,52 @@
 @import "tailwindcss/components";
 @import "tailwindcss/utilities";
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Fira+Code:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 /* =========================================================================
    ARAVANTA CLOUDOS — DESIGN SYSTEM FOUNDATION
-   Global tokens, typography, accessible focus, motion + surface utilities.
-   Cascades to every screen. Pure CSS — no component logic depends on this.
+   Derives palette directly from Aravanta brand identity:
+   Deep Navy (#0F172A / #0A1628), Cobalt Blue (#1E40AF / #2563EB), Gold Accent (#C9A84C / #D97706)
    ========================================================================= */
 
 @layer base {
   :root {
     color-scheme: light;
-    --arv-ring: 37 99 235;          /* blue-600  */
-    --arv-ring-dark: 201 168 76;    /* brand gold */
+    --brand-primary: #1E40AF;
+    --brand-secondary: #0F172A;
+    --brand-accent: #C9A84C;
+    --background: #F8FAFC;
+    --surface: #FFFFFF;
+    --surface-raised: #F1F5F9;
+    --border: #E2E8F0;
+    --text-primary: #0F172A;
+    --text-secondary: #475569;
+    --text-muted: #94A3B8;
+    --success: #10B981;
+    --warning: #F59E0B;
+    --error: #EF4444;
+    --info: #3B82F6;
+
+    --arv-ring: 37 99 235;
+    --arv-ring-dark: 201 168 76;
   }
+
   .dark {
     color-scheme: dark;
+    --brand-primary: #3B82F6;
+    --brand-secondary: #0F2038;
+    --brand-accent: #C9A84C;
+    --background: #0A1628;
+    --surface: #0F2038;
+    --surface-raised: #152744;
+    --border: #1E3A5F;
+    --text-primary: #F8FAFC;
+    --text-secondary: #CBD5E1;
+    --text-muted: #64748B;
+    --success: #10B981;
+    --warning: #F59E0B;
+    --error: #F43F5E;
+    --info: #60A5FA;
   }
 
   html {
@@ -33,20 +63,11 @@
     font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
   }
 
-  /* Fluid headings so type scales gracefully from phone → desktop */
-  h1 { letter-spacing: -0.025em; }
-  h2, h3 { letter-spacing: -0.02em; }
-
-  ::selection {
-    background-color: #1d4ed8;
-    color: #ffffff;
-  }
-  .dark ::selection {
-    background-color: #C9A84C;
-    color: #0A1628;
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   }
 
-  /* ── Accessible keyboard focus (only shows for keyboard users) ── */
+  /* Accessible focus indicators */
   :focus-visible {
     outline: 2px solid rgb(var(--arv-ring));
     outline-offset: 2px;
@@ -54,199 +75,42 @@
   .dark :focus-visible {
     outline-color: rgb(var(--arv-ring-dark));
   }
-  /* Mouse clicks on interactive elements shouldn't show the ring */
   :focus:not(:focus-visible) {
     outline: none;
   }
 
-  /* ── Slim, theme-aware scrollbars (replaces the old global hide) ── */
+  /* Slim operational scrollbars */
   * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(148, 163, 184, 0.5) transparent;
+    scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
   }
   ::-webkit-scrollbar {
-    width: 9px;
-    height: 9px;
+    width: 7px;
+    height: 7px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.45);
+    background: rgba(148, 163, 184, 0.35);
     border-radius: 9999px;
-    border: 2px solid transparent;
-    background-clip: content-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(100, 116, 139, 0.7);
-    background-clip: content-box;
+    background: rgba(100, 116, 139, 0.6);
   }
   .dark ::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.26);
-    background-clip: content-box;
+    background: rgba(148, 163, 184, 0.2);
   }
   .dark ::-webkit-scrollbar-thumb:hover {
-    background: rgba(201, 168, 76, 0.55);
-    background-clip: content-box;
+    background: rgba(201, 168, 76, 0.4);
   }
 }
 
-/* =========================================================================
-   KEYFRAMES  (animation utilities themselves live in tailwind.config.js)
-   ========================================================================= */
-@keyframes shimmer {
-  0%   { background-position: -400px 0; }
-  100% { background-position:  400px 0; }
-}
 @keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.96); }
-  to   { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-/* =========================================================================
-   LEGACY / DIRECTLY-REFERENCED ANIMATION CLASSES  (keep — components use them)
-   ========================================================================= */
 .animate-fadeIn {
   animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.skeleton-shimmer {
-  background: linear-gradient(90deg, #e2e8f0 0%, #f1f5f9 40%, #e2e8f0 80%);
-  background-size: 800px 100%;
-  animation: shimmer 1.8s ease-in-out infinite;
-}
-.dark .skeleton-shimmer {
-  background: linear-gradient(90deg, #172033 0%, #24334d 40%, #172033 80%);
-  background-size: 800px 100%;
-}
-
-/* =========================================================================
-   REUSABLE SURFACES & TEXT  (in the components layer so Tailwind utilities win)
-   ========================================================================= */
-@layer components {
-  /* Standard card surface */
-  .arv-card {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 1rem;
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.06);
-  }
-  .dark .arv-card {
-    background: #0F2038;
-    border-color: #1e293b;
-  }
-
-  /* Lift-on-hover behavior for interactive cards */
-  .arv-card-hover {
-    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
-  }
-  .arv-card-hover:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 18px 40px -12px rgba(15, 32, 56, 0.18);
-  }
-  .dark .arv-card-hover:hover {
-    box-shadow: 0 18px 44px -12px rgba(0, 0, 0, 0.6);
-  }
-
-  /* Frosted glass surface (navbars, overlays, floating panels) */
-  .glass {
-    background: rgba(255, 255, 255, 0.72);
-    -webkit-backdrop-filter: blur(20px) saturate(160%);
-    backdrop-filter: blur(20px) saturate(160%);
-    border: 1px solid rgba(255, 255, 255, 0.55);
-  }
-  .dark .glass {
-    background: rgba(15, 32, 56, 0.6);
-    border-color: rgba(255, 255, 255, 0.08);
-  }
-
-  /* Gradient-clipped text for headlines */
-  .gradient-text {
-    background: linear-gradient(90deg, #2563eb, #4f46e5, #7c3aed);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    -webkit-text-fill-color: transparent;
-  }
-  .dark .gradient-text {
-    background: linear-gradient(90deg, #60a5fa, #818cf8, #c4b5fd);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-
-  /* Gradient-border chip/pill (uses padding + masked layers) */
-  .gradient-ring {
-    position: relative;
-    background-clip: padding-box;
-    border: 1px solid transparent;
-  }
-  .gradient-ring::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    padding: 1px;
-    background: linear-gradient(120deg, #3b82f6, #6366f1, #a855f7);
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-            mask-composite: exclude;
-    pointer-events: none;
-  }
-}
-
-/* =========================================================================
-   UTILITY HELPERS
-   ========================================================================= */
-@layer utilities {
-  .text-balance { text-wrap: balance; }
-  .text-pretty  { text-wrap: pretty; }
-
-  /* Subtle dotted/line grid backdrop for hero + auth sections */
-  .bg-grid {
-    background-image:
-      linear-gradient(to right, rgba(148, 163, 184, 0.14) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(148, 163, 184, 0.14) 1px, transparent 1px);
-    background-size: 44px 44px;
-  }
-  .dark .bg-grid {
-    background-image:
-      linear-gradient(to right, rgba(148, 163, 184, 0.06) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(148, 163, 184, 0.06) 1px, transparent 1px);
-  }
-
-  /* Radial brand glow — drop behind hero content */
-  .bg-hero-glow {
-    background:
-      radial-gradient(60% 55% at 50% 0%, rgba(59, 130, 246, 0.18) 0%, rgba(59, 130, 246, 0) 70%);
-  }
-  .dark .bg-hero-glow {
-    background:
-      radial-gradient(60% 55% at 50% 0%, rgba(59, 130, 246, 0.28) 0%, rgba(10, 22, 40, 0) 70%);
-  }
-
-  /* Fade the bottom edge of an element (e.g. scroll areas) */
-  .mask-fade-b {
-    -webkit-mask-image: linear-gradient(to bottom, #000 78%, transparent 100%);
-            mask-image: linear-gradient(to bottom, #000 78%, transparent 100%);
-  }
-
-  /* Opt-in scrollbar hiding for carousels / chip rows */
-  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-  .no-scrollbar::-webkit-scrollbar { display: none; width: 0; height: 0; }
-
-  /* Animated gradient backgrounds need a larger canvas to pan across */
-  .bg-size-200 { background-size: 200% 200%; }
-}
-
-/* =========================================================================
-   RESPECT REDUCED-MOTION PREFERENCES  (accessibility)
-   ========================================================================= */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
-    scroll-behavior: auto !important;
-  }
 }

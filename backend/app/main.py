@@ -1,4 +1,5 @@
 import logging
+from sqlalchemy import text
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,6 +25,26 @@ logger = logging.getLogger("aravanta.startup")
 def init_db():
     try:
         Base.metadata.create_all(bind=engine)
+        
+        # Safely migrate new columns if using SQLite
+        try:
+            with engine.connect() as conn:
+                for col_sql in [
+                    "ALTER TABLE users ADD COLUMN workspace_id VARCHAR(50)",
+                    "ALTER TABLE users ADD COLUMN workspace_name VARCHAR(100)",
+                    "ALTER TABLE users ADD COLUMN avatar_url VARCHAR(500)",
+                    "ALTER TABLE users ADD COLUMN timezone VARCHAR(50) DEFAULT 'Asia/Kolkata'",
+                    "ALTER TABLE users ADD COLUMN preferences TEXT DEFAULT '{}'",
+                    "ALTER TABLE audit_logs ADD COLUMN workspace_id VARCHAR(50)",
+                ]:
+                    try:
+                        conn.execute(text(col_sql))
+                        conn.commit()
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
         from app.core.database import SessionLocal
         from app.services.arvgate.models import User
         from app.core.security import get_password_hash, generate_mfa_secret
@@ -37,6 +58,8 @@ def init_db():
                 new_user = User(
                     id="usr-yash-admin-001",
                     account_id="ARV-ACC-100001",
+                    workspace_id="ws-yash-prod",
+                    workspace_name="Yash's Production Cloud Ops",
                     email=admin_email,
                     full_name="Yash Baviskar",
                     hashed_password=get_password_hash("Padma@0215"),
@@ -52,6 +75,8 @@ def init_db():
                 new_admin = User(
                     id="usr-cloud-admin-002",
                     account_id="ARV-ACC-100002",
+                    workspace_id="ws-enterprise-default",
+                    workspace_name="Enterprise Platform Operations",
                     email="admin@aravanta.cloud",
                     full_name="Enterprise Administrator",
                     hashed_password=get_password_hash("Aravanta@2026!"),
@@ -67,11 +92,8 @@ def init_db():
             db.rollback()
         finally:
             db.close()
-    except Exception as exc:  # noqa: BLE001 - defensive startup guard
-        logger.error(
-            "Database initialization failed: %s.",
-            exc,
-        )
+    except Exception as exc:
+        logger.error("Database initialization failed: %s.", exc)
 
 init_db()
 

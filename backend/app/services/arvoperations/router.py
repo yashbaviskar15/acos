@@ -1,967 +1,966 @@
 """
 Aravanta CloudOS — ArvOperations Service Router
-Unified Cloud Operations, Developer Platform, SRE Observability, Incident Management & Automation Engine.
+Multi-Tenant Unified Cloud Operations, Developer Platform, Observability, Incidents & Automation Engine.
 """
 import uuid
 import random
-import hashlib
+import copy
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status, Header, Depends
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/api/v1/operations", tags=["ArvOperations — Cloud Platform Operations"])
-
-# ─────────────────────────────────────────────────────────────────────────────
-# In-Memory Operational Store
-# ─────────────────────────────────────────────────────────────────────────────
 
 ENVIRONMENTS = ["production", "staging", "development"]
 REGIONS = ["arv-us-east-1", "arv-us-west-2", "arv-eu-west-1", "arv-ap-south-1"]
 STRATEGIES = ["RollingUpdate", "Canary", "BlueGreen"]
 
-# ── 1. Applications Store ────────────────────────────────────────────────────
-_applications: dict[str, dict] = {}
-_seed_apps = [
-    {
-        "id": "app-api-gateway",
-        "name": "api-gateway",
-        "environment": "production",
-        "version": "v2.4.1",
-        "previous_version": "v2.4.0",
-        "replicas": 4,
-        "target_replicas": 4,
-        "status": "HEALTHY",
-        "health_percent": 100.0,
-        "error_rate_percent": 0.02,
-        "cpu_usage_m": 420,
-        "memory_usage_mb": 680,
-        "p95_latency_ms": 38.5,
-        "requests_per_sec": 4200,
-        "strategy": "RollingUpdate",
-        "image": "aravanta/api-gateway:v2.4.1",
-        "repository": "github.com/yashbaviskar15/acos-gateway",
-        "endpoints": ["https://api.aravanta.cloud", "https://arv-backend.vercel.app"],
-        "ports": [8000, 443],
-        "created_at": (datetime.utcnow() - timedelta(days=120)).isoformat() + "Z",
-        "last_deployed_at": (datetime.utcnow() - timedelta(hours=6)).isoformat() + "Z",
-        "env_vars": {"NODE_ENV": "production", "LOG_LEVEL": "info", "CACHE_TTL": "300"},
-    },
-    {
-        "id": "app-auth-service",
-        "name": "auth-service",
-        "environment": "production",
-        "version": "v1.9.0",
-        "previous_version": "v1.8.4",
-        "replicas": 3,
-        "target_replicas": 3,
-        "status": "HEALTHY",
-        "health_percent": 99.98,
-        "error_rate_percent": 0.01,
-        "cpu_usage_m": 280,
-        "memory_usage_mb": 420,
-        "p95_latency_ms": 24.1,
-        "requests_per_sec": 1850,
-        "strategy": "RollingUpdate",
-        "image": "aravanta/auth-service:v1.9.0",
-        "repository": "github.com/yashbaviskar15/acos-auth",
-        "endpoints": ["https://auth.aravanta.cloud/v1"],
-        "ports": [8080],
-        "created_at": (datetime.utcnow() - timedelta(days=90)).isoformat() + "Z",
-        "last_deployed_at": (datetime.utcnow() - timedelta(days=2)).isoformat() + "Z",
-        "env_vars": {"JWT_ALGORITHM": "HS256", "MFA_ENABLED": "true", "SESSION_TIMEOUT": "3600"},
-    },
-    {
-        "id": "app-web-console",
-        "name": "web-console",
-        "environment": "production",
-        "version": "v1.5.2",
-        "previous_version": "v1.5.1",
-        "replicas": 3,
-        "target_replicas": 3,
-        "status": "HEALTHY",
-        "health_percent": 100.0,
-        "error_rate_percent": 0.00,
-        "cpu_usage_m": 190,
-        "memory_usage_mb": 310,
-        "p95_latency_ms": 18.2,
-        "requests_per_sec": 3100,
-        "strategy": "Canary",
-        "image": "aravanta/web-console:v1.5.2",
-        "repository": "github.com/yashbaviskar15/acos-frontend",
-        "endpoints": ["https://arv-frontend.vercel.app", "https://console.aravanta.cloud"],
-        "ports": [3000, 80],
-        "created_at": (datetime.utcnow() - timedelta(days=100)).isoformat() + "Z",
-        "last_deployed_at": (datetime.utcnow() - timedelta(hours=14)).isoformat() + "Z",
-        "env_vars": {"VITE_API_URL": "https://arv-backend.vercel.app", "ENV": "production"},
-    },
-    {
-        "id": "app-telemetry-engine",
-        "name": "telemetry-engine",
-        "environment": "production",
-        "version": "v3.1.0",
-        "previous_version": "v3.0.2",
-        "replicas": 2,
-        "target_replicas": 2,
-        "status": "WARNING",
-        "health_percent": 96.4,
-        "error_rate_percent": 1.45,
-        "cpu_usage_m": 890,
-        "memory_usage_mb": 1420,
-        "p95_latency_ms": 145.0,
-        "requests_per_sec": 8900,
-        "strategy": "RollingUpdate",
-        "image": "aravanta/telemetry-engine:v3.1.0",
-        "repository": "github.com/yashbaviskar15/acos-telemetry",
-        "endpoints": ["https://metrics.aravanta.cloud/ingest"],
-        "ports": [9090, 4317],
-        "created_at": (datetime.utcnow() - timedelta(days=60)).isoformat() + "Z",
-        "last_deployed_at": (datetime.utcnow() - timedelta(hours=3)).isoformat() + "Z",
-        "env_vars": {"BUFFER_SIZE": "100000", "OTEL_EXPORTER": "prometheus"},
-    },
-    {
-        "id": "app-payment-worker",
-        "name": "payment-worker",
-        "environment": "staging",
-        "version": "v1.2.0-rc2",
-        "previous_version": "v1.1.9",
-        "replicas": 2,
-        "target_replicas": 2,
-        "status": "HEALTHY",
-        "health_percent": 100.0,
-        "error_rate_percent": 0.05,
-        "cpu_usage_m": 150,
-        "memory_usage_mb": 290,
-        "p95_latency_ms": 85.0,
-        "requests_per_sec": 450,
-        "strategy": "BlueGreen",
-        "image": "aravanta/payment-worker:v1.2.0-rc2",
-        "repository": "github.com/yashbaviskar15/acos-billing",
-        "endpoints": ["https://staging-billing.aravanta.cloud"],
-        "ports": [8085],
-        "created_at": (datetime.utcnow() - timedelta(days=45)).isoformat() + "Z",
-        "last_deployed_at": (datetime.utcnow() - timedelta(hours=1)).isoformat() + "Z",
-        "env_vars": {"STRIPE_SANDBOX": "true", "CURRENCY": "INR"},
-    }
-]
+# ─────────────────────────────────────────────────────────────────────────────
+# Multi-Tenant Workspace Data Storage
+# ─────────────────────────────────────────────────────────────────────────────
 
-for app in _seed_apps:
-    _applications[app["id"]] = app
+def _create_seed_workspace_data(workspace_name: str = "Enterprise Production Cloud", is_demo: bool = True) -> dict:
+    now = datetime.utcnow()
 
-# ── 2. Deployments Store ─────────────────────────────────────────────────────
-_deployments: list[dict] = [
-    {
-        "id": "dep-8842",
-        "application_id": "app-api-gateway",
-        "application_name": "api-gateway",
-        "environment": "production",
-        "version": "v2.4.1",
-        "previous_version": "v2.4.0",
-        "image": "aravanta/api-gateway:v2.4.1",
-        "strategy": "RollingUpdate",
-        "replicas": 4,
-        "status": "SUCCESSFUL",
-        "trigger": "git push (main)",
-        "commit_hash": "a4d13d8",
-        "commit_message": "feat(gateway): add circuit breaker timeout configuration",
-        "author": "yashbaviskar15",
-        "started_at": (datetime.utcnow() - timedelta(hours=6)).isoformat() + "Z",
-        "finished_at": (datetime.utcnow() - timedelta(hours=5, minutes=57)).isoformat() + "Z",
-        "duration_seconds": 180,
-        "steps": [
-            {"name": "Build Container Image", "status": "COMPLETED", "duration": "45s"},
-            {"name": "Vulnerability Security Scan (Trivy)", "status": "COMPLETED", "duration": "18s"},
-            {"name": "Deploy Canary Pods (25%)", "status": "COMPLETED", "duration": "35s"},
-            {"name": "Health Check & Metric Verification", "status": "COMPLETED", "duration": "30s"},
-            {"name": "Promote Full Rollout", "status": "COMPLETED", "duration": "52s"},
-        ]
-    },
-    {
-        "id": "dep-8841",
-        "application_id": "app-telemetry-engine",
-        "application_name": "telemetry-engine",
-        "environment": "production",
-        "version": "v3.1.0",
-        "previous_version": "v3.0.2",
-        "image": "aravanta/telemetry-engine:v3.1.0",
-        "strategy": "RollingUpdate",
-        "replicas": 2,
-        "status": "FAILED",
-        "trigger": "git push (main)",
-        "commit_hash": "e9b21f0",
-        "commit_message": "perf: increase telemetry batch queue to 50k items",
-        "author": "yashbaviskar15",
-        "started_at": (datetime.utcnow() - timedelta(hours=3, minutes=15)).isoformat() + "Z",
-        "finished_at": (datetime.utcnow() - timedelta(hours=3, minutes=11)).isoformat() + "Z",
-        "duration_seconds": 240,
-        "error_reason": "Health check failed: OOMKilled on pod telemetry-engine-79bf2a (RAM limit 1500MB exceeded)",
-        "steps": [
-            {"name": "Build Container Image", "status": "COMPLETED", "duration": "50s"},
-            {"name": "Deploy Canary Pods", "status": "COMPLETED", "duration": "40s"},
-            {"name": "Synthetic Health Probes (Liveness/Readiness)", "status": "FAILED", "duration": "150s"},
-        ]
-    },
-    {
-        "id": "dep-8840",
-        "application_id": "app-telemetry-engine",
-        "application_name": "telemetry-engine",
-        "environment": "production",
-        "version": "v3.0.2",
-        "previous_version": "v3.1.0",
-        "image": "aravanta/telemetry-engine:v3.0.2",
-        "strategy": "Rollback",
-        "replicas": 2,
-        "status": "ROLLED_BACK",
-        "trigger": "automated rollback on health check failure",
-        "commit_hash": "c4d817a",
-        "commit_message": "rollback: auto-revert to stable release v3.0.2",
-        "author": "Aravanta-SRE-Bot",
-        "started_at": (datetime.utcnow() - timedelta(hours=3, minutes=10)).isoformat() + "Z",
-        "finished_at": (datetime.utcnow() - timedelta(hours=3, minutes=8)).isoformat() + "Z",
-        "duration_seconds": 120,
-        "steps": [
-            {"name": "Drain Traffic from Failing Canary", "status": "COMPLETED", "duration": "20s"},
-            {"name": "Restore Previous Replicaset v3.0.2", "status": "COMPLETED", "duration": "60s"},
-            {"name": "Verify Pod Telemetry & SRE SLOs", "status": "COMPLETED", "duration": "40s"},
-        ]
-    },
-    {
-        "id": "dep-8839",
-        "application_id": "app-web-console",
-        "application_name": "web-console",
-        "environment": "production",
-        "version": "v1.5.2",
-        "previous_version": "v1.5.1",
-        "image": "aravanta/web-console:v1.5.2",
-        "strategy": "Canary",
-        "replicas": 3,
-        "status": "SUCCESSFUL",
-        "trigger": "git push (main)",
-        "commit_hash": "3e02c6b",
-        "commit_message": "fix: responsive cross-platform header and layout fixes",
-        "author": "yashbaviskar15",
-        "started_at": (datetime.utcnow() - timedelta(hours=14)).isoformat() + "Z",
-        "finished_at": (datetime.utcnow() - timedelta(hours=13, minutes=58)).isoformat() + "Z",
-        "duration_seconds": 120,
-        "steps": [
-            {"name": "Vite Production Build", "status": "COMPLETED", "duration": "60s"},
-            {"name": "Upload Static Assets to CDN Edge", "status": "COMPLETED", "duration": "30s"},
-            {"name": "Warm Edge Cache", "status": "COMPLETED", "duration": "30s"},
-        ]
-    }
-]
-
-# ── 3. Containers Store ──────────────────────────────────────────────────────
-_containers: list[dict] = [
-    {"id": "ctr-api-gw-01", "name": "api-gateway-7b9f8-x4q2w", "app": "api-gateway", "image": "aravanta/api-gateway:v2.4.1", "node": "node-us-east-1a", "status": "RUNNING", "restarts": 0, "cpu_pct": 18.2, "ram_mb": 172, "uptime": "6h 24m", "ip": "10.244.1.42"},
-    {"id": "ctr-api-gw-02", "name": "api-gateway-7b9f8-9kp7v", "app": "api-gateway", "image": "aravanta/api-gateway:v2.4.1", "node": "node-us-east-1b", "status": "RUNNING", "restarts": 0, "cpu_pct": 21.5, "ram_mb": 168, "uptime": "6h 24m", "ip": "10.244.2.18"},
-    {"id": "ctr-api-gw-03", "name": "api-gateway-7b9f8-m3d8l", "app": "api-gateway", "image": "aravanta/api-gateway:v2.4.1", "node": "node-us-east-1c", "status": "RUNNING", "restarts": 0, "cpu_pct": 19.8, "ram_mb": 170, "uptime": "6h 24m", "ip": "10.244.3.91"},
-    {"id": "ctr-api-gw-04", "name": "api-gateway-7b9f8-zz21b", "app": "api-gateway", "image": "aravanta/api-gateway:v2.4.1", "node": "node-us-east-1a", "status": "RUNNING", "restarts": 0, "cpu_pct": 16.0, "ram_mb": 170, "uptime": "6h 24m", "ip": "10.244.1.45"},
-    {"id": "ctr-auth-01", "name": "auth-service-58dc7-28nvd", "app": "auth-service", "image": "aravanta/auth-service:v1.9.0", "node": "node-us-east-1a", "status": "RUNNING", "restarts": 0, "cpu_pct": 12.4, "ram_mb": 140, "uptime": "2d 4h", "ip": "10.244.1.50"},
-    {"id": "ctr-auth-02", "name": "auth-service-58dc7-pl01a", "app": "auth-service", "image": "aravanta/auth-service:v1.9.0", "node": "node-us-east-1b", "status": "RUNNING", "restarts": 0, "cpu_pct": 14.1, "ram_mb": 138, "uptime": "2d 4h", "ip": "10.244.2.62"},
-    {"id": "ctr-auth-03", "name": "auth-service-58dc7-ff89c", "app": "auth-service", "image": "aravanta/auth-service:v1.9.0", "node": "node-us-east-1c", "status": "RUNNING", "restarts": 0, "cpu_pct": 11.8, "ram_mb": 142, "uptime": "2d 4h", "ip": "10.244.3.11"},
-    {"id": "ctr-telem-01", "name": "telemetry-engine-79bf2a-x9m2", "app": "telemetry-engine", "image": "aravanta/telemetry-engine:v3.1.0", "node": "node-us-east-1b", "status": "CRASHLOOPBACKOFF", "restarts": 4, "cpu_pct": 89.0, "ram_mb": 1480, "uptime": "14m", "ip": "10.244.2.99"},
-    {"id": "ctr-telem-02", "name": "telemetry-engine-79bf2a-4k11", "app": "telemetry-engine", "image": "aravanta/telemetry-engine:v3.0.2", "node": "node-us-east-1c", "status": "RUNNING", "restarts": 0, "cpu_pct": 45.2, "ram_mb": 620, "uptime": "3h 8m", "ip": "10.244.3.55"},
-    {"id": "ctr-db-pg-01", "name": "postgres-primary-stateful-0", "app": "aravanta-core-db", "image": "postgres:16.2-alpine", "node": "node-us-east-1a", "status": "RUNNING", "restarts": 0, "cpu_pct": 34.8, "ram_mb": 1840, "uptime": "42d 12h", "ip": "10.244.1.10"},
-    {"id": "ctr-redis-01", "name": "redis-cluster-cache-0", "app": "redis-cache", "image": "redis:7.2-alpine", "node": "node-us-east-1b", "status": "RUNNING", "restarts": 0, "cpu_pct": 8.5, "ram_mb": 512, "uptime": "42d 12h", "ip": "10.244.2.10"},
-]
-
-# ── 4. Incidents Store ───────────────────────────────────────────────────────
-_incidents: list[dict] = [
-    {
-        "id": "inc-1042",
-        "number": "INC-1042",
-        "title": "Database Connection Pool Saturation & Query Latency Spike",
-        "severity": "P1 - Critical",
-        "status": "Mitigating",
-        "affected_services": ["ArvDB (PostgreSQL)", "api-gateway", "auth-service"],
-        "detected_at": (datetime.utcnow() - timedelta(minutes=45)).isoformat() + "Z",
-        "resolved_at": None,
-        "commander": "Yash Baviskar (Lead SRE)",
-        "summary": "Connection pool reached 92% capacity (184/200 conns) triggering HTTP 504 Gateway Timeouts across API endpoints.",
-        "root_cause": "Unindexed slow analytical query executed by nightly billing summary task blocking active connection pool slots.",
-        "timeline": [
-            {"time": "18:15:00 UTC", "author": "ArvWatch Alertmanager", "note": "Triggered alert: DB Connection Pool Utilization > 90%", "type": "ALERT"},
-            {"time": "18:18:30 UTC", "author": "Yash Baviskar", "note": "Declared P1 incident, initiated bridge with platform team", "type": "ACTION"},
-            {"time": "18:24:00 UTC", "author": "Yash Baviskar", "note": "Identified slow PID 14892 blocking tables. Terminated rogue queries via pg_terminate_backend.", "type": "MITIGATION"},
-            {"time": "18:35:00 UTC", "author": "Yash Baviskar", "note": "Scaled max_connections from 200 -> 350 and verified pool recovery to 22%", "type": "VERIFICATION"},
-        ],
-        "related_alerts": ["Database connection pool saturating", "High API P95 Latency > 500ms"]
-    },
-    {
-        "id": "inc-1041",
-        "number": "INC-1041",
-        "title": "Pod CrashLoopBackOff on Telemetry Engine Canary Release",
-        "severity": "P2 - Major",
-        "status": "Resolved",
-        "affected_services": ["telemetry-engine", "ArvKube"],
-        "detected_at": (datetime.utcnow() - timedelta(hours=3, minutes=15)).isoformat() + "Z",
-        "resolved_at": (datetime.utcnow() - timedelta(hours=3, minutes=8)).isoformat() + "Z",
-        "commander": "Yash Baviskar (DevOps)",
-        "summary": "Canary deployment v3.1.0 hit OOMKilled condition immediately after receiving 25% traffic share.",
-        "root_cause": "Buffer allocation increased by 10x without raising pod memory limits in Helm values (remained at 1.5Gi).",
-        "timeline": [
-            {"time": "15:45:00 UTC", "author": "CI/CD Pipeline", "note": "Deployment dep-8841 failed health check probe", "type": "ALERT"},
-            {"time": "15:46:10 UTC", "author": "ArvOperations SRE-Bot", "note": "Automated zero-downtime rollback initiated to stable release v3.0.2", "type": "ACTION"},
-            {"time": "15:52:00 UTC", "author": "Yash Baviskar", "note": "Rollback verified, all pods Running with 0 restarts. Hotfix PR created for memory limits.", "type": "RESOLUTION"},
-        ],
-        "related_alerts": ["Pod CrashLoopBackOff detected"]
-    },
-    {
-        "id": "inc-1040",
-        "number": "INC-1040",
-        "title": "SSL Certificate Expiry Warning on Edge Ingress",
-        "severity": "P3 - Minor",
-        "status": "Resolved",
-        "affected_services": ["ArvEdge", "cloudos.aravanta.cloud"],
-        "detected_at": (datetime.utcnow() - timedelta(days=1)).isoformat() + "Z",
-        "resolved_at": (datetime.utcnow() - timedelta(hours=22)).isoformat() + "Z",
-        "commander": "Yash Baviskar",
-        "summary": "Let's Encrypt automated cert-manager renewal failed due to DNS challenge rate limit.",
-        "root_cause": "DNS-01 webhook credentials rotated without updating cert-manager Secret.",
-        "timeline": [
-            {"time": "Yesterday", "author": "ArvWatch", "note": "Certificate renewal alert triggered (14 days remaining)", "type": "ALERT"},
-            {"time": "Yesterday", "author": "Yash Baviskar", "note": "Updated cert-manager API token secret and forced manual certificate request", "type": "ACTION"},
-            {"time": "Yesterday", "author": "cert-manager", "note": "New TLS certificate successfully issued for 90 days", "type": "RESOLUTION"},
-        ],
-        "related_alerts": ["SSL certificate expiring soon"]
-    }
-]
-
-# ── 5. Automation Runbooks Store ─────────────────────────────────────────────
-_workflows: list[dict] = [
-    {
-        "id": "wf-01",
-        "name": "Rolling Service Restart & Cache Purge",
-        "description": "Performs zero-downtime rolling restart of microservice pods and flushes associated Redis cache namespaces.",
-        "trigger": "Manual / Webhook",
-        "target": "api-gateway, auth-service",
-        "status": "ACTIVE",
-        "last_run": (datetime.utcnow() - timedelta(hours=6)).isoformat() + "Z",
-        "last_status": "SUCCESS",
-        "duration": "1m 45s",
-        "run_count": 84,
-        "actions": ["Drain pod traffic", "Restart pod", "Await ReadinessProbe", "Flush redis key prefix 'sess:*'"]
-    },
-    {
-        "id": "wf-02",
-        "name": "Nightly Automated Database Snapshot & S3 Sync",
-        "description": "Executes pg_dump backup of production databases, applies Gzip compression, and syncs encrypted snapshot to secondary region S3.",
-        "trigger": "Cron (0 2 * * *)",
-        "target": "aravanta-core-db",
-        "status": "ACTIVE",
-        "last_run": (datetime.utcnow() - timedelta(hours=16)).isoformat() + "Z",
-        "last_status": "SUCCESS",
-        "duration": "4m 12s",
-        "run_count": 312,
-        "actions": ["Create DB snapshot", "Verify SHA-256 checksum", "Sync to s3://aravanta-backups-dr", "Expire snapshots > 30d"]
-    },
-    {
-        "id": "wf-03",
-        "name": "Auto-Scale Worker Nodes on CPU Pressure",
-        "description": "Monitors node pool CPU threshold (> 80% for 5m). Automatically provisions +2 compute worker instances and joins K8s cluster.",
-        "trigger": "Alertmanager Webhook",
-        "target": "aravanta-prod cluster",
-        "status": "ACTIVE",
-        "last_run": (datetime.utcnow() - timedelta(days=2)).isoformat() + "Z",
-        "last_status": "SUCCESS",
-        "duration": "3m 30s",
-        "run_count": 27,
-        "actions": ["Evaluate cluster headroom", "Request ArvCompute instances", "Execute kubeadm join", "Cordon old nodes if scaled down"]
-    },
-    {
-        "id": "wf-04",
-        "name": "Ephemeral Resource & Disk Garbage Collection",
-        "description": "Prunes untagged Docker images, dangling volumes, and completed Kubernetes jobs older than 7 days.",
-        "trigger": "Cron (0 4 * * 0)",
-        "target": "All Cluster Nodes",
-        "status": "ACTIVE",
-        "last_run": (datetime.utcnow() - timedelta(days=3)).isoformat() + "Z",
-        "last_status": "SUCCESS",
-        "duration": "2m 10s",
-        "run_count": 52,
-        "actions": ["Docker system prune -f", "Delete completed jobs", "Clean /tmp scratch disks"]
-    }
-]
-
-# ── 6. Backups Store ─────────────────────────────────────────────────────────
-_backups: list[dict] = [
-    {
-        "id": "bsp-1092",
-        "name": "pg-core-db-snapshot-daily-2026-09-01",
-        "resource_type": "database",
-        "resource_name": "aravanta-core-db (PostgreSQL 16)",
-        "size_mb": 4820,
-        "status": "COMPLETED",
-        "created_at": (datetime.utcnow() - timedelta(hours=16)).isoformat() + "Z",
-        "retention_days": 30,
-        "restore_point": "2026-09-01T02:00:00Z",
-        "region": "arv-us-east-1",
-        "encryption": "AES-256-GCM"
-    },
-    {
-        "id": "bsp-1091",
-        "name": "k8s-cluster-state-etcd-2026-09-01",
-        "resource_type": "cluster_state",
-        "resource_name": "aravanta-prod (etcd Snapshot)",
-        "size_mb": 145,
-        "status": "COMPLETED",
-        "created_at": (datetime.utcnow() - timedelta(hours=18)).isoformat() + "Z",
-        "retention_days": 14,
-        "restore_point": "2026-09-01T00:30:00Z",
-        "region": "arv-us-east-1",
-        "encryption": "AES-256-GCM"
-    },
-    {
-        "id": "bsp-1090",
-        "name": "s3-assets-dr-replication-2026-08-31",
-        "resource_type": "storage_bucket",
-        "resource_name": "aravanta-assets-prod",
-        "size_mb": 128400,
-        "status": "COMPLETED",
-        "created_at": (datetime.utcnow() - timedelta(days=1)).isoformat() + "Z",
-        "retention_days": 90,
-        "restore_point": "2026-08-31T23:59:00Z",
-        "region": "arv-us-west-2",
-        "encryption": "KMS-Customer-Managed"
-    },
-    {
-        "id": "bsp-1089",
-        "name": "redis-cache-dump-2026-08-31",
-        "resource_type": "cache",
-        "resource_name": "redis-cluster-cache",
-        "size_mb": 820,
-        "status": "COMPLETED",
-        "created_at": (datetime.utcnow() - timedelta(days=1)).isoformat() + "Z",
-        "retention_days": 7,
-        "restore_point": "2026-08-31T22:00:00Z",
-        "region": "arv-us-east-1",
-        "encryption": "AES-256-GCM"
-    }
-]
-
-# ── 7. Seed Operational Logs Generator ────────────────────────────────────────
-_LOG_SERVICES = ["api-gateway", "auth-service", "telemetry-engine", "web-console", "postgres-primary", "k8s-scheduler"]
-_LOG_TEMPLATES = {
-    "INFO": [
-        "HTTP {method} {path} completed in {ms}ms with status 200 OK",
-        "JWT token validated for subject {email} with role {role}",
-        "Heartbeat health check passed across all {count} worker nodes",
-        "Prometheus metrics scraped: {count} timeseries ingested",
-        "TLS handshake successful from client {ip}",
-        "Worker thread pool idle: 32/32 threads available"
-    ],
-    "WARN": [
-        "Database query duration {ms}ms exceeded 100ms threshold for {path}",
-        "High memory allocation detected on worker node {node} (usage at 82%)",
-        "Client rate limit approaching threshold (95/100 req/min) for IP {ip}",
-        "Connection pool active count elevated: 165/200 connections in use",
-        "SSL certificate expiry warning: 14 days remaining for domain {domain}"
-    ],
-    "ERROR": [
-        "HTTP 504 Gateway Timeout connecting to upstream upstream-{svc}:5432",
-        "PostgresConnectionException: connection refused on host 10.244.1.10:5432",
-        "OOMKilled: container exceeded memory limit of 1536MiB on pod {pod}",
-        "Failed to verify webhook HMAC signature from trigger source {src}",
-        "Readiness probe failed for container {ctr}: connection refused on port 8080"
-    ],
-    "DEBUG": [
-        "Cache hit for key 'sess:usr-01' from Redis in 0.8ms",
-        "Goroutine count: 184 | Memory allocated: 48.2MB",
-        "Ingress routing rule matched: path '/api/v1/*' -> service 'api-gateway:8000'",
-        "Evaluating auto-scale horizontal pod autoscaler: current=4, desired=4"
+    apps = [
+        {
+            "id": "app-api-gateway",
+            "name": "api-gateway",
+            "environment": "production",
+            "version": "v2.4.1",
+            "previous_version": "v2.4.0",
+            "replicas": 4,
+            "target_replicas": 4,
+            "status": "HEALTHY",
+            "health_percent": 100.0,
+            "error_rate_percent": 0.02,
+            "cpu_usage_m": 420,
+            "memory_usage_mb": 680,
+            "p95_latency_ms": 38.5,
+            "requests_per_sec": 4200,
+            "strategy": "RollingUpdate",
+            "image": "aravanta/api-gateway:v2.4.1",
+            "repository": "github.com/yashbaviskar15/acos-gateway",
+            "endpoints": ["https://api.aravanta.cloud", "https://arv-backend.vercel.app"],
+            "ports": [8000, 443],
+            "created_at": (now - timedelta(days=120)).isoformat() + "Z",
+            "last_deployed_at": (now - timedelta(hours=6)).isoformat() + "Z",
+            "env_vars": {"NODE_ENV": "production", "LOG_LEVEL": "info", "CACHE_TTL": "300"},
+        },
+        {
+            "id": "app-auth-service",
+            "name": "auth-service",
+            "environment": "production",
+            "version": "v1.9.0",
+            "previous_version": "v1.8.4",
+            "replicas": 3,
+            "target_replicas": 3,
+            "status": "HEALTHY",
+            "health_percent": 99.98,
+            "error_rate_percent": 0.01,
+            "cpu_usage_m": 280,
+            "memory_usage_mb": 420,
+            "p95_latency_ms": 24.1,
+            "requests_per_sec": 1850,
+            "strategy": "RollingUpdate",
+            "image": "aravanta/auth-service:v1.9.0",
+            "repository": "github.com/yashbaviskar15/acos-auth",
+            "endpoints": ["https://auth.aravanta.cloud/v1"],
+            "ports": [8080],
+            "created_at": (now - timedelta(days=90)).isoformat() + "Z",
+            "last_deployed_at": (now - timedelta(days=2)).isoformat() + "Z",
+            "env_vars": {"JWT_ALGORITHM": "HS256", "MFA_ENABLED": "true", "SESSION_TIMEOUT": "3600"},
+        },
+        {
+            "id": "app-web-console",
+            "name": "web-console",
+            "environment": "production",
+            "version": "v1.5.2",
+            "previous_version": "v1.5.1",
+            "replicas": 3,
+            "target_replicas": 3,
+            "status": "HEALTHY",
+            "health_percent": 100.0,
+            "error_rate_percent": 0.00,
+            "cpu_usage_m": 190,
+            "memory_usage_mb": 310,
+            "p95_latency_ms": 18.2,
+            "requests_per_sec": 3100,
+            "strategy": "Canary",
+            "image": "aravanta/web-console:v1.5.2",
+            "repository": "github.com/yashbaviskar15/acos-frontend",
+            "endpoints": ["https://arv-frontend.vercel.app", "https://console.aravanta.cloud"],
+            "ports": [3000, 80],
+            "created_at": (now - timedelta(days=100)).isoformat() + "Z",
+            "last_deployed_at": (now - timedelta(hours=14)).isoformat() + "Z",
+            "env_vars": {"VITE_API_URL": "https://arv-backend.vercel.app", "ENV": "production"},
+        },
+        {
+            "id": "app-telemetry-engine",
+            "name": "telemetry-engine",
+            "environment": "production",
+            "version": "v3.1.0",
+            "previous_version": "v3.0.2",
+            "replicas": 2,
+            "target_replicas": 2,
+            "status": "WARNING",
+            "health_percent": 96.4,
+            "error_rate_percent": 1.45,
+            "cpu_usage_m": 890,
+            "memory_usage_mb": 1420,
+            "p95_latency_ms": 145.0,
+            "requests_per_sec": 8900,
+            "strategy": "RollingUpdate",
+            "image": "aravanta/telemetry-engine:v3.1.0",
+            "repository": "github.com/yashbaviskar15/acos-telemetry",
+            "endpoints": ["https://metrics.aravanta.cloud/ingest"],
+            "ports": [9090, 4317],
+            "created_at": (now - timedelta(days=60)).isoformat() + "Z",
+            "last_deployed_at": (now - timedelta(hours=3)).isoformat() + "Z",
+            "env_vars": {"BUFFER_SIZE": "100000", "OTEL_EXPORTER": "prometheus"},
+        },
+        {
+            "id": "app-payment-worker",
+            "name": "payment-worker",
+            "environment": "staging",
+            "version": "v1.2.0-rc2",
+            "previous_version": "v1.1.9",
+            "replicas": 2,
+            "target_replicas": 2,
+            "status": "HEALTHY",
+            "health_percent": 100.0,
+            "error_rate_percent": 0.05,
+            "cpu_usage_m": 150,
+            "memory_usage_mb": 290,
+            "p95_latency_ms": 85.0,
+            "requests_per_sec": 450,
+            "strategy": "BlueGreen",
+            "image": "aravanta/payment-worker:v1.2.0-rc2",
+            "repository": "github.com/yashbaviskar15/acos-billing",
+            "endpoints": ["https://staging-billing.aravanta.cloud"],
+            "ports": [8085],
+            "created_at": (now - timedelta(days=45)).isoformat() + "Z",
+            "last_deployed_at": (now - timedelta(hours=1)).isoformat() + "Z",
+            "env_vars": {"STRIPE_SANDBOX": "true", "CURRENCY": "INR"},
+        }
     ]
+
+    deployments = [
+        {
+            "id": "dep-8842",
+            "application_id": "app-api-gateway",
+            "application_name": "api-gateway",
+            "environment": "production",
+            "version": "v2.4.1",
+            "previous_version": "v2.4.0",
+            "image": "aravanta/api-gateway:v2.4.1",
+            "strategy": "RollingUpdate",
+            "replicas": 4,
+            "status": "SUCCESSFUL",
+            "trigger": "git push (main)",
+            "commit_hash": "a4d13d8",
+            "commit_message": "feat(gateway): add circuit breaker timeout configuration",
+            "author": "yashbaviskar15",
+            "started_at": (now - timedelta(hours=6)).isoformat() + "Z",
+            "finished_at": (now - timedelta(hours=5, minutes=57)).isoformat() + "Z",
+            "duration_seconds": 180,
+            "steps": [
+                {"name": "Build Container Image", "status": "COMPLETED", "duration": "45s"},
+                {"name": "Vulnerability Security Scan (Trivy)", "status": "COMPLETED", "duration": "18s"},
+                {"name": "Deploy Canary Pods (25%)", "status": "COMPLETED", "duration": "35s"},
+                {"name": "Health Check & Metric Verification", "status": "COMPLETED", "duration": "30s"},
+                {"name": "Promote Full Rollout", "status": "COMPLETED", "duration": "52s"},
+            ]
+        },
+        {
+            "id": "dep-8841",
+            "application_id": "app-telemetry-engine",
+            "application_name": "telemetry-engine",
+            "environment": "production",
+            "version": "v3.1.0",
+            "previous_version": "v3.0.2",
+            "image": "aravanta/telemetry-engine:v3.1.0",
+            "strategy": "RollingUpdate",
+            "replicas": 2,
+            "status": "FAILED",
+            "trigger": "git push (main)",
+            "commit_hash": "e9b21f0",
+            "commit_message": "perf: increase telemetry batch queue to 50k items",
+            "author": "yashbaviskar15",
+            "started_at": (now - timedelta(hours=3, minutes=15)).isoformat() + "Z",
+            "finished_at": (now - timedelta(hours=3, minutes=11)).isoformat() + "Z",
+            "duration_seconds": 240,
+            "error_reason": "Health check failed: OOMKilled on pod telemetry-engine-79bf2a (RAM limit 1500MB exceeded)",
+            "steps": [
+                {"name": "Build Container Image", "status": "COMPLETED", "duration": "50s"},
+                {"name": "Deploy Canary Pods", "status": "COMPLETED", "duration": "40s"},
+                {"name": "Health Check Verification", "status": "FAILED", "duration": "150s"},
+                {"name": "Automatic Safe Rollback", "status": "COMPLETED", "duration": "25s"},
+            ]
+        },
+        {
+            "id": "dep-8840",
+            "application_id": "app-web-console",
+            "application_name": "web-console",
+            "environment": "production",
+            "version": "v1.5.2",
+            "previous_version": "v1.5.1",
+            "image": "aravanta/web-console:v1.5.2",
+            "strategy": "Canary",
+            "replicas": 3,
+            "status": "SUCCESSFUL",
+            "trigger": "manual release",
+            "commit_hash": "7f8b186",
+            "commit_message": "feat(console): redesign operations dashboard with human UX",
+            "author": "yashbaviskar15",
+            "started_at": (now - timedelta(hours=14)).isoformat() + "Z",
+            "finished_at": (now - timedelta(hours=13, minutes=58)).isoformat() + "Z",
+            "duration_seconds": 120,
+            "steps": [
+                {"name": "Build Vite SPA Bundle", "status": "COMPLETED", "duration": "38s"},
+                {"name": "CDN Asset Cache Purge", "status": "COMPLETED", "duration": "12s"},
+                {"name": "Canary Verification (25%)", "status": "COMPLETED", "duration": "40s"},
+                {"name": "Global CDN Ingress Cutover", "status": "COMPLETED", "duration": "30s"},
+            ]
+        }
+    ]
+
+    containers = [
+        {"id": "pod-api-gw-7b94", "name": "api-gateway-7b94a8f9-x2k9l", "app_name": "api-gateway", "environment": "production", "node": "worker-pool-01.arv-prod", "status": "RUNNING", "cpu_percent": 18.4, "memory_mb": 172, "restarts": 0, "uptime": "14d 6h"},
+        {"id": "pod-api-gw-7b95", "name": "api-gateway-7b94a8f9-m8q1w", "app_name": "api-gateway", "environment": "production", "node": "worker-pool-02.arv-prod", "status": "RUNNING", "cpu_percent": 21.0, "memory_mb": 180, "restarts": 0, "uptime": "14d 6h"},
+        {"id": "pod-auth-8f12", "name": "auth-service-5d6b4c-9p4z1", "app_name": "auth-service", "environment": "production", "node": "worker-pool-01.arv-prod", "status": "RUNNING", "cpu_percent": 12.5, "memory_mb": 140, "restarts": 0, "uptime": "28d 12h"},
+        {"id": "pod-telemetry-01", "name": "telemetry-engine-79bf-k91la", "app_name": "telemetry-engine", "environment": "production", "node": "worker-pool-03.arv-prod", "status": "RUNNING", "cpu_percent": 74.2, "memory_mb": 710, "restarts": 2, "uptime": "3h 15m"},
+        {"id": "pod-web-01", "name": "web-console-6c8a2b-w9z1a", "app_name": "web-console", "environment": "production", "node": "worker-pool-02.arv-prod", "status": "RUNNING", "cpu_percent": 8.1, "memory_mb": 105, "restarts": 0, "uptime": "14h 2m"},
+    ]
+
+    logs = [
+        {"id": "log-01", "timestamp": (now - timedelta(seconds=12)).isoformat() + "Z", "level": "INFO", "service": "api-gateway", "container": "api-gateway-7b94", "message": "HTTP 200 GET /api/v1/operations/inventory duration=14ms client_ip=203.0.113.19", "environment": "production"},
+        {"id": "log-02", "timestamp": (now - timedelta(seconds=28)).isoformat() + "Z", "level": "INFO", "service": "auth-service", "container": "auth-service-5d6b", "message": "JWT access token successfully issued for subject=yashbaviskar67@gmail.com role=SuperAdmin", "environment": "production"},
+        {"id": "log-03", "timestamp": (now - timedelta(seconds=45)).isoformat() + "Z", "level": "WARN", "service": "telemetry-engine", "container": "telemetry-engine-79bf", "message": "Timeseries ingestion queue buffer at 78% capacity (78,400/100,000 metrics)", "environment": "production"},
+        {"id": "log-04", "timestamp": (now - timedelta(seconds=70)).isoformat() + "Z", "level": "INFO", "service": "web-console", "container": "web-console-6c8a", "message": "SSR page hydration complete for path /dashboard in 28ms", "environment": "production"},
+        {"id": "log-05", "timestamp": (now - timedelta(seconds=110)).isoformat() + "Z", "level": "ERROR", "service": "postgres-primary", "container": "db-cluster-node-01", "message": "Slow query detected (2450ms): SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 5000", "environment": "production"},
+    ]
+
+    incidents = [
+        {
+            "id": "inc-2026-001",
+            "title": "High Memory Pressure & OOM Throttling on Telemetry Ingestion Node",
+            "severity": "P2",
+            "status": "Investigating",
+            "affected_service": "telemetry-engine",
+            "commander": "Yash Baviskar",
+            "detected_at": (now - timedelta(hours=1, minutes=45)).isoformat() + "Z",
+            "resolved_at": None,
+            "timeline": [
+                {"timestamp": (now - timedelta(hours=1, minutes=45)).isoformat() + "Z", "event": "Prometheus alert rule MemoryThresholdExceeded fired (>85%)"},
+                {"timestamp": (now - timedelta(hours=1, minutes=30)).isoformat() + "Z", "event": "On-call engineer acknowledged incident and engaged war-room"},
+                {"timestamp": (now - timedelta(hours=1, minutes=15)).isoformat() + "Z", "event": "HPA horizontal autoscaling triggered. Provisioning 2 additional pod replicas"},
+            ],
+            "rca_notes": "Queue buffer exceeded target threshold during traffic spike. Investigating memory leak in Protobuf deserializer."
+        }
+    ]
+
+    workflows = [
+        {
+            "id": "wf-auto-scale-cpu",
+            "name": "Auto-Scale Replicas on CPU Spikes",
+            "description": "Monitors container CPU threshold across production pods. If sustained load exceeds 80% for 3m, scales replica count +2 and dispatches Slack notification.",
+            "trigger": "Prometheus Metric Trigger (CPU > 80%)",
+            "target": "Production Pod Fleet",
+            "status": "ACTIVE",
+            "last_run": (now - timedelta(hours=4)).isoformat() + "Z",
+            "last_status": "SUCCESSFUL",
+            "duration": "42s",
+            "run_count": 28,
+            "actions": ["Evaluate CPU Load", "Scale Horizontal Replicas", "Verify Health Probes", "Send Slack Notification"]
+        },
+        {
+            "id": "wf-db-nightly-backup",
+            "name": "Postgres Managed Cluster Snapshot & WAL Archival",
+            "description": "Executes daily point-in-time snapshot of production databases, validates checksum against S3 storage, and purges logs older than 30 days.",
+            "trigger": "Cron Schedule (0 2 * * *)",
+            "target": "Managed DB (Postgres Primary)",
+            "status": "ACTIVE",
+            "last_run": (now - timedelta(hours=18)).isoformat() + "Z",
+            "last_status": "SUCCESSFUL",
+            "duration": "3m 12s",
+            "run_count": 142,
+            "actions": ["Lock Writes (5s)", "Generate EBS Snapshot", "Upload to ArvStore S3", "Verify SHA-256 Checksum", "Unlock Database"]
+        }
+    ]
+
+    backups = [
+        {
+            "id": "bkp-pg-prod-20260901",
+            "resource_name": "postgres-primary-prod",
+            "resource_type": "Managed Database (Postgres 16.2)",
+            "size_gb": 48.5,
+            "region": "arv-ap-south-1 (Mumbai)",
+            "created_at": (now - timedelta(hours=18)).isoformat() + "Z",
+            "status": "COMPLETED",
+            "retention_days": 30,
+            "storage_tier": "ArvStore Hot Storage (AES-256)",
+            "checksum": "sha256:7f8b1864e29c01f4",
+        },
+        {
+            "id": "bkp-k8s-state-20260901",
+            "resource_name": "k8s-cluster-prod-state",
+            "resource_type": "Kubernetes Cluster Etcd & Manifests",
+            "size_gb": 4.2,
+            "region": "arv-ap-south-1 (Mumbai)",
+            "created_at": (now - timedelta(hours=22)).isoformat() + "Z",
+            "status": "COMPLETED",
+            "retention_days": 14,
+            "storage_tier": "ArvStore Hot Storage (AES-256)",
+            "checksum": "sha256:a4d13d87b5c19e02",
+        }
+    ]
+
+    infrastructure = [
+        {"id": "vm-prod-node-01", "name": "prod-node-01.mumbai", "type": "Compute VM", "provider": "AWS / EC2 (c6i.2xlarge)", "region": "ap-south-1 (Mumbai)", "env": "production", "status": "RUNNING", "specs": "8 vCPU, 16GB RAM, 200GB NVMe", "uptime": "99.98% (42d 18h)", "tags": {"team": "infrastructure", "tier": "backend"}},
+        {"id": "vm-prod-node-02", "name": "prod-node-02.mumbai", "type": "Compute VM", "provider": "AWS / EC2 (c6i.2xlarge)", "region": "ap-south-1 (Mumbai)", "env": "production", "status": "RUNNING", "specs": "8 vCPU, 16GB RAM, 200GB NVMe", "uptime": "99.98% (42d 18h)", "tags": {"team": "infrastructure", "tier": "backend"}},
+        {"id": "k8s-prod-cluster", "name": "arv-k8s-prod-cluster", "type": "Kubernetes Cluster", "provider": "AWS / EKS (v1.29)", "region": "ap-south-1 (Mumbai)", "env": "production", "status": "RUNNING", "specs": "3 Node Pools (12 Worker Nodes)", "uptime": "99.99% (89d)", "tags": {"env": "production", "orchestrator": "kubernetes"}},
+        {"id": "db-pg-primary", "name": "arv-db-postgres-primary", "type": "Managed Database", "provider": "GCP / Cloud SQL (Postgres 16)", "region": "asia-south1 (Mumbai)", "env": "production", "status": "RUNNING", "specs": "4 vCPU, 16GB RAM, 500GB SSD (Multi-AZ)", "uptime": "99.99% (120d)", "tags": {"tier": "data-layer", "ha": "active-standby"}},
+        {"id": "s3-bucket-assets", "name": "arv-production-assets", "type": "Object Storage", "provider": "AWS / S3 (Standard)", "region": "ap-south-1 (Mumbai)", "env": "production", "status": "RUNNING", "specs": "14.2 TB Stored / 4.8M Objects", "uptime": "100.0%", "tags": {"security": "encrypted-kms", "lifecycle": "active"}},
+    ]
+
+    notifications = [
+        {"id": "notif-01", "title": "Deployment Successful", "message": "api-gateway v2.4.1 rollout completed successfully across 4 pods.", "type": "deployment", "read": False, "created_at": (now - timedelta(hours=6)).isoformat() + "Z"},
+        {"id": "notif-02", "title": "High Memory Warning", "message": "telemetry-engine RAM utilization reached 78% of capacity threshold.", "type": "alert", "read": False, "created_at": (now - timedelta(hours=1, minutes=45)).isoformat() + "Z"},
+        {"id": "notif-03", "title": "Nightly Backup Completed", "message": "Snapshot bkp-pg-prod-20260901 verified with SHA-256 checksum.", "type": "backup", "read": True, "created_at": (now - timedelta(hours=18)).isoformat() + "Z"},
+    ]
+
+    payment_methods = [
+        {"id": "pm_card_01", "brand": "visa", "last4": "4242", "exp_month": 12, "exp_year": 2028, "is_default": True, "holder_name": "Yash Baviskar"},
+        {"id": "pm_card_02", "brand": "mastercard", "last4": "8894", "exp_month": 8, "exp_year": 2027, "is_default": False, "holder_name": "Yash Baviskar"},
+    ]
+
+    invoices = [
+        {"id": "INV-2026-0901", "date": "2026-09-01", "period": "Aug 01, 2026 - Aug 31, 2026", "amount_inr": 2499, "status": "PAID", "payment_method": "Visa ending in 4242", "download_url": "/api/v1/operations/billing/invoices/INV-2026-0901/pdf"},
+        {"id": "INV-2026-0801", "date": "2026-08-01", "period": "Jul 01, 2026 - Jul 31, 2026", "amount_inr": 2499, "status": "PAID", "payment_method": "Visa ending in 4242", "download_url": "/api/v1/operations/billing/invoices/INV-2026-0801/pdf"},
+        {"id": "INV-2026-0701", "date": "2026-07-01", "period": "Jun 01, 2026 - Jun 30, 2026", "amount_inr": 2499, "status": "PAID", "payment_method": "Visa ending in 4242", "download_url": "/api/v1/operations/billing/invoices/INV-2026-0701/pdf"},
+    ]
+
+    usage = {
+        "plan_name": "Team Cloud Operations",
+        "plan_code": "team",
+        "billing_cycle": "monthly",
+        "price_inr": 2499,
+        "renewal_date": (now + timedelta(days=29)).strftime("%B %d, %Y"),
+        "metrics": {
+            "vcpu_used": 24, "vcpu_limit": 64,
+            "ram_gb_used": 48, "ram_gb_limit": 128,
+            "storage_gb_used": 1420, "storage_gb_limit": 5000,
+            "deployments_month": 48, "deployments_limit": 200,
+            "bandwidth_gb_used": 340, "bandwidth_gb_limit": 1000
+        }
+    }
+
+    return {
+        "workspace_name": workspace_name,
+        "applications": {app["id"]: app for app in apps},
+        "deployments": deployments,
+        "containers": containers,
+        "logs": logs,
+        "incidents": incidents,
+        "workflows": workflows,
+        "backups": backups,
+        "infrastructure": infrastructure,
+        "notifications": notifications,
+        "payment_methods": payment_methods,
+        "invoices": invoices,
+        "usage": usage,
+    }
+
+# Master multi-tenant store dictionary
+_workspaces: Dict[str, dict] = {
+    "default": _create_seed_workspace_data("Production Cloud Ops"),
 }
 
-def _generate_logs(count: int = 150) -> list[dict]:
-    logs = []
-    now = datetime.utcnow()
-    for i in range(count):
-        level = random.choices(["INFO", "INFO", "INFO", "WARN", "ERROR", "DEBUG"], weights=[50, 20, 15, 8, 4, 3])[0]
-        svc = random.choice(_LOG_SERVICES)
-        template = random.choice(_LOG_TEMPLATES[level])
-        msg = template.format(
-            method=random.choice(["GET", "POST", "PUT", "DELETE"]),
-            path=random.choice(["/api/v1/auth/login", "/api/v1/compute/instances", "/api/v1/kubernetes/pods", "/api/v1/monitoring/metrics", "/api/v1/storage/objects"]),
-            ms=round(random.uniform(2.5, 450.0), 1),
-            email="developer@aravanta.cloud",
-            role="SuperAdmin",
-            count=random.randint(4, 50),
-            ip=f"203.0.113.{random.randint(10, 250)}",
-            node=f"node-us-east-1{random.choice(['a', 'b', 'c'])}",
-            domain="arv-backend.vercel.app",
-            svc=svc,
-            pod=f"{svc}-7b9f8-{random.randint(100, 999)}",
-            src="github-actions",
-            ctr=f"ctr-{svc}-01"
-        )
-        ts = now - timedelta(seconds=(count - i) * random.randint(2, 45))
-        logs.append({
-            "id": f"log-{hashlib.md5(f'{i}-{ts.isoformat()}'.encode()).hexdigest()[:10]}",
-            "timestamp": ts.isoformat() + "Z",
-            "level": level,
-            "service": svc,
-            "container": f"{svc}-7b9f8",
-            "message": msg,
-            "environment": random.choice(["production", "production", "staging"])
-        })
-    return sorted(logs, key=lambda x: x["timestamp"], reverse=True)
-
-_cached_logs = _generate_logs(200)
+def _get_workspace_store(workspace_id: Optional[str] = None) -> dict:
+    key = workspace_id.strip() if workspace_id and workspace_id.strip() else "default"
+    if key not in _workspaces:
+        _workspaces[key] = _create_seed_workspace_data(workspace_name=f"Workspace {key}", is_demo=False)
+    return _workspaces[key]
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Request/Response Schemas
+# Request Models
 # ─────────────────────────────────────────────────────────────────────────────
 
-class ScaleAppRequest(BaseModel):
-    replicas: int = Field(..., ge=0, le=20)
+class ApplicationCreate(BaseModel):
+    name: str = Field(..., example="order-service")
+    environment: str = Field("production", example="production")
+    version: str = Field("v1.0.0", example="v1.0.0")
+    replicas: int = Field(2, ge=1, le=20)
+    strategy: str = Field("RollingUpdate", example="RollingUpdate")
+    image: str = Field(..., example="aravanta/order-service:v1.0.0")
+    repository: str = Field("github.com/yashbaviskar15/acos-service", example="github.com/yashbaviskar15/acos-service")
+    ports: List[int] = Field([8080], example=[8080])
+    env_vars: Optional[Dict[str, str]] = Field(default_factory=dict)
 
-class DeployAppRequest(BaseModel):
-    version: str
-    image: str
-    environment: str = "production"
-    strategy: str = "RollingUpdate"
-    replicas: int = 3
-    change_summary: str = "Production deployment release"
+class ApplicationScale(BaseModel):
+    replicas: int = Field(..., ge=0, le=50)
 
-class RollbackRequest(BaseModel):
-    target_version: Optional[str] = None
-    reason: str = "Automated or operator initiated rollback"
+class ApplicationRollback(BaseModel):
+    target_version: str = Field(..., example="v2.4.0")
+    reason: Optional[str] = "Operator initiated emergency rollback"
 
-class ContainerActionRequest(BaseModel):
-    action: str = Field(..., description="start, stop, restart, terminate")
+class DeploymentTrigger(BaseModel):
+    version: str = Field(..., example="v2.5.0")
+    image: str = Field(..., example="aravanta/api-gateway:v2.5.0")
+    environment: str = Field("production", example="production")
+    strategy: str = Field("RollingUpdate", example="RollingUpdate")
+    replicas: int = Field(4, ge=1, le=20)
+    change_summary: Optional[str] = "Release update"
 
-class CreateIncidentRequest(BaseModel):
-    title: str
-    severity: str = "P2 - Major"
-    affected_services: List[str]
-    summary: str
-    commander: str = "Yash Baviskar"
+class IncidentCreate(BaseModel):
+    title: str = Field(..., example="Database replication latency degradation")
+    severity: str = Field("P2", example="P2")
+    affected_service: str = Field(..., example="postgres-primary")
+    commander: str = Field("Yash Baviskar", example="Yash Baviskar")
+    initial_note: Optional[str] = "Degraded write performance observed across secondary nodes"
 
-class UpdateIncidentRequest(BaseModel):
-    status: Optional[str] = None
-    root_cause: Optional[str] = None
-    summary: Optional[str] = None
+class IncidentTransition(BaseModel):
+    status: str = Field(..., example="Mitigating")
+    note: Optional[str] = None
 
-class AddIncidentTimelineRequest(BaseModel):
-    author: str
-    note: str
-    type: str = "NOTE"
+class IncidentTimelineEvent(BaseModel):
+    event: str = Field(..., example="HPA autoscaler increased worker pods to 8 replicas")
 
-class CreateBackupRequest(BaseModel):
-    resource_type: str
-    resource_name: str
-    retention_days: int = 30
+class IncidentRCA(BaseModel):
+    rca_notes: str
+
+class PaymentMethodAdd(BaseModel):
+    brand: str = Field("visa", example="visa")
+    last4: str = Field(..., example="4242")
+    exp_month: int = Field(..., ge=1, le=12)
+    exp_year: int = Field(..., ge=2024, le=2040)
+    holder_name: str = Field(..., example="Yash Baviskar")
+    set_as_default: bool = False
+
+class PlanChangeRequest(BaseModel):
+    plan_code: str = Field(..., example="team")
+    billing_cycle: str = Field("monthly", example="monthly")
+
+class ProvisionResourceRequest(BaseModel):
+    name: str = Field(..., example="worker-node-04.mumbai")
+    type: str = Field("Compute VM", example="Compute VM")
+    provider: str = Field("AWS / EC2", example="AWS / EC2")
+    region: str = Field("ap-south-1 (Mumbai)", example="ap-south-1 (Mumbai)")
+    env: str = Field("production", example="production")
+    specs: str = Field("8 vCPU, 16GB RAM, 200GB NVMe", example="8 vCPU, 16GB RAM, 200GB NVMe")
+    tags: Optional[Dict[str, str]] = Field(default_factory=dict)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 1. Applications Endpoints
+# 1. Applications Workloads Catalog
 # ─────────────────────────────────────────────────────────────────────────────
 
-@router.get("/applications")
-def list_applications(environment: Optional[str] = None):
-    apps = list(_applications.values())
+@router.get("/applications", summary="List microservices workloads")
+def list_applications(
+    environment: Optional[str] = None,
+    status_filter: Optional[str] = Query(None, alias="status"),
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+):
+    ws = _get_workspace_store(workspace_id)
+    apps = list(ws["applications"].values())
     if environment:
         apps = [a for a in apps if a["environment"].lower() == environment.lower()]
+    if status_filter:
+        apps = [a for a in apps if a["status"].lower() == status_filter.lower()]
     return apps
 
-@router.get("/applications/{app_id}")
-def get_application(app_id: str):
-    if app_id not in _applications:
-        raise HTTPException(status_code=404, detail="Application not found")
-    app = _applications[app_id]
-    recent_deps = [d for d in _deployments if d["application_id"] == app_id][:5]
-    app_containers = [c for c in _containers if c["app"] == app["name"]]
-    return {
-        **app,
-        "recent_deployments": recent_deps,
-        "containers": app_containers,
-        "events": [
-            {"type": "Normal", "reason": "Scaled", "message": f"Successfully scaled to {app['replicas']} replicas", "timestamp": app["last_deployed_at"]},
-            {"type": "Normal", "reason": "Healthy", "message": "All readiness and liveness probes passing", "timestamp": datetime.utcnow().isoformat() + "Z"}
-        ]
+@router.post("/applications", status_code=status.HTTP_201_CREATED, summary="Create microservice")
+def create_application(
+    body: ApplicationCreate,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+):
+    ws = _get_workspace_store(workspace_id)
+    app_id = f"app-{body.name.lower().replace(' ', '-')}"
+    now = datetime.utcnow().isoformat() + "Z"
+    new_app = {
+        "id": app_id,
+        "name": body.name,
+        "environment": body.environment,
+        "version": body.version,
+        "previous_version": None,
+        "replicas": body.replicas,
+        "target_replicas": body.replicas,
+        "status": "HEALTHY",
+        "health_percent": 100.0,
+        "error_rate_percent": 0.0,
+        "cpu_usage_m": 120,
+        "memory_usage_mb": 250,
+        "p95_latency_ms": 15.0,
+        "requests_per_sec": 120,
+        "strategy": body.strategy,
+        "image": body.image,
+        "repository": body.repository,
+        "endpoints": [f"https://{body.name}.aravanta.cloud"],
+        "ports": body.ports,
+        "created_at": now,
+        "last_deployed_at": now,
+        "env_vars": body.env_vars or {},
     }
+    ws["applications"][app_id] = new_app
+    return new_app
 
-@router.post("/applications/{app_id}/scale")
-def scale_application(app_id: str, req: ScaleAppRequest):
-    if app_id not in _applications:
-        raise HTTPException(status_code=404, detail="Application not found")
-    app = _applications[app_id]
-    app["replicas"] = req.replicas
-    app["target_replicas"] = req.replicas
-    app["last_deployed_at"] = datetime.utcnow().isoformat() + "Z"
-    return {"message": f"Application {app['name']} scaled to {req.replicas} replicas", "application": app}
+@router.get("/applications/{app_id}", summary="Get application details")
+def get_application(app_id: str, workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+    ws = _get_workspace_store(workspace_id)
+    if app_id not in ws["applications"]:
+        raise HTTPException(status_code=404, detail=f"Application {app_id} not found")
+    return ws["applications"][app_id]
 
-@router.post("/applications/{app_id}/restart")
-def restart_application(app_id: str):
-    if app_id not in _applications:
-        raise HTTPException(status_code=404, detail="Application not found")
-    app = _applications[app_id]
-    app["status"] = "UPDATING"
-    app["last_deployed_at"] = datetime.utcnow().isoformat() + "Z"
-    dep_id = f"dep-{random.randint(8900, 9999)}"
+@router.post("/applications/{app_id}/scale", summary="Scale application replicas")
+def scale_application(
+    app_id: str, 
+    body: ApplicationScale,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+):
+    ws = _get_workspace_store(workspace_id)
+    if app_id not in ws["applications"]:
+        raise HTTPException(status_code=404, detail=f"Application {app_id} not found")
+    app = ws["applications"][app_id]
+    app["target_replicas"] = body.replicas
+    app["replicas"] = body.replicas
+    if body.replicas == 0:
+        app["status"] = "STOPPED"
+        app["health_percent"] = 0.0
+    else:
+        app["status"] = "HEALTHY"
+        app["health_percent"] = 100.0
+    return {"message": f"Scaled {app['name']} to {body.replicas} replicas", "application": app}
+
+@router.post("/applications/{app_id}/restart", summary="Rolling restart of application")
+def restart_application(app_id: str, workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+    ws = _get_workspace_store(workspace_id)
+    if app_id not in ws["applications"]:
+        raise HTTPException(status_code=404, detail=f"Application {app_id} not found")
+    app = ws["applications"][app_id]
+    app["status"] = "HEALTHY"
+    app["health_percent"] = 100.0
+    return {"message": f"Rolling restart completed for {app['name']} across {app['replicas']} pods"}
+
+@router.post("/applications/{app_id}/rollback", summary="Rollback application version")
+def rollback_application(
+    app_id: str, 
+    body: ApplicationRollback,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+):
+    ws = _get_workspace_store(workspace_id)
+    if app_id not in ws["applications"]:
+        raise HTTPException(status_code=404, detail=f"Application {app_id} not found")
+    app = ws["applications"][app_id]
+    current = app["version"]
+    app["version"] = body.target_version
+    app["previous_version"] = current
+    app["status"] = "HEALTHY"
+    app["health_percent"] = 100.0
+    app["error_rate_percent"] = 0.01
+    return {"message": f"Successfully rolled back {app['name']} to {body.target_version}", "application": app}
+
+@router.delete("/applications/{app_id}", summary="Delete application")
+def delete_application(app_id: str, workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+    ws = _get_workspace_store(workspace_id)
+    if app_id not in ws["applications"]:
+        raise HTTPException(status_code=404, detail=f"Application {app_id} not found")
+    del ws["applications"][app_id]
+    return {"message": f"Application {app_id} deleted successfully"}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. Deployments & GitOps Pipeline
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/deployments", summary="List deployment release history")
+def list_deployments(
+    application_id: Optional[str] = None,
+    environment: Optional[str] = None,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+):
+    ws = _get_workspace_store(workspace_id)
+    deps = ws["deployments"]
+    if application_id:
+        deps = [d for d in deps if d.get("application_id") == application_id]
+    if environment:
+        deps = [d for d in deps if d.get("environment") == environment]
+    return deps
+
+@router.post("/deployments", status_code=status.HTTP_201_CREATED, summary="Trigger deployment")
+def trigger_deployment(
+    body: DeploymentTrigger,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+):
+    ws = _get_workspace_store(workspace_id)
+    dep_id = f"dep-{random.randint(8850, 9999)}"
+    now = datetime.utcnow().isoformat() + "Z"
     new_dep = {
         "id": dep_id,
-        "application_id": app_id,
-        "application_name": app["name"],
-        "environment": app["environment"],
-        "version": app["version"],
-        "previous_version": app["version"],
-        "image": app["image"],
-        "strategy": "RollingRestart",
-        "replicas": app["replicas"],
+        "application_id": "app-api-gateway",
+        "application_name": body.image.split(":")[0].split("/")[-1],
+        "environment": body.environment,
+        "version": body.version,
+        "previous_version": "v2.4.0",
+        "image": body.image,
+        "strategy": body.strategy,
+        "replicas": body.replicas,
         "status": "SUCCESSFUL",
-        "trigger": "operator rolling restart",
-        "commit_hash": hashlib.md5(datetime.utcnow().isoformat().encode()).hexdigest()[:7],
-        "commit_message": f"chore: rolling restart initiated for {app['name']}",
-        "author": "Yash Baviskar",
-        "started_at": datetime.utcnow().isoformat() + "Z",
+        "trigger": "manual release",
+        "commit_hash": f"{uuid.uuid4().hex[:7]}",
+        "commit_message": body.change_summary or "Release update",
+        "author": "Operator",
+        "started_at": now,
         "finished_at": (datetime.utcnow() + timedelta(seconds=45)).isoformat() + "Z",
         "duration_seconds": 45,
         "steps": [
-            {"name": "Drain Pod Traffic", "status": "COMPLETED", "duration": "15s"},
-            {"name": "Rolling Pod Recreation", "status": "COMPLETED", "duration": "20s"},
-            {"name": "Health Probe Verification", "status": "COMPLETED", "duration": "10s"},
+            {"name": "Build Container Image", "status": "COMPLETED", "duration": "20s"},
+            {"name": "Pre-flight Security Scan", "status": "COMPLETED", "duration": "10s"},
+            {"name": "Deploy Pods", "status": "COMPLETED", "duration": "15s"},
         ]
     }
-    _deployments.insert(0, new_dep)
-    app["status"] = "HEALTHY"
-    return {"message": f"Rolling restart completed for {app['name']}", "deployment": new_dep}
-
-@router.post("/applications/{app_id}/rollback")
-def rollback_application(app_id: str, req: RollbackRequest):
-    if app_id not in _applications:
-        raise HTTPException(status_code=404, detail="Application not found")
-    app = _applications[app_id]
-    target_ver = req.target_version or app.get("previous_version", "v1.0.0")
-    old_curr = app["version"]
-    
-    app["version"] = target_ver
-    app["previous_version"] = old_curr
-    app["status"] = "HEALTHY"
-    app["last_deployed_at"] = datetime.utcnow().isoformat() + "Z"
-    
-    dep_id = f"dep-{random.randint(8900, 9999)}"
-    rollback_dep = {
-        "id": dep_id,
-        "application_id": app_id,
-        "application_name": app["name"],
-        "environment": app["environment"],
-        "version": target_ver,
-        "previous_version": old_curr,
-        "image": f"aravanta/{app['name']}:{target_ver}",
-        "strategy": "Rollback",
-        "replicas": app["replicas"],
-        "status": "ROLLED_BACK",
-        "trigger": f"rollback: {req.reason}",
-        "commit_hash": hashlib.md5(target_ver.encode()).hexdigest()[:7],
-        "commit_message": f"rollback: reverted {app['name']} to stable release {target_ver}",
-        "author": "Yash Baviskar",
-        "started_at": datetime.utcnow().isoformat() + "Z",
-        "finished_at": datetime.utcnow().isoformat() + "Z",
-        "duration_seconds": 60,
-        "steps": [
-            {"name": "Stop Active Canary Traffic", "status": "COMPLETED", "duration": "10s"},
-            {"name": f"Restore Deployment to {target_ver}", "status": "COMPLETED", "duration": "35s"},
-            {"name": "Verify 0 Error Rate", "status": "COMPLETED", "duration": "15s"},
-        ]
-    }
-    _deployments.insert(0, rollback_dep)
-    return {"message": f"Application {app['name']} successfully rolled back to {target_ver}", "deployment": rollback_dep}
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 2. Deployments Endpoints
-# ─────────────────────────────────────────────────────────────────────────────
-
-@router.get("/deployments")
-def list_deployments(environment: Optional[str] = None, status: Optional[str] = None):
-    deps = _deployments
-    if environment:
-        deps = [d for d in deps if d["environment"].lower() == environment.lower()]
-    if status:
-        deps = [d for d in deps if d["status"].lower() == status.lower()]
-    return deps
-
-@router.post("/deployments", status_code=status.HTTP_201_CREATED)
-def trigger_deployment(req: DeployAppRequest):
-    app_id = f"app-{req.version.replace('.', '-')}"
-    for aid, a in _applications.items():
-        if a["image"].split(":")[0] == req.image.split(":")[0]:
-            app_id = aid
-            break
-
-    dep_id = f"dep-{random.randint(8900, 9999)}"
-    new_dep = {
-        "id": dep_id,
-        "application_id": app_id,
-        "application_name": req.image.split(":")[0].replace("aravanta/", ""),
-        "environment": req.environment,
-        "version": req.version,
-        "previous_version": _applications.get(app_id, {}).get("version", "v1.0.0"),
-        "image": req.image,
-        "strategy": req.strategy,
-        "replicas": req.replicas,
-        "status": "SUCCESSFUL",
-        "trigger": "operator manual deploy",
-        "commit_hash": hashlib.md5(req.version.encode()).hexdigest()[:7],
-        "commit_message": req.change_summary,
-        "author": "Yash Baviskar",
-        "started_at": datetime.utcnow().isoformat() + "Z",
-        "finished_at": (datetime.utcnow() + timedelta(seconds=110)).isoformat() + "Z",
-        "duration_seconds": 110,
-        "steps": [
-            {"name": "Pull Container Image from Registry", "status": "COMPLETED", "duration": "25s"},
-            {"name": "Execute Pre-flight Security Scan", "status": "COMPLETED", "duration": "15s"},
-            {"name": f"Apply {req.strategy} Deployment Strategy", "status": "COMPLETED", "duration": "50s"},
-            {"name": "Verify HTTP 200 Health Probes", "status": "COMPLETED", "duration": "20s"},
-        ]
-    }
-    _deployments.insert(0, new_dep)
-
-    if app_id in _applications:
-        _applications[app_id]["previous_version"] = _applications[app_id]["version"]
-        _applications[app_id]["version"] = req.version
-        _applications[app_id]["image"] = req.image
-        _applications[app_id]["last_deployed_at"] = datetime.utcnow().isoformat() + "Z"
-        _applications[app_id]["status"] = "HEALTHY"
-
+    ws["deployments"].insert(0, new_dep)
     return new_dep
 
-@router.post("/deployments/{dep_id}/rollback")
-def rollback_deployment_by_id(dep_id: str):
-    target = None
-    for d in _deployments:
-        if d["id"] == dep_id:
-            target = d
-            break
-    if not target:
-        raise HTTPException(status_code=404, detail="Deployment record not found")
-    
-    app_id = target["application_id"]
-    if app_id in _applications:
-        return rollback_application(app_id, RollbackRequest(target_version=target.get("previous_version"), reason=f"Rollback of deployment {dep_id}"))
-    
-    target["status"] = "ROLLED_BACK"
-    return {"message": f"Deployment {dep_id} marked as rolled back", "deployment": target}
-
 # ─────────────────────────────────────────────────────────────────────────────
-# 3. Containers Endpoints
+# 3. Containers Fleet Management
 # ─────────────────────────────────────────────────────────────────────────────
 
-@router.get("/containers")
-def list_containers():
-    return _containers
+@router.get("/containers", summary="List live Kubernetes pod fleet")
+def list_containers(
+    app_name: Optional[str] = None,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+):
+    ws = _get_workspace_store(workspace_id)
+    containers = ws["containers"]
+    if app_name:
+        containers = [c for c in containers if c.get("app_name") == app_name]
+    return containers
 
-@router.post("/containers/{container_id}/action")
-def perform_container_action(container_id: str, req: ContainerActionRequest):
-    for c in _containers:
+@router.post("/containers/{container_id}/restart", summary="Restart individual pod")
+def restart_container(container_id: str, workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+    return {"message": f"Pod {container_id} restart signal sent. Health probe passing."}
+
+@router.post("/containers/{container_id}/stop", summary="Stop individual pod")
+def stop_container(container_id: str, workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+    ws = _get_workspace_store(workspace_id)
+    for c in ws["containers"]:
         if c["id"] == container_id:
-            action = req.action.lower()
-            if action == "restart":
-                c["status"] = "RUNNING"
-                c["restarts"] += 1
-                c["uptime"] = "1m"
-            elif action == "stop":
-                c["status"] = "STOPPED"
-                c["cpu_pct"] = 0.0
-            elif action == "start":
-                c["status"] = "RUNNING"
-                c["uptime"] = "1m"
-            elif action == "terminate":
-                c["status"] = "TERMINATED"
-            return {"message": f"Container {container_id} action '{action}' executed successfully", "container": c}
-    raise HTTPException(status_code=404, detail="Container not found")
-
-@router.get("/containers/{container_id}/logs")
-def get_container_logs(container_id: str):
-    return [
-        {"timestamp": (datetime.utcnow() - timedelta(minutes=5)).isoformat() + "Z", "stream": "stdout", "log": f"Starting container {container_id} PID 1..."},
-        {"timestamp": (datetime.utcnow() - timedelta(minutes=4)).isoformat() + "Z", "stream": "stdout", "log": "Listening on 0.0.0.0:8000 (HTTP/1.1)"},
-        {"timestamp": (datetime.utcnow() - timedelta(minutes=2)).isoformat() + "Z", "stream": "stdout", "log": "Readiness probe HTTP /health returned 200 OK"},
-        {"timestamp": (datetime.utcnow() - timedelta(minutes=1)).isoformat() + "Z", "stream": "stdout", "log": "Ingesting active connection traffic"},
-    ]
+            c["status"] = "STOPPED"
+    return {"message": f"Pod {container_id} terminated."}
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 4. Log Explorer Endpoints
+# 4. Log Explorer Stream
 # ─────────────────────────────────────────────────────────────────────────────
 
-@router.get("/logs")
-def query_logs(
-    query: Optional[str] = None,
+@router.get("/logs", summary="Stream operational logs")
+def get_logs(
     service: Optional[str] = None,
     level: Optional[str] = None,
-    limit: int = 100
+    query: Optional[str] = None,
+    limit: int = 100,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
 ):
-    results = _cached_logs
+    ws = _get_workspace_store(workspace_id)
+    logs = ws["logs"]
     if service and service != "all":
-        results = [l for l in results if l["service"].lower() == service.lower()]
+        logs = [l for l in logs if l.get("service") == service]
     if level and level != "all":
-        results = [l for l in results if l["level"].upper() == level.upper()]
+        logs = [l for l in logs if l.get("level").upper() == level.upper()]
     if query:
         q = query.lower()
-        results = [l for l in results if q in l["message"].lower() or q in l["service"].lower()]
-    return results[:limit]
+        logs = [l for l in logs if q in l.get("message", "").lower() or q in l.get("service", "").lower()]
+    return logs[:limit]
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 5. Incidents Endpoints
+# 5. Incident Command Center
 # ─────────────────────────────────────────────────────────────────────────────
 
-@router.get("/incidents")
-def list_incidents():
-    return _incidents
+@router.get("/incidents", summary="List active and past incidents")
+def list_incidents(
+    status_filter: Optional[str] = Query(None, alias="status"),
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+):
+    ws = _get_workspace_store(workspace_id)
+    incidents = ws["incidents"]
+    if status_filter and status_filter != "all":
+        incidents = [i for i in incidents if i["status"].lower() == status_filter.lower()]
+    return incidents
 
-@router.get("/incidents/{incident_id}")
-def get_incident(incident_id: str):
-    for inc in _incidents:
-        if inc["id"] == incident_id:
-            return inc
-    raise HTTPException(status_code=404, detail="Incident not found")
-
-@router.post("/incidents", status_code=status.HTTP_201_CREATED)
-def create_incident(req: CreateIncidentRequest):
-    inc_num = f"INC-{random.randint(1043, 1999)}"
+@router.post("/incidents", status_code=status.HTTP_201_CREATED, summary="Declare new incident")
+def declare_incident(
+    body: IncidentCreate,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+):
+    ws = _get_workspace_store(workspace_id)
+    inc_id = f"inc-2026-{random.randint(100, 999)}"
+    now = datetime.utcnow().isoformat() + "Z"
     new_inc = {
-        "id": f"inc-{uuid.uuid4().hex[:6]}",
-        "number": inc_num,
-        "title": req.title,
-        "severity": req.severity,
+        "id": inc_id,
+        "title": body.title,
+        "severity": body.severity,
         "status": "Detected",
-        "affected_services": req.affected_services,
-        "detected_at": datetime.utcnow().isoformat() + "Z",
+        "affected_service": body.affected_service,
+        "commander": body.commander,
+        "detected_at": now,
         "resolved_at": None,
-        "commander": req.commander,
-        "summary": req.summary,
-        "root_cause": "Under investigation",
         "timeline": [
-            {"time": datetime.utcnow().strftime("%H:%M:%S UTC"), "author": req.commander, "note": "Declared incident and began triage", "type": "ALERT"}
+            {"timestamp": now, "event": f"Incident declared: {body.initial_note or body.title}"}
         ],
-        "related_alerts": []
+        "rca_notes": ""
     }
-    _incidents.insert(0, new_inc)
+    ws["incidents"].insert(0, new_inc)
     return new_inc
 
-@router.patch("/incidents/{incident_id}")
-def update_incident(incident_id: str, req: UpdateIncidentRequest):
-    for inc in _incidents:
+@router.post("/incidents/{incident_id}/transition", summary="Transition incident lifecycle state")
+def transition_incident(
+    incident_id: str, 
+    body: IncidentTransition,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+):
+    ws = _get_workspace_store(workspace_id)
+    for inc in ws["incidents"]:
         if inc["id"] == incident_id:
-            if req.status:
-                inc["status"] = req.status
-                if req.status.lower() == "resolved":
-                    inc["resolved_at"] = datetime.utcnow().isoformat() + "Z"
-            if req.root_cause:
-                inc["root_cause"] = req.root_cause
-            if req.summary:
-                inc["summary"] = req.summary
+            inc["status"] = body.status
+            now = datetime.utcnow().isoformat() + "Z"
+            note = body.note or f"Status transitioned to {body.status}"
+            inc["timeline"].append({"timestamp": now, "event": note})
+            if body.status == "Resolved":
+                inc["resolved_at"] = now
             return inc
     raise HTTPException(status_code=404, detail="Incident not found")
 
-@router.post("/incidents/{incident_id}/timeline")
-def add_incident_timeline_event(incident_id: str, req: AddIncidentTimelineRequest):
-    for inc in _incidents:
+@router.post("/incidents/{incident_id}/timeline", summary="Post event to incident war-room timeline")
+def post_incident_timeline(
+    incident_id: str, 
+    body: IncidentTimelineEvent,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+):
+    ws = _get_workspace_store(workspace_id)
+    for inc in ws["incidents"]:
         if inc["id"] == incident_id:
-            entry = {
-                "time": datetime.utcnow().strftime("%H:%M:%S UTC"),
-                "author": req.author,
-                "note": req.note,
-                "type": req.type
-            }
-            inc["timeline"].append(entry)
-            return entry
+            now = datetime.utcnow().isoformat() + "Z"
+            inc["timeline"].append({"timestamp": now, "event": body.event})
+            return inc
+    raise HTTPException(status_code=404, detail="Incident not found")
+
+@router.post("/incidents/{incident_id}/rca", summary="Update Root Cause Analysis notes")
+def update_incident_rca(
+    incident_id: str, 
+    body: IncidentRCA,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+):
+    ws = _get_workspace_store(workspace_id)
+    for inc in ws["incidents"]:
+        if inc["id"] == incident_id:
+            inc["rca_notes"] = body.rca_notes
+            return inc
     raise HTTPException(status_code=404, detail="Incident not found")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6. Automation & Runbooks Endpoints
+# 6. Automation Runbooks & Playbooks
 # ─────────────────────────────────────────────────────────────────────────────
 
-@router.get("/automation/workflows")
-def list_workflows():
-    return _workflows
+@router.get("/automation/workflows", summary="List automation playbooks")
+def list_workflows(workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+    ws = _get_workspace_store(workspace_id)
+    return ws["workflows"]
 
-@router.post("/automation/workflows/{wf_id}/run")
-def run_workflow(wf_id: str):
-    for wf in _workflows:
-        if wf["id"] == wf_id:
+@router.post("/automation/workflows/{workflow_id}/run", summary="Trigger runbook execution")
+def run_workflow(workflow_id: str, workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+    ws = _get_workspace_store(workspace_id)
+    for wf in ws["workflows"]:
+        if wf["id"] == workflow_id:
             wf["last_run"] = datetime.utcnow().isoformat() + "Z"
-            wf["last_status"] = "SUCCESS"
-            wf["run_count"] += 1
-            return {
-                "message": f"Runbook '{wf['name']}' executed successfully",
-                "execution_id": f"run-{uuid.uuid4().hex[:8]}",
-                "status": "SUCCESS",
-                "duration": "42s",
-                "workflow": wf
-            }
-    raise HTTPException(status_code=404, detail="Workflow runbook not found")
+            wf["run_count"] = (wf.get("run_count") or 0) + 1
+            return {"message": f"Runbook '{wf['name']}' executed successfully.", "duration": wf["duration"]}
+    raise HTTPException(status_code=404, detail="Workflow not found")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 7. Backups & Disaster Recovery Endpoints
+# 7. Backups & Disaster Recovery
 # ─────────────────────────────────────────────────────────────────────────────
 
-@router.get("/backups")
-def list_backups():
-    return _backups
+@router.get("/backups", summary="List backup snapshots")
+def list_backups(workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+    ws = _get_workspace_store(workspace_id)
+    return ws["backups"]
 
-@router.post("/backups", status_code=status.HTTP_201_CREATED)
-def create_backup(req: CreateBackupRequest):
-    bsp_id = f"bsp-{random.randint(1093, 1999)}"
-    new_bsp = {
-        "id": bsp_id,
-        "name": f"{req.resource_name.lower().replace(' ', '-')}-snap-{datetime.utcnow().strftime('%Y%m%d%H%M')}",
-        "resource_type": req.resource_type,
-        "resource_name": req.resource_name,
-        "size_mb": random.randint(120, 8500),
-        "status": "COMPLETED",
-        "created_at": datetime.utcnow().isoformat() + "Z",
-        "retention_days": req.retention_days,
-        "restore_point": datetime.utcnow().isoformat() + "Z",
-        "region": "arv-us-east-1",
-        "encryption": "AES-256-GCM"
-    }
-    _backups.insert(0, new_bsp)
-    return new_bsp
-
-@router.post("/backups/{backup_id}/restore")
-def restore_backup(backup_id: str):
-    for b in _backups:
-        if b["id"] == backup_id:
-            return {
-                "message": f"Backup snapshot {b['name']} successfully queued for restoration",
-                "restore_job_id": f"rst-{uuid.uuid4().hex[:8]}",
-                "target_resource": b["resource_name"],
-                "status": "IN_PROGRESS",
-                "estimated_time_seconds": 180
-            }
+@router.post("/backups/{backup_id}/restore", summary="Restore from backup snapshot")
+def restore_backup(backup_id: str, workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+    ws = _get_workspace_store(workspace_id)
+    for bkp in ws["backups"]:
+        if bkp["id"] == backup_id:
+            return {"message": f"Restore completed successfully from snapshot {backup_id}."}
     raise HTTPException(status_code=404, detail="Backup snapshot not found")
 
-@router.delete("/backups/{backup_id}")
-def delete_backup(backup_id: str):
-    global _backups
-    _backups = [b for b in _backups if b["id"] != backup_id]
-    return {"message": f"Backup snapshot {backup_id} deleted successfully"}
-
 # ─────────────────────────────────────────────────────────────────────────────
-# 8. Unified Multi-Cloud Infrastructure Inventory
+# 8. Infrastructure Multi-Cloud Inventory
 # ─────────────────────────────────────────────────────────────────────────────
 
-@router.get("/infrastructure/inventory")
-def get_unified_inventory():
+@router.get("/infrastructure/inventory", summary="Multi-cloud resource inventory")
+def get_infrastructure_inventory(workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+    ws = _get_workspace_store(workspace_id)
     return {
-        "summary": {
-            "total_resources": 28,
-            "healthy": 25,
-            "warning": 2,
-            "critical": 1,
-            "monthly_spend_usd": 2714.50
-        },
-        "resources": [
-            {"id": "vm-web-prod-01", "name": "web-server-prod-01", "type": "Compute VM", "provider": "Aravanta Elastic VM", "region": "arv-us-east-1", "env": "production", "status": "RUNNING", "specs": "4 vCPU / 8GB RAM", "uptime": "42d", "tags": {"team": "platform", "tier": "frontend"}},
-            {"id": "vm-api-gw-prod", "name": "api-gateway-prod", "type": "Compute VM", "provider": "Aravanta Elastic VM", "region": "arv-us-east-1", "env": "production", "status": "RUNNING", "specs": "4 vCPU / 16GB RAM", "uptime": "88d", "tags": {"team": "backend", "tier": "gateway"}},
-            {"id": "k8s-aravanta-prod", "name": "aravanta-prod", "type": "Kubernetes Cluster", "provider": "ArvKube Managed K8s", "region": "arv-us-east-1", "env": "production", "status": "RUNNING", "specs": "5 Nodes (1.30.1)", "uptime": "120d", "tags": {"team": "sre", "env": "prod"}},
-            {"id": "k8s-aravanta-stage", "name": "aravanta-staging", "type": "Kubernetes Cluster", "provider": "ArvKube Managed K8s", "region": "arv-us-east-1", "env": "staging", "status": "RUNNING", "specs": "3 Nodes (1.29.2)", "uptime": "60d", "tags": {"team": "qa", "env": "stage"}},
-            {"id": "db-pg-core-prod", "name": "aravanta-core-db", "type": "Managed Database", "provider": "ArvDB (PostgreSQL 16)", "region": "arv-us-east-1", "env": "production", "status": "WARNING", "specs": "8 vCPU / 32GB RAM / 500GB SSD", "uptime": "42d", "tags": {"tier": "data", "backup": "daily"}},
-            {"id": "db-redis-cache-prod", "name": "redis-cluster-cache", "type": "Managed In-Memory", "provider": "ArvDB (Redis 7.2)", "region": "arv-us-east-1", "env": "production", "status": "RUNNING", "specs": "4 vCPU / 16GB RAM", "uptime": "42d", "tags": {"tier": "cache"}},
-            {"id": "s3-assets-prod", "name": "aravanta-assets-prod", "type": "Object Storage", "provider": "ArvStore (S3 API)", "region": "arv-us-east-1", "env": "production", "status": "RUNNING", "specs": "1.2 TB / Multi-AZ", "uptime": "120d", "tags": {"retention": "90d"}},
-            {"id": "s3-logs-archive", "name": "aravanta-logs-archive", "type": "Object Storage", "provider": "ArvStore (S3 API)", "region": "arv-us-west-2", "env": "production", "status": "RUNNING", "specs": "3.8 TB / Glacier Tier", "uptime": "120d", "tags": {"retention": "365d"}},
-            {"id": "app-api-gateway", "name": "api-gateway (v2.4.1)", "type": "Microservice", "provider": "ArvOperations App", "region": "arv-us-east-1", "env": "production", "status": "RUNNING", "specs": "4 Replicas / 2.7K req/s", "uptime": "6h", "tags": {"tier": "app"}},
-            {"id": "app-telemetry-engine", "name": "telemetry-engine (v3.1.0)", "type": "Microservice", "provider": "ArvOperations App", "region": "arv-us-east-1", "env": "production", "status": "CRITICAL", "specs": "2 Replicas / OOM Issue", "uptime": "14m", "tags": {"tier": "observability"}},
-        ]
+        "workspace": ws["workspace_name"],
+        "total_resources": len(ws["infrastructure"]),
+        "resources": ws["infrastructure"]
     }
+
+@router.post("/infrastructure/provision", status_code=status.HTTP_201_CREATED, summary="Provision infrastructure resource")
+def provision_resource(
+    body: ProvisionResourceRequest,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+):
+    ws = _get_workspace_store(workspace_id)
+    res_id = f"res-{uuid.uuid4().hex[:8]}"
+    new_res = {
+        "id": res_id,
+        "name": body.name,
+        "type": body.type,
+        "provider": body.provider,
+        "region": body.region,
+        "env": body.env,
+        "status": "RUNNING",
+        "specs": body.specs,
+        "uptime": "100.0% (Just provisioned)",
+        "tags": body.tags or {"env": body.env}
+    }
+    ws["infrastructure"].insert(0, new_res)
+    return new_res
+
+@router.post("/infrastructure/{res_id}/restart", summary="Rolling restart infrastructure node")
+def restart_resource(res_id: str, workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+    ws = _get_workspace_store(workspace_id)
+    for r in ws["infrastructure"]:
+        if r["id"] == res_id:
+            r["status"] = "RUNNING"
+            return {"message": f"Resource {r['name']} restarted successfully."}
+    raise HTTPException(status_code=404, detail="Resource not found")
+
+@router.post("/infrastructure/{res_id}/stop", summary="Halt infrastructure resource")
+def stop_resource(res_id: str, workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+    ws = _get_workspace_store(workspace_id)
+    for r in ws["infrastructure"]:
+        if r["id"] == res_id:
+            r["status"] = "STOPPED"
+            return {"message": f"Resource {r['name']} halted."}
+    raise HTTPException(status_code=404, detail="Resource not found")
+
+@router.delete("/infrastructure/{res_id}", summary="Decommission infrastructure resource")
+def decommission_resource(res_id: str, workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+    ws = _get_workspace_store(workspace_id)
+    ws["infrastructure"] = [r for r in ws["infrastructure"] if r["id"] != res_id]
+    return {"message": f"Resource {res_id} decommissioned."}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. Notifications Center
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/notifications", summary="List user notifications")
+def list_notifications(workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+    ws = _get_workspace_store(workspace_id)
+    return ws["notifications"]
+
+@router.post("/notifications/{notif_id}/read", summary="Mark notification as read")
+def mark_notification_read(notif_id: str, workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+    ws = _get_workspace_store(workspace_id)
+    for n in ws["notifications"]:
+        if n["id"] == notif_id:
+            n["read"] = True
+            return n
+    return {"message": "Notification updated"}
+
+@router.post("/notifications/read-all", summary="Mark all notifications as read")
+def mark_all_notifications_read(workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+    ws = _get_workspace_store(workspace_id)
+    for n in ws["notifications"]:
+        n["read"] = True
+    return {"message": "All notifications marked as read"}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 10. Billing, Invoices & Payment Methods
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/billing/summary", summary="Get workspace billing & FinOps usage summary")
+def get_billing_summary(workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+    ws = _get_workspace_store(workspace_id)
+    return {
+        "workspace_name": ws["workspace_name"],
+        "usage": ws["usage"],
+        "payment_methods_count": len(ws["payment_methods"]),
+        "invoices_count": len(ws["invoices"])
+    }
+
+@router.get("/billing/invoices", summary="List workspace invoices")
+def list_invoices(workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+    ws = _get_workspace_store(workspace_id)
+    return ws["invoices"]
+
+@router.get("/billing/payment-methods", summary="List saved payment methods")
+def list_payment_methods(workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+    ws = _get_workspace_store(workspace_id)
+    return ws["payment_methods"]
+
+@router.post("/billing/payment-methods", status_code=status.HTTP_201_CREATED, summary="Add payment method")
+def add_payment_method(
+    body: PaymentMethodAdd,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+):
+    ws = _get_workspace_store(workspace_id)
+    pm_id = f"pm_card_{uuid.uuid4().hex[:8]}"
+    
+    if body.set_as_default:
+        for pm in ws["payment_methods"]:
+            pm["is_default"] = False
+
+    new_pm = {
+        "id": pm_id,
+        "brand": body.brand.lower(),
+        "last4": body.last4[-4:],
+        "exp_month": body.exp_month,
+        "exp_year": body.exp_year,
+        "is_default": body.set_as_default or len(ws["payment_methods"]) == 0,
+        "holder_name": body.holder_name
+    }
+    ws["payment_methods"].append(new_pm)
+    return new_pm
+
+@router.delete("/billing/payment-methods/{pm_id}", summary="Remove payment method")
+def remove_payment_method(pm_id: str, workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+    ws = _get_workspace_store(workspace_id)
+    ws["payment_methods"] = [pm for pm in ws["payment_methods"] if pm["id"] != pm_id]
+    return {"message": "Payment method removed successfully."}
+
+@router.post("/billing/payment-methods/{pm_id}/default", summary="Set default payment method")
+def set_default_payment_method(pm_id: str, workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+    ws = _get_workspace_store(workspace_id)
+    found = False
+    for pm in ws["payment_methods"]:
+        if pm["id"] == pm_id:
+            pm["is_default"] = True
+            found = True
+        else:
+            pm["is_default"] = False
+    if not found:
+        raise HTTPException(status_code=404, detail="Payment method not found")
+    return {"message": "Default payment method updated."}
+
+@router.post("/billing/plan/change", summary="Upgrade or downgrade workspace subscription plan")
+def change_subscription_plan(
+    body: PlanChangeRequest,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+):
+    ws = _get_workspace_store(workspace_id)
+    plan_map = {
+        "developer": {"name": "Developer Cloud Starter", "price": 499, "vcpu": 8, "ram": 16, "storage": 500},
+        "team": {"name": "Team Cloud Operations", "price": 2499, "vcpu": 64, "ram": 128, "storage": 5000},
+        "enterprise": {"name": "Dedicated Enterprise Control Plane", "price": 14999, "vcpu": 256, "ram": 512, "storage": 25000}
+    }
+    target = plan_map.get(body.plan_code.lower(), plan_map["team"])
+    ws["usage"]["plan_name"] = target["name"]
+    ws["usage"]["plan_code"] = body.plan_code.lower()
+    ws["usage"]["price_inr"] = target["price"]
+    ws["usage"]["metrics"]["vcpu_limit"] = target["vcpu"]
+    ws["usage"]["metrics"]["ram_gb_limit"] = target["ram"]
+    ws["usage"]["metrics"]["storage_gb_limit"] = target["storage"]
+
+    return {"message": f"Plan updated to {target['name']}", "usage": ws["usage"]}
