@@ -7,15 +7,15 @@
 /* =========================================================================
    ARAVANTA CLOUDOS — DESIGN SYSTEM FOUNDATION
    Derives palette directly from Aravanta brand identity:
-   Deep Navy (#0F172A / #0A1628), Cobalt Blue (#1E40AF / #2563EB), Gold Accent (#C9A84C / #D97706)
+   Obsidian Black (#0B0F17 / #111827) and Metallic Gold (#C6923B / #D4A347)
    ========================================================================= */
 
 @layer base {
   :root {
     color-scheme: light;
-    --brand-primary: #1E40AF;
-    --brand-secondary: #0F172A;
-    --brand-accent: #C9A84C;
+    --brand-primary: #C6923B;
+    --brand-secondary: #111827;
+    --brand-accent: #D4A347;
     --background: #F8FAFC;
     --surface: #FFFFFF;
     --surface-raised: #F1F5F9;
@@ -26,28 +26,28 @@
     --success: #10B981;
     --warning: #F59E0B;
     --error: #EF4444;
-    --info: #3B82F6;
+    --info: #C6923B;
 
-    --arv-ring: 37 99 235;
-    --arv-ring-dark: 201 168 76;
+    --arv-ring: 198 146 59;
+    --arv-ring-dark: 198 146 59;
   }
 
   .dark {
     color-scheme: dark;
-    --brand-primary: #3B82F6;
-    --brand-secondary: #0F2038;
-    --brand-accent: #C9A84C;
-    --background: #0A1628;
-    --surface: #0F2038;
-    --surface-raised: #152744;
-    --border: #1E3A5F;
+    --brand-primary: #C6923B;
+    --brand-secondary: #0B0F17;
+    --brand-accent: #D4A347;
+    --background: #0B0F17;
+    --surface: #111827;
+    --surface-raised: #1A2234;
+    --border: #232D42;
     --text-primary: #F8FAFC;
     --text-secondary: #CBD5E1;
     --text-muted: #64748B;
     --success: #10B981;
     --warning: #F59E0B;
     --error: #F43F5E;
-    --info: #60A5FA;
+    --info: #D4A347;
   }
 
   html {

@@ -40,8 +40,8 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
     },
     primary: {
       icon: CheckCircle2,
-      iconBg: 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400',
-      btnBg: 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/25',
+      iconBg: 'bg-[#C6923B]/15 text-[#C6923B] dark:text-[#E5B04E]',
+      btnBg: 'bg-[#C6923B] hover:bg-[#B07B28] text-white shadow-md shadow-[#C6923B]/25',
     },
   }[variant];
 

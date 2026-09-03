@@ -27,6 +27,7 @@ import { CommandPalette } from './components/CommandPalette';
 import { Login } from './pages/Login';
 import { LandingPage } from './pages/LandingPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { apiFetch } from './config/api';
 
 export default function App() {
   const [token, setToken] = useState<string | null>(() => {
@@ -77,6 +78,14 @@ export default function App() {
     try {
       if (token) {
         localStorage.setItem('aravanta_token', token);
+        // Refresh full user profile and MFA state in background
+        apiFetch<any>('/api/v1/auth/me', { token })
+          .then((freshUser: any) => {
+            if (freshUser && freshUser.id) {
+              setUser((prev: any) => ({ ...prev, ...freshUser, is_mfa_enabled: Boolean(freshUser.is_mfa_enabled) }));
+            }
+          })
+          .catch(() => {});
       } else {
         localStorage.removeItem('aravanta_token');
       }

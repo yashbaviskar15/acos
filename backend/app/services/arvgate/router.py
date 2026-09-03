@@ -126,7 +126,8 @@ def login_user(login_in: UserLogin, request: Request, db: Session = Depends(get_
             email=user.email,
             full_name=user.full_name,
             role=user.role,
-            is_mfa_required=True
+            is_mfa_required=True,
+            is_mfa_enabled=True
         )
 
     token = create_access_token(subject=user.email, roles=[user.role])
@@ -143,7 +144,8 @@ def login_user(login_in: UserLogin, request: Request, db: Session = Depends(get_
         email=user.email,
         full_name=user.full_name,
         role=user.role,
-        is_mfa_required=False
+        is_mfa_required=False,
+        is_mfa_enabled=bool(user.is_mfa_enabled)
     )
 
 @router.get("/me", response_model=UserResponse)
@@ -331,7 +333,8 @@ def verify_mfa(mfa_in: MFAVerifyRequest, request: Request, db: Session = Depends
         email=user.email,
         full_name=user.full_name,
         role=user.role,
-        is_mfa_required=False
+        is_mfa_required=False,
+        is_mfa_enabled=True
     )
 
 @router.post("/role/update")

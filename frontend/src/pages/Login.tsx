@@ -91,7 +91,8 @@ export const Login: React.FC<LoginProps> = ({
           workspace_name: data.workspace_name,
           email: data.email,
           full_name: data.full_name,
-          role: data.role
+          role: data.role,
+          is_mfa_enabled: Boolean(data.is_mfa_enabled)
         };
         onLoginSuccess(userObj, data.access_token);
       }
@@ -148,7 +149,8 @@ export const Login: React.FC<LoginProps> = ({
         workspace_name: loginData.workspace_name,
         email: loginData.email,
         full_name: loginData.full_name,
-        role: loginData.role
+        role: loginData.role,
+        is_mfa_enabled: Boolean(loginData.is_mfa_enabled)
       };
 
       onLoginSuccess(userObj, loginData.access_token);
@@ -182,7 +184,8 @@ export const Login: React.FC<LoginProps> = ({
         workspace_name: data.workspace_name,
         email: data.email,
         full_name: data.full_name,
-        role: data.role
+        role: data.role,
+        is_mfa_enabled: true
       };
       onLoginSuccess(userObj, data.access_token);
     } catch (err: any) {
@@ -407,7 +410,7 @@ export const Login: React.FC<LoginProps> = ({
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@company.com or ARV-ACC-100001"
                   required
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#C6923B] focus:border-[#C6923B]"
                 />
               </div>
 
@@ -417,7 +420,7 @@ export const Login: React.FC<LoginProps> = ({
                   <button
                     type="button"
                     onClick={() => { setActiveTab('forgot'); setError(''); setSuccess(''); setResetEmail(email); }}
-                    className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                    className="text-[11px] text-[#C6923B] dark:text-[#E5B04E] hover:underline cursor-pointer font-bold"
                   >
                     Forgot password?
                   </button>
@@ -429,7 +432,7 @@ export const Login: React.FC<LoginProps> = ({
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••••••"
                     required
-                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#C6923B] focus:border-[#C6923B] pr-10"
                   />
                   <button
                     type="button"
@@ -463,7 +466,7 @@ export const Login: React.FC<LoginProps> = ({
                       type="checkbox"
                       checked={rememberMe}
                       onChange={(e) => setRememberMe(e.target.checked)}
-                      className="rounded text-blue-600 focus:ring-blue-500"
+                      className="rounded text-[#C6923B] focus:ring-[#C6923B]"
                     />
                     <span className="text-[11px]">Remember session</span>
                   </label>
@@ -473,7 +476,7 @@ export const Login: React.FC<LoginProps> = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50 mt-2 font-sans"
+                className="w-full py-3 bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-md shadow-[#C6923B]/25 transition-all cursor-pointer disabled:opacity-50 mt-2 font-sans"
               >
                 {loading ? 'Authenticating...' : 'Sign In to Control Plane'}
               </button>
@@ -563,7 +566,7 @@ export const Login: React.FC<LoginProps> = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50 mt-2 font-sans"
+                className="w-full py-3 bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-md shadow-[#C6923B]/25 transition-all cursor-pointer disabled:opacity-50 mt-2 font-sans"
               >
                 {loading ? 'Creating Workspace...' : 'Create Operational Workspace'}
               </button>
@@ -574,12 +577,12 @@ export const Login: React.FC<LoginProps> = ({
           {activeTab === 'mfa' && (
             <form onSubmit={handleMfaVerify} className="space-y-4 font-mono text-xs">
               <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 text-center space-y-2">
-                <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto">
+                <div className="w-10 h-10 rounded-xl bg-[#C6923B]/15 text-[#C6923B] dark:text-[#E5B04E] flex items-center justify-center mx-auto">
                   <KeyRound className="w-5 h-5" />
                 </div>
                 <h3 className="font-bold text-slate-900 dark:text-white font-sans text-sm">Enter Authenticator Passcode</h3>
                 <p className="text-[11px] text-slate-500 font-sans">
-                  Open Google Authenticator or Authy to retrieve your 6-digit TOTP code for <strong className="text-blue-600">{mfaUserData?.email || email}</strong>.
+                  Open Google Authenticator or Authy to retrieve your 6-digit TOTP code for <strong className="text-[#C6923B] dark:text-[#E5B04E]">{mfaUserData?.email || email}</strong>.
                 </p>
               </div>
 
@@ -592,7 +595,7 @@ export const Login: React.FC<LoginProps> = ({
                   placeholder="000000"
                   autoFocus
                   required
-                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-center text-2xl font-bold tracking-widest text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-center text-2xl font-bold tracking-widest text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#C6923B] focus:border-[#C6923B]"
                 />
               </div>
 
@@ -607,7 +610,7 @@ export const Login: React.FC<LoginProps> = ({
                 <button
                   type="submit"
                   disabled={loading || mfaCode.length < 6}
-                  className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50"
+                  className="flex-1 py-2.5 bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-md shadow-[#C6923B]/25 transition-all cursor-pointer disabled:opacity-50"
                 >
                   {loading ? 'Verifying...' : 'Verify TOTP'}
                 </button>
@@ -635,7 +638,7 @@ export const Login: React.FC<LoginProps> = ({
                       onChange={(e) => setResetEmail(e.target.value)}
                       placeholder="name@company.com"
                       required
-                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#C6923B] focus:border-[#C6923B]"
                     />
                   </div>
 
@@ -650,7 +653,7 @@ export const Login: React.FC<LoginProps> = ({
                     <button
                       type="submit"
                       disabled={loading}
-                      className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-bold shadow-md"
+                      className="flex-1 py-2.5 bg-[#C6923B] hover:bg-[#B07B28] text-white rounded-xl font-bold shadow-md shadow-[#C6923B]/25"
                     >
                       {loading ? 'Sending...' : 'Request Reset Code'}
                     </button>
@@ -658,8 +661,8 @@ export const Login: React.FC<LoginProps> = ({
                 </form>
               ) : (
                 <form onSubmit={handleConfirmReset} className="space-y-3">
-                  <div className="p-3 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-xl text-slate-700 dark:text-slate-300 text-[11px]">
-                    Resetting password for: <strong className="text-blue-600 dark:text-blue-400 font-bold">{resetEmail || email || 'your account'}</strong>
+                  <div className="p-3 bg-[#C6923B]/10 border border-[#C6923B]/30 rounded-xl text-slate-700 dark:text-slate-300 text-[11px]">
+                    Resetting password for: <strong className="text-[#C6923B] dark:text-[#E5B04E] font-bold">{resetEmail || email || 'your account'}</strong>
                   </div>
 
                   <div>
@@ -670,7 +673,7 @@ export const Login: React.FC<LoginProps> = ({
                       onChange={(e) => setResetCode(e.target.value)}
                       placeholder="6-digit reset code"
                       required
-                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white font-bold"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white font-bold focus:outline-none focus:ring-2 focus:ring-[#C6923B] focus:border-[#C6923B]"
                     />
                   </div>
 
@@ -682,7 +685,7 @@ export const Login: React.FC<LoginProps> = ({
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="Min. 8 characters"
                       required
-                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#C6923B] focus:border-[#C6923B]"
                     />
                   </div>
 
@@ -694,7 +697,7 @@ export const Login: React.FC<LoginProps> = ({
                       onChange={(e) => setConfirmNewPassword(e.target.value)}
                       placeholder="Repeat new password"
                       required
-                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#C6923B] focus:border-[#C6923B]"
                     />
                   </div>
 
@@ -709,7 +712,7 @@ export const Login: React.FC<LoginProps> = ({
                     <button
                       type="submit"
                       disabled={loading}
-                      className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-bold shadow-md"
+                      className="flex-1 py-2.5 bg-[#C6923B] hover:bg-[#B07B28] text-white rounded-xl font-bold shadow-md shadow-[#C6923B]/25"
                     >
                       {loading ? 'Saving...' : 'Set New Password'}
                     </button>

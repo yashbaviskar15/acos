@@ -26,6 +26,7 @@ class TokenResponse(BaseModel):
     full_name: Optional[str] = None
     role: str
     is_mfa_required: bool = False
+    is_mfa_enabled: bool = False
 
 class MFAVerifyRequest(BaseModel):
     email: str

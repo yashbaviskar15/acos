@@ -158,8 +158,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onClick={() => handleTabClick(item.id)}
                       className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer group ${
                         isActive
-                          ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
-                          : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-white'
+                          ? 'bg-[#C6923B] text-white shadow-md shadow-[#C6923B]/30'
+                          : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-[#C6923B] dark:hover:text-[#E5B04E]'
                       }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
@@ -167,7 +167,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           className={`w-4 h-4 shrink-0 transition-colors ${
                             isActive 
                               ? 'text-white' 
-                              : 'text-blue-600 dark:text-blue-400 group-hover:text-blue-500'
+                              : 'text-[#C6923B] dark:text-[#D4A347] group-hover:text-[#B07B28]'
                           }`} 
                         />
                         <span className="truncate">{item.label}</span>
@@ -201,18 +201,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </nav>
 
         {/* User Profile Footer */}
-        <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0A1628]">
-          <div className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0B0F17]">
+          <div className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 shadow-sm">
             <div 
               onClick={() => handleTabClick('profile')}
               className="flex items-center gap-2.5 overflow-hidden cursor-pointer group min-w-0"
             >
-              <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-md">
+              <div className="w-8 h-8 rounded-full bg-[#C6923B] text-white font-black text-xs flex items-center justify-center shrink-0 shadow-md">
                 {initial}
               </div>
               <div className="truncate">
-                <p className="text-xs font-bold text-slate-900 dark:text-white truncate group-hover:text-blue-600 transition-colors">{displayName}</p>
-                <p className="text-[10px] text-blue-600 dark:text-blue-400 font-mono font-bold capitalize truncate">{displayRole}</p>
+                <p className="text-xs font-bold text-slate-900 dark:text-white truncate group-hover:text-[#C6923B] transition-colors">{displayName}</p>
+                <p className="text-[10px] text-[#C6923B] dark:text-[#D4A347] font-mono font-bold capitalize truncate">{displayRole}</p>
               </div>
             </div>
             <button 

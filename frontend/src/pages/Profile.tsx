@@ -90,8 +90,28 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
   };
 
   useEffect(() => {
+    if (user?.is_mfa_enabled !== undefined) {
+      setIsMfaEnabled(Boolean(user.is_mfa_enabled));
+    }
+  }, [user?.is_mfa_enabled]);
+
+  useEffect(() => {
     fetchWorkspaceMembers();
-  }, [user]);
+    const token = localStorage.getItem('aravanta_token');
+    if (token) {
+      apiFetch<any>('/api/v1/auth/me', { token })
+        .then((fresh) => {
+          if (fresh && fresh.id) {
+            setIsMfaEnabled(Boolean(fresh.is_mfa_enabled));
+            if (fresh.full_name) setFullName(fresh.full_name);
+            if (fresh.workspace_name) setWorkspaceName(fresh.workspace_name);
+            if (fresh.timezone) setTimezone(fresh.timezone);
+            onUpdateUser({ ...user, ...fresh, is_mfa_enabled: Boolean(fresh.is_mfa_enabled) });
+          }
+        })
+        .catch(() => {});
+    }
+  }, [user?.email]);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -279,19 +299,19 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
       )}
 
       {/* Header Banner */}
-      <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-blue-600 text-white text-xl font-black flex items-center justify-center shadow-md shrink-0">
+          <div className="w-14 h-14 rounded-2xl bg-[#C6923B] text-white text-xl font-black flex items-center justify-center shadow-md shrink-0">
             {initial}
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-lg font-black text-slate-900 dark:text-white font-sans">{fullName}</h2>
-              <span className="px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 text-[10px] font-bold">
+              <span className="px-2 py-0.5 rounded bg-[#C6923B]/10 dark:bg-[#C6923B]/20 text-[#C6923B] dark:text-[#E5B04E] text-[10px] font-bold border border-[#C6923B]/30">
                 {user?.role || 'SuperAdmin'}
               </span>
               {isMfaEnabled && (
-                <span className="px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400 text-[10px] font-bold flex items-center gap-1">
+                <span className="px-2 py-0.5 rounded bg-[#C6923B]/15 dark:bg-[#C6923B]/25 text-[#C6923B] dark:text-[#E5B04E] text-[10px] font-bold flex items-center gap-1 border border-[#C6923B]/30">
                   <ShieldCheck className="w-3 h-3" /> 2FA Active
                 </span>
               )}
@@ -323,8 +343,8 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
               onClick={() => { setActiveTab(tab.id as any); setErrorMessage(null); }}
               className={`px-3.5 py-2 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-2 shrink-0 ${
                 activeTab === tab.id
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-white dark:bg-[#0F2038] text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-50'
+                  ? 'bg-[#C6923B] text-white shadow-md shadow-[#C6923B]/25'
+                  : 'bg-white dark:bg-[#111827] text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-[#C6923B]'
               }`}
             >
               <Icon className="w-3.5 h-3.5" />
@@ -344,7 +364,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
 
       {/* ── 1. Personal Profile Tab ── */}
       {activeTab === 'profile' && (
-        <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-5">
+        <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-5">
           <div>
             <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase">Personal & Workspace Information</h3>
             <p className="text-slate-500 text-[11px] mt-0.5">Manage your user identity and organization metadata</p>
@@ -358,7 +378,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
                   type="text"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#C6923B] focus:border-[#C6923B]"
                   required
                 />
               </div>
@@ -381,7 +401,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
                   type="text"
                   value={workspaceName}
                   onChange={(e) => setWorkspaceName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#C6923B] focus:border-[#C6923B]"
                   required
                 />
               </div>
@@ -404,7 +424,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
             <button
               type="submit"
               disabled={loading}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              className="px-5 py-2.5 bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-md shadow-[#C6923B]/25 transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
             >
               <Save className="w-4 h-4" />
               <span>{loading ? 'Saving Changes...' : 'Save Profile Changes'}</span>
@@ -418,7 +438,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
         <div className="space-y-6">
           
           {/* Two-Factor Authentication Card with QR Code */}
-          <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
+          <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
@@ -428,7 +448,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
                       ENABLED
                     </span>
                   ) : (
-                    <span className="px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 font-bold text-[10px]">
+                    <span className="px-2 py-0.5 rounded bg-[#C6923B]/10 dark:bg-[#C6923B]/20 text-[#C6923B] dark:text-[#E5B04E] font-bold text-[10px] border border-[#C6923B]/30">
                       NOT CONFIGURED
                     </span>
                   )}
@@ -443,7 +463,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
                   <button
                     onClick={handleOpenMfaSetup}
                     disabled={loading}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-colors flex items-center gap-2 cursor-pointer"
+                    className="px-4 py-2 bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-md shadow-[#C6923B]/25 transition-colors flex items-center gap-2 cursor-pointer"
                   >
                     <QrCode className="w-4 h-4" />
                     <span>Setup 2FA with QR Code</span>
@@ -462,7 +482,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
           </div>
 
           {/* Password Change Card */}
-          <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-5">
+          <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-5">
             <div>
               <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase">Update Account Password</h3>
               <p className="text-slate-500 text-[11px] mt-0.5">Ensure passwords use a minimum of 8 characters</p>
@@ -477,7 +497,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
                   onChange={(e) => setOldPassword(e.target.value)}
                   required
                   placeholder="••••••••••••"
-                  className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white"
+                  className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#C6923B] focus:border-[#C6923B]"
                 />
               </div>
 
@@ -489,7 +509,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
                   onChange={(e) => setNewPassword(e.target.value)}
                   required
                   placeholder="Min. 8 characters"
-                  className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white"
+                  className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#C6923B] focus:border-[#C6923B]"
                 />
               </div>
 
@@ -501,14 +521,14 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                   placeholder="Repeat new password"
-                  className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white"
+                  className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#C6923B] focus:border-[#C6923B]"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={loading}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors cursor-pointer"
+                className="px-5 py-2 bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-md shadow-[#C6923B]/25 transition-colors cursor-pointer"
               >
                 {loading ? 'Updating Password...' : 'Update Password'}
               </button>
@@ -516,7 +536,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
           </div>
 
           {/* Active Sessions */}
-          <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
+          <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
             <div>
               <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase">Active Authenticated Sessions</h3>
               <p className="text-slate-500 text-[11px] mt-0.5">Manage devices authorized with your JWT bearer tokens</p>
@@ -526,7 +546,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
               {sessions.map((sess) => (
                 <div key={sess.id} className="py-3.5 flex items-center justify-between flex-wrap gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-lg bg-[#C6923B]/10 text-[#C6923B] flex items-center justify-center">
                       <Globe className="w-4 h-4" />
                     </div>
                     <div>
@@ -559,16 +579,16 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
 
       {/* ── 3. Workspace & Team Tab ── */}
       {activeTab === 'workspace' && (
-        <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-6">
+        <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-6">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div>
               <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase">Workspace Team & Members</h3>
-              <p className="text-slate-500 text-[11px] mt-0.5">Workspace ID: <strong className="text-blue-600">{user?.workspace_id || 'ws-yash-prod'}</strong></p>
+              <p className="text-slate-500 text-[11px] mt-0.5">Workspace ID: <strong className="text-[#C6923B] dark:text-[#E5B04E]">{user?.workspace_id || 'ws-yash-prod'}</strong></p>
             </div>
 
             <button
               onClick={() => setInviteModalOpen(true)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-colors flex items-center gap-2 cursor-pointer"
+              className="px-4 py-2 bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-md shadow-[#C6923B]/25 transition-colors flex items-center gap-2 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Invite Team Member</span>
@@ -672,7 +692,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
 
             <button
               onClick={() => showToast('Preferences updated and persisted.')}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-colors cursor-pointer"
+              className="px-5 py-2.5 bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-md shadow-[#C6923B]/25 transition-colors cursor-pointer"
             >
               Save Notification Preferences
             </button>
@@ -682,7 +702,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
 
       {/* ── 5. Permissions Matrix Tab ── */}
       {activeTab === 'permissions' && (
-        <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
+        <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
           <div>
             <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase">Active Role Entitlements ({user?.role || 'SuperAdmin'})</h3>
             <p className="text-slate-500 text-[11px] mt-0.5">Authorizations granted at the API gateway middleware layer</p>
@@ -715,7 +735,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
           <div className="space-y-4 font-mono text-xs">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2">
-                <QrCode className="w-5 h-5 text-blue-600" />
+                <QrCode className="w-5 h-5 text-[#C6923B]" />
                 <h3 className="text-sm font-black text-slate-900 dark:text-white font-sans uppercase">Setup Two-Factor (2FA)</h3>
               </div>
               <button onClick={() => setMfaModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
@@ -737,7 +757,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
               <div className="p-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-left space-y-1">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Or enter key manually:</span>
                 <div className="flex items-center justify-between gap-2">
-                  <code className="text-xs font-bold text-blue-600 dark:text-blue-400 tracking-wider select-all">
+                  <code className="text-xs font-bold text-[#C6923B] dark:text-[#E5B04E] tracking-wider select-all">
                     {mfaSetupData?.mfa_secret}
                   </code>
                   <button
@@ -765,7 +785,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
                   onChange={(e) => setMfaVerifyCode(e.target.value.replace(/\D/g, ''))}
                   placeholder="000000"
                   required
-                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-center text-xl font-bold tracking-widest text-slate-900 dark:text-white"
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-center text-xl font-bold tracking-widest text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#C6923B] focus:border-[#C6923B]"
                 />
               </div>
 
@@ -773,16 +793,16 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
                 <button
                   type="button"
                   onClick={() => setMfaModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl font-bold"
+                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl font-bold hover:bg-slate-200 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={loading || mfaVerifyCode.length < 6}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-md disabled:opacity-50"
+                  className="px-4 py-2 bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-md shadow-[#C6923B]/25 disabled:opacity-50 cursor-pointer"
                 >
-                  {loading ? 'Verifying...' : 'Verify & Enable 2FA'}
+                  {loading ? 'Activating...' : 'Verify & Activate 2FA'}
                 </button>
               </div>
             </form>
@@ -793,69 +813,67 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
       {/* Invite Member Modal */}
       {inviteModalOpen && (
         <ModalPortal isOpen={inviteModalOpen} onClose={() => setInviteModalOpen(false)} maxWidth="max-w-md">
-          <div className="space-y-4 font-mono text-xs">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-black text-slate-900 dark:text-white font-sans">Invite Team Member</h3>
+          <form onSubmit={handleInviteMember} className="space-y-4 font-mono text-xs">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <h3 className="text-sm font-black text-slate-900 dark:text-white font-sans uppercase">Invite Workspace Member</h3>
               <button onClick={() => setInviteModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
             </div>
 
-            <form onSubmit={handleInviteMember} className="space-y-3">
-              <div>
-                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Full Name</label>
-                <input
-                  type="text"
-                  value={inviteName}
-                  onChange={(e) => setInviteName(e.target.value)}
-                  placeholder="e.g. Priya Sharma"
-                  required
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white"
-                />
-              </div>
+            <div>
+              <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Full Name</label>
+              <input
+                type="text"
+                value={inviteName}
+                onChange={(e) => setInviteName(e.target.value)}
+                placeholder="Developer Name"
+                required
+                className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#C6923B] focus:border-[#C6923B]"
+              />
+            </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Work Email</label>
-                <input
-                  type="email"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="engineer@company.com"
-                  required
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white"
-                />
-              </div>
+            <div>
+              <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Email Address</label>
+              <input
+                type="email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="developer@company.com"
+                required
+                className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#C6923B] focus:border-[#C6923B]"
+              />
+            </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Assigned Role</label>
-                <select
-                  value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white cursor-pointer"
-                >
-                  <option value="Admin">Admin (Workspace & Billing)</option>
-                  <option value="Operator">Operator (SRE & Deployments)</option>
-                  <option value="Developer">Developer (Deploy & Logs)</option>
-                  <option value="Viewer">Viewer (Read-Only)</option>
-                </select>
-              </div>
+            <div>
+              <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Assigned Role</label>
+              <select
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-slate-300 font-bold cursor-pointer"
+              >
+                <option value="Admin">Admin</option>
+                <option value="Operator">Operator</option>
+                <option value="Developer">Developer</option>
+                <option value="Viewer">Viewer</option>
+              </select>
+            </div>
 
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setInviteModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl font-bold cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold cursor-pointer shadow-md"
-                >
-                  {loading ? 'Sending...' : 'Send Invitation'}
-                </button>
-              </div>
-            </form>
-          </div>
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setInviteModalOpen(false)}
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-4 py-2 bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-md shadow-[#C6923B]/25"
+              >
+                {loading ? 'Sending Invite...' : 'Send Workspace Invite'}
+              </button>
+            </div>
+          </form>
         </ModalPortal>
       )}
     </div>

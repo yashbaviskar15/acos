@@ -51,9 +51,9 @@ export const Logo: React.FC<LogoProps> = ({
             className="w-full h-full object-contain p-0.5" 
           />
         ) : (
-          <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-blue-600 dark:text-[#C9A84C]" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-[#C6923B]" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
-            <path d="M12 13v4" stroke="#C9A84C" strokeWidth="2.5" />
+            <path d="M12 13v4" stroke="#C6923B" strokeWidth="2.5" />
           </svg>
         )}
       </div>
@@ -62,7 +62,7 @@ export const Logo: React.FC<LogoProps> = ({
       {showText && (
         <div className="flex flex-col">
           <h1 className={`font-black ${textSizes} leading-none tracking-tight ${textColorClass} font-sans`}>
-            Aravanta <span className="text-blue-500 dark:text-[#C9A84C]">CloudOS</span>
+            Aravanta <span className="text-[#C6923B] dark:text-[#D4A347]">CloudOS</span>
           </h1>
           <span className={`text-[9px] ${subtextColorClass} font-mono font-bold tracking-widest uppercase mt-0.5`}>
             Enterprise Console
