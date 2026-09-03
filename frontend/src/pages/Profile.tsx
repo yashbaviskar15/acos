@@ -251,6 +251,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
 
   const handleInviteMember = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!inviteEmail.trim()) return;
     setLoading(true);
     try {
       const res = await apiFetch<any>('/api/v1/auth/workspace/members/invite', {
@@ -262,6 +263,16 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
         }),
         token: localStorage.getItem('aravanta_token')
       });
+
+      if (res.member) {
+        setMembers(prev => {
+          const exists = prev.some(m => (m.email || '').toLowerCase() === (res.member.email || '').toLowerCase());
+          if (exists) {
+            return prev.map(m => (m.email || '').toLowerCase() === (res.member.email || '').toLowerCase() ? { ...m, ...res.member } : m);
+          }
+          return [...prev, res.member];
+        });
+      }
 
       showToast(res.message || `Invitation sent to ${inviteEmail}.`);
       setInviteModalOpen(false);

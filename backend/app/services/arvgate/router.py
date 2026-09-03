@@ -197,9 +197,21 @@ def get_workspace_members(
     current_user: User = Depends(get_current_user), 
     db: Session = Depends(get_db)
 ):
-    members = db.query(User).filter(User.workspace_id == current_user.workspace_id).all()
+    if not current_user.workspace_id:
+        current_user.workspace_id = f"ws-{random.randint(10000, 99999)}"
+        db.commit()
+        db.refresh(current_user)
+
+    members = db.query(User).filter(
+        or_(
+            User.workspace_id == current_user.workspace_id,
+            func.lower(User.email) == current_user.email.lower()
+        )
+    ).all()
+
     if not members:
         members = [current_user]
+
     return [
         {
             "id": m.id,
@@ -218,16 +230,26 @@ def invite_workspace_member(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    existing = db.query(User).filter(User.email == req.email.strip()).first()
+    clean_email = req.email.strip().lower()
+    clean_name = req.full_name.strip() if req.full_name else clean_email.split('@')[0].replace('.', ' ').title()
+    assigned_role = req.role if req.role in ["Admin", "Operator", "Developer", "Viewer"] else "Developer"
+
+    if not current_user.workspace_id:
+        current_user.workspace_id = f"ws-{random.randint(10000, 99999)}"
+        current_user.workspace_name = current_user.workspace_name or f"{current_user.full_name}'s Workspace"
+        db.commit()
+        db.refresh(current_user)
+
+    existing = db.query(User).filter(func.lower(User.email) == clean_email).first()
     if existing:
         existing.workspace_id = current_user.workspace_id
         existing.workspace_name = current_user.workspace_name
-        existing.role = req.role if req.role in ["Admin", "Operator", "Developer", "Viewer"] else "Developer"
+        existing.role = assigned_role
         db.commit()
         db.refresh(existing)
-        log_audit(db, current_user.email, "MEMBER_INVITE", "Workspace", request, f"Added existing user {existing.full_name} ({existing.email}) to workspace as {req.role}", workspace_id=current_user.workspace_id)
+        log_audit(db, current_user.email, "MEMBER_INVITE", "Workspace", request, f"Added existing user {existing.full_name} ({existing.email}) to workspace as {assigned_role}", workspace_id=current_user.workspace_id)
         return {
-            "message": f"Invitation accepted and {req.email} joined workspace",
+            "message": f"Invitation accepted — {existing.full_name} joined workspace as {assigned_role}",
             "member": {
                 "id": existing.id,
                 "email": existing.email,
@@ -241,12 +263,13 @@ def invite_workspace_member(
         id=str(uuid.uuid4()),
         account_id=f"ARV-ACC-{random.randint(100000, 999999)}",
         workspace_id=current_user.workspace_id,
-        workspace_name=current_user.workspace_name,
-        email=req.email.strip(),
-        full_name=req.full_name.strip() if req.full_name else req.email.split('@')[0],
+        workspace_name=current_user.workspace_name or "Production Workspace",
+        email=clean_email,
+        full_name=clean_name,
         hashed_password=get_password_hash("Aravanta@2026!"),
-        role=req.role if req.role in ["Admin", "Operator", "Developer", "Viewer"] else "Developer",
-        is_mfa_enabled=False
+        role=assigned_role,
+        is_mfa_enabled=False,
+        mfa_secret=generate_mfa_secret()
     )
     db.add(new_member)
     db.commit()
@@ -254,7 +277,7 @@ def invite_workspace_member(
 
     log_audit(db, current_user.email, "MEMBER_INVITE", "Workspace", request, f"Invited {new_member.full_name} ({new_member.email}) as {new_member.role}", workspace_id=current_user.workspace_id)
     return {
-        "message": f"Invitation sent to {req.email}",
+        "message": f"Invitation successfully sent to {clean_email} ({assigned_role})",
         "member": {
             "id": new_member.id,
             "email": new_member.email,
