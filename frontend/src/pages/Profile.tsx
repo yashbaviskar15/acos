@@ -1,38 +1,42 @@
 import React, { useState, useEffect } from 'react';
 import { 
   User, 
-  ShieldCheck, 
   Lock, 
   Users, 
-  Globe, 
+  Sliders, 
+  ShieldCheck, 
   CheckCircle2, 
   AlertCircle, 
-  Save, 
+  QrCode, 
+  Copy, 
+  Check, 
   Plus, 
-  Sliders,
-  X,
-  QrCode,
-  Copy,
-  Check
+  X, 
+  Save, 
+  Globe,
+  Share2,
+  Mail,
+  UserPlus
 } from 'lucide-react';
-import { apiFetch } from '../config/api';
 import { ModalPortal } from '../components/ModalPortal';
+import { SkeletonTableRow } from '../components/Skeleton';
+import { apiFetch } from '../config/api';
 
 interface ProfileProps {
   user: any;
-  onUpdateUser: (user: any, newToken?: string) => void;
+  onUpdateUser: (updatedUser: any, newToken?: string) => void;
   onNavigateToBilling?: () => void;
 }
 
-export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
+export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onNavigateToBilling: _onNavigateToBilling }) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'workspace' | 'preferences' | 'permissions'>('profile');
   
-  // Profile editable fields
+  // Profile Form State
   const [fullName, setFullName] = useState(user?.full_name || 'Yash Baviskar');
-  const [workspaceName, setWorkspaceName] = useState(user?.workspace_name || 'Production Cloud Ops');
+  const [workspaceName, setWorkspaceName] = useState(user?.workspace_name || 'Production SRE Workspace');
   const [timezone, setTimezone] = useState(user?.timezone || 'Asia/Kolkata');
   
-  // Password change state
+  // Password Change State
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -44,12 +48,18 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
   const [mfaCopied, setMfaCopied] = useState(false);
   const [isMfaEnabled, setIsMfaEnabled] = useState(Boolean(user?.is_mfa_enabled));
   
-  // Workspace team members
+  // Workspace team members & Invitation State
   const [members, setMembers] = useState<any[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteName, setInviteName] = useState('');
   const [inviteRole, setInviteRole] = useState('Developer');
+  const [inviteStatus, setInviteStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteSuccessMsg, setInviteSuccessMsg] = useState<string | null>(null);
+  const [lastInviteLink, setLastInviteLink] = useState<string | null>(null);
+  const [copiedInviteLink, setCopiedInviteLink] = useState(false);
 
   // Preferences toggles
   const [notifDeploy, setNotifDeploy] = useState(true);
@@ -73,6 +83,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
   };
 
   const fetchWorkspaceMembers = async () => {
+    setMembersLoading(true);
     try {
       const data = await apiFetch<any[]>('/api/v1/auth/workspace/members', { token: localStorage.getItem('aravanta_token') });
       if (Array.isArray(data) && data.length > 0) {
@@ -86,6 +97,8 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
       setMembers([
         { id: 'm-01', email: user?.email || 'engineer@aravanta.com', full_name: fullName, role: user?.role || 'SuperAdmin', is_active: true }
       ]);
+    } finally {
+      setMembersLoading(false);
     }
   };
 
@@ -249,43 +262,102 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
     setTimeout(() => setMfaCopied(false), 2500);
   };
 
+  const handleOpenInviteModal = () => {
+    setInviteStatus('idle');
+    setInviteError(null);
+    setInviteSuccessMsg(null);
+    setLastInviteLink(null);
+    setCopiedInviteLink(false);
+    setInviteEmail('');
+    setInviteName('');
+    setInviteRole('Developer');
+    setInviteModalOpen(true);
+  };
+
+  const handleCopyInviteLink = (linkToCopy?: string) => {
+    const text = linkToCopy || lastInviteLink || `https://arv-frontend.vercel.app/join?ws=${user?.workspace_id || 'ws-aravanta'}`;
+    navigator.clipboard.writeText(text);
+    setCopiedInviteLink(true);
+    setTimeout(() => setCopiedInviteLink(false), 3000);
+    showToast('Invitation link copied to clipboard.');
+  };
+
   const handleInviteMember = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inviteEmail.trim()) return;
+    setInviteError(null);
+
+    const emailClean = inviteEmail.trim().toLowerCase();
+    const nameClean = inviteName.trim();
+
+    // Strict Email Format Validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailClean || !emailRegex.test(emailClean)) {
+      setInviteError('Please enter a valid work email address (e.g. name@company.com).');
+      return;
+    }
+
+    // Check duplicate in current workspace
+    const isDuplicate = members.some(m => (m.email || '').toLowerCase() === emailClean);
+    if (isDuplicate) {
+      setInviteError(`User ${emailClean} is already a member of this workspace.`);
+      return;
+    }
+
+    setInviteStatus('submitting');
     setLoading(true);
+
     try {
       const res = await apiFetch<any>('/api/v1/auth/workspace/members/invite', {
         method: 'POST',
         body: JSON.stringify({
-          email: inviteEmail.trim(),
-          full_name: inviteName.trim(),
+          email: emailClean,
+          full_name: nameClean || undefined,
           role: inviteRole,
         }),
         token: localStorage.getItem('aravanta_token')
       });
 
-      if (res.member) {
-        setMembers(prev => {
-          const exists = prev.some(m => (m.email || '').toLowerCase() === (res.member.email || '').toLowerCase());
-          if (exists) {
-            return prev.map(m => (m.email || '').toLowerCase() === (res.member.email || '').toLowerCase() ? { ...m, ...res.member } : m);
-          }
-          return [...prev, res.member];
-        });
-      }
+      const memberObj = res.member || {
+        id: `m-${Date.now()}`,
+        email: emailClean,
+        full_name: nameClean || emailClean.split('@')[0],
+        role: inviteRole,
+        is_active: true,
+        joined_at: new Date().toISOString()
+      };
 
-      showToast(res.message || `Invitation sent to ${inviteEmail}.`);
-      setInviteModalOpen(false);
-      setInviteEmail('');
-      setInviteName('');
-      
-      // Refresh member list
-      await fetchWorkspaceMembers();
+      // Optimistic update
+      setMembers(prev => {
+        const exists = prev.some(m => (m.email || '').toLowerCase() === emailClean);
+        if (exists) {
+          return prev.map(m => (m.email || '').toLowerCase() === emailClean ? { ...m, ...memberObj } : m);
+        }
+        return [...prev, memberObj];
+      });
+
+      const inviteLink = res.invite_link || `https://arv-frontend.vercel.app/join?ws=${user?.workspace_id || 'ws-prod'}&email=${encodeURIComponent(emailClean)}`;
+      setLastInviteLink(inviteLink);
+      setInviteSuccessMsg(res.message || `Invitation successfully sent to ${emailClean} as ${inviteRole}.`);
+      setInviteStatus('success');
+      showToast(`Invited ${emailClean} as ${inviteRole}.`);
+
+      // Refresh real state in background
+      fetchWorkspaceMembers();
     } catch (err: any) {
-      showToast(`Invite failed: ${err.message}`);
+      setInviteStatus('error');
+      setInviteError(err.message || 'Failed to send workspace invitation. Please check your connection and try again.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRevokeMember = async (memberId: string, memberEmail: string) => {
+    if (memberEmail.toLowerCase() === (user?.email || '').toLowerCase()) {
+      showToast('Cannot remove workspace owner.');
+      return;
+    }
+    setMembers(prev => prev.filter(m => (m.id !== memberId && m.email !== memberEmail)));
+    showToast(`Removed ${memberEmail} from workspace.`);
   };
 
   const handleRevokeSession = (sessId: string) => {
@@ -597,13 +669,24 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
               <p className="text-slate-500 text-[11px] mt-0.5">Workspace ID: <strong className="text-[#C6923B] dark:text-[#E5B04E]">{user?.workspace_id || 'ws-yash-prod'}</strong></p>
             </div>
 
-            <button
-              onClick={() => setInviteModalOpen(true)}
-              className="px-4 py-2 bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-md shadow-[#C6923B]/25 transition-colors flex items-center gap-2 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Invite Team Member</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleCopyInviteLink()}
+                className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer text-xs"
+                title="Copy Workspace Invitation URL"
+              >
+                {copiedInviteLink ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Share2 className="w-3.5 h-3.5 text-[#C6923B]" />}
+                <span>{copiedInviteLink ? 'Link Copied' : 'Share Join Link'}</span>
+              </button>
+
+              <button
+                onClick={handleOpenInviteModal}
+                className="px-4 py-2 bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-md shadow-[#C6923B]/25 transition-colors flex items-center gap-2 cursor-pointer text-xs"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>Invite Team Member</span>
+              </button>
+            </div>
           </div>
 
           {/* Members Table */}
@@ -615,25 +698,69 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
                   <th className="py-3 px-4">Email Address</th>
                   <th className="py-3 px-4">System Role</th>
                   <th className="py-3 px-4">Account Status</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {members.map((m) => (
-                  <tr key={m.id || m.email} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
-                    <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">{m.full_name}</td>
-                    <td className="py-3 px-4 text-slate-500">{m.email}</td>
-                    <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300 font-bold">
-                        {m.role}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-bold">
-                        Active
-                      </span>
+                {membersLoading ? (
+                  <>
+                    <SkeletonTableRow columns={5} />
+                    <SkeletonTableRow columns={5} />
+                    <SkeletonTableRow columns={5} />
+                  </>
+                ) : members.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-slate-400 font-mono">
+                      <p>No team members added yet.</p>
+                      <button
+                        onClick={handleOpenInviteModal}
+                        className="mt-2 text-xs font-bold text-[#C6923B] hover:underline inline-flex items-center gap-1"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Invite your first team member
+                      </button>
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  members.map((m) => {
+                    const isOwner = (m.email || '').toLowerCase() === (user?.email || '').toLowerCase();
+                    return (
+                      <tr key={m.id || m.email} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                        <td className="py-3 px-4 font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-[#C6923B]/15 text-[#C6923B] font-black text-[10px] flex items-center justify-center shrink-0">
+                            {(m.full_name || m.email || 'U').charAt(0).toUpperCase()}
+                          </div>
+                          <span>{m.full_name || m.email?.split('@')[0]}</span>
+                          {isOwner && (
+                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold">
+                              YOU
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-slate-500">{m.email}</td>
+                        <td className="py-3 px-4">
+                          <span className="px-2 py-0.5 rounded bg-[#C6923B]/10 dark:bg-[#C6923B]/20 text-[#C6923B] dark:text-[#E5B04E] font-bold border border-[#C6923B]/20 text-[11px]">
+                            {m.role}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1 w-fit text-[11px]">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Active
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          {!isOwner && (
+                            <button
+                              onClick={() => handleRevokeMember(m.id, m.email)}
+                              className="text-rose-600 dark:text-rose-400 hover:underline font-bold text-[11px] cursor-pointer"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
@@ -821,70 +948,176 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
         </ModalPortal>
       )}
 
-      {/* Invite Member Modal */}
+      {/* ── Enhanced Invite Member Modal ── */}
       {inviteModalOpen && (
         <ModalPortal isOpen={inviteModalOpen} onClose={() => setInviteModalOpen(false)} maxWidth="max-w-md">
-          <form onSubmit={handleInviteMember} className="space-y-4 font-mono text-xs">
+          <div className="space-y-4 font-mono text-xs">
+            
+            {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-              <h3 className="text-sm font-black text-slate-900 dark:text-white font-sans uppercase">Invite Workspace Member</h3>
-              <button onClick={() => setInviteModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
-            </div>
-
-            <div>
-              <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Full Name</label>
-              <input
-                type="text"
-                value={inviteName}
-                onChange={(e) => setInviteName(e.target.value)}
-                placeholder="Developer Name"
-                required
-                className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#C6923B] focus:border-[#C6923B]"
-              />
-            </div>
-
-            <div>
-              <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Email Address</label>
-              <input
-                type="email"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="developer@company.com"
-                required
-                className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#C6923B] focus:border-[#C6923B]"
-              />
-            </div>
-
-            <div>
-              <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Assigned Role</label>
-              <select
-                value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-slate-300 font-bold cursor-pointer"
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-[#C6923B]/15 text-[#C6923B] flex items-center justify-center shrink-0">
+                  <UserPlus className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white font-sans uppercase">Invite Workspace Member</h3>
+                  <p className="text-[10px] text-slate-400 font-sans">Grant operational roles to engineering teammates</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setInviteModalOpen(false)} 
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer"
               >
-                <option value="Admin">Admin</option>
-                <option value="Operator">Operator</option>
-                <option value="Developer">Developer</option>
-                <option value="Viewer">Viewer</option>
-              </select>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => setInviteModalOpen(false)}
-                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl font-bold"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="px-4 py-2 bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-md shadow-[#C6923B]/25"
-              >
-                {loading ? 'Sending Invite...' : 'Send Workspace Invite'}
+                <X className="w-4 h-4" />
               </button>
             </div>
-          </form>
+
+            {/* State 1: Success Screen */}
+            {inviteStatus === 'success' ? (
+              <div className="space-y-4 py-2 animate-fadeIn">
+                <div className="p-4 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-2xl text-center space-y-2">
+                  <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <h4 className="font-bold text-slate-900 dark:text-white font-sans text-sm">Invitation Dispatched</h4>
+                  <p className="text-slate-600 dark:text-slate-300 text-[11px] font-sans">
+                    {inviteSuccessMsg || `An invitation has been generated for ${inviteEmail}.`}
+                  </p>
+                </div>
+
+                {/* Direct Shareable Link Box */}
+                {lastInviteLink && (
+                  <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1.5">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Direct Workspace Join URL:</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={lastInviteLink}
+                        className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] text-slate-600 dark:text-slate-300 font-mono select-all"
+                      />
+                      <button
+                        onClick={() => handleCopyInviteLink(lastInviteLink)}
+                        className="px-3 py-1.5 bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-lg shrink-0 flex items-center gap-1 cursor-pointer text-xs"
+                      >
+                        {copiedInviteLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedInviteLink ? 'Copied' : 'Copy'}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInviteStatus('idle');
+                      setInviteEmail('');
+                      setInviteName('');
+                      setInviteError(null);
+                    }}
+                    className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold rounded-xl cursor-pointer"
+                  >
+                    Invite Another Teammate
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInviteModalOpen(false)}
+                    className="flex-1 py-2.5 bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-md shadow-[#C6923B]/25 cursor-pointer"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* State 2: Input Form */
+              <form onSubmit={handleInviteMember} className="space-y-3.5">
+                {inviteError && (
+                  <div className="p-3 bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 rounded-xl text-rose-700 dark:text-rose-400 text-[11px] flex items-start gap-2 animate-fadeIn">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{inviteError}</span>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Work Email Address <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="email"
+                      value={inviteEmail}
+                      onChange={(e) => {
+                        setInviteEmail(e.target.value);
+                        if (inviteError) setInviteError(null);
+                      }}
+                      placeholder="teammate@company.com"
+                      required
+                      autoFocus
+                      className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#C6923B] focus:border-[#C6923B]"
+                    />
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Full Name <span className="text-slate-400 text-[10px] font-normal">(Optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={inviteName}
+                    onChange={(e) => setInviteName(e.target.value)}
+                    placeholder="e.g. Priya Sharma"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#C6923B] focus:border-[#C6923B]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Assigned RBAC Role
+                  </label>
+                  <select
+                    value={inviteRole}
+                    onChange={(e) => setInviteRole(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-slate-300 font-bold cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#C6923B] focus:border-[#C6923B]"
+                  >
+                    <option value="Admin">Admin (Workspace Admin & IAM)</option>
+                    <option value="Operator">Operator (SRE, Release, Incidents)</option>
+                    <option value="Developer">Developer (Deploy Workloads & View Logs)</option>
+                    <option value="Viewer">Viewer (Telemetry Observer - Read Only)</option>
+                  </select>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setInviteModalOpen(false)}
+                    className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl font-bold text-slate-700 dark:text-slate-300 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading || inviteStatus === 'submitting'}
+                    className="px-5 py-2.5 bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-md shadow-[#C6923B]/25 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {inviteStatus === 'submitting' ? (
+                      <>
+                        <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Sending Invitation...</span>
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="w-4 h-4" />
+                        <span>Send Workspace Invite</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
         </ModalPortal>
       )}
     </div>

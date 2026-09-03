@@ -29,7 +29,7 @@ class MFAEnableRequest(BaseModel):
 
 class InviteMemberRequest(BaseModel):
     email: str
-    full_name: str
+    full_name: Optional[str] = None
     role: str = "Developer"
 
 def log_audit(db: Session, email: str, action: str, resource: str, request: Request = None, details: str = None, workspace_id: str = None):
@@ -231,6 +231,12 @@ def invite_workspace_member(
     db: Session = Depends(get_db)
 ):
     clean_email = req.email.strip().lower()
+    if not clean_email or "@" not in clean_email or "." not in clean_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="Please provide a valid work email address (e.g. name@company.com)."
+        )
+
     clean_name = req.full_name.strip() if req.full_name else clean_email.split('@')[0].replace('.', ' ').title()
     assigned_role = req.role if req.role in ["Admin", "Operator", "Developer", "Viewer"] else "Developer"
 
@@ -239,6 +245,8 @@ def invite_workspace_member(
         current_user.workspace_name = current_user.workspace_name or f"{current_user.full_name}'s Workspace"
         db.commit()
         db.refresh(current_user)
+
+    invite_url = f"https://arv-frontend.vercel.app/join?ws={current_user.workspace_id}&email={clean_email}"
 
     existing = db.query(User).filter(func.lower(User.email) == clean_email).first()
     if existing:
@@ -250,12 +258,14 @@ def invite_workspace_member(
         log_audit(db, current_user.email, "MEMBER_INVITE", "Workspace", request, f"Added existing user {existing.full_name} ({existing.email}) to workspace as {assigned_role}", workspace_id=current_user.workspace_id)
         return {
             "message": f"Invitation accepted — {existing.full_name} joined workspace as {assigned_role}",
+            "invite_link": invite_url,
             "member": {
                 "id": existing.id,
                 "email": existing.email,
                 "full_name": existing.full_name,
                 "role": existing.role,
-                "is_active": existing.is_active
+                "is_active": existing.is_active,
+                "joined_at": existing.created_at.isoformat() if existing.created_at else datetime.datetime.utcnow().isoformat()
             }
         }
 
@@ -278,12 +288,14 @@ def invite_workspace_member(
     log_audit(db, current_user.email, "MEMBER_INVITE", "Workspace", request, f"Invited {new_member.full_name} ({new_member.email}) as {new_member.role}", workspace_id=current_user.workspace_id)
     return {
         "message": f"Invitation successfully sent to {clean_email} ({assigned_role})",
+        "invite_link": invite_url,
         "member": {
             "id": new_member.id,
             "email": new_member.email,
             "full_name": new_member.full_name,
             "role": new_member.role,
-            "is_active": new_member.is_active
+            "is_active": new_member.is_active,
+            "joined_at": new_member.created_at.isoformat() if new_member.created_at else datetime.datetime.utcnow().isoformat()
         }
     }
 

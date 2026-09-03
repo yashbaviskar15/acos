@@ -745,7 +745,63 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* ── 8. Global Technical Footer ── */}
+      {/* ── 8. High-Impact Final CTA Section ── */}
+      <section className="py-20 relative overflow-hidden bg-gradient-to-b from-transparent via-[#C6923B]/5 to-transparent">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="relative p-8 sm:p-12 rounded-3xl bg-[#0B0F17] border border-[#C6923B]/30 shadow-2xl shadow-[#C6923B]/10 overflow-hidden text-center space-y-6">
+            
+            {/* Ambient Background Glow */}
+            <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-96 bg-[#C6923B]/20 blur-3xl rounded-full pointer-events-none" />
+
+            <div className="relative space-y-3 max-w-2xl mx-auto">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#C6923B]/15 border border-[#C6923B]/30 text-[#C6923B] dark:text-[#E5B04E] text-[11px] font-mono font-bold uppercase tracking-wider">
+                <ShieldCheck className="w-3.5 h-3.5" /> Ready for Production Day-2 Ops
+              </span>
+              <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight">
+                Streamline your entire cloud infrastructure today.
+              </h2>
+              <p className="text-sm text-slate-300 font-sans leading-relaxed">
+                Experience seamless microservice scaling, canary release verification, and incident management from a single self-service control plane.
+              </p>
+            </div>
+
+            <div className="relative flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+              <button
+                onClick={onGoToRegister}
+                className="w-full sm:w-auto px-8 py-3.5 bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-lg shadow-[#C6923B]/30 transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 cursor-pointer text-sm"
+              >
+                <span>Launch Operational Workspace</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+
+              <a
+                href="https://arv-backend.vercel.app/docs"
+                target="_blank"
+                rel="noreferrer"
+                className="w-full sm:w-auto px-6 py-3.5 bg-slate-800/80 hover:bg-slate-700 text-slate-200 font-bold rounded-xl border border-slate-700 transition-colors flex items-center justify-center gap-2 text-sm"
+              >
+                <Terminal className="w-4 h-4 text-[#C6923B]" />
+                <span>Interactive Swagger API</span>
+              </a>
+            </div>
+
+            {/* Trust Points */}
+            <div className="relative pt-4 flex flex-wrap items-center justify-center gap-6 text-[11px] font-mono text-slate-400">
+              <span className="flex items-center gap-1.5">
+                <Check className="w-3.5 h-3.5 text-[#C6923B]" /> Instant Provisioning
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Check className="w-3.5 h-3.5 text-[#C6923B]" /> TOTP MFA Enabled
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Check className="w-3.5 h-3.5 text-[#C6923B]" /> 10-Day Full Access Trial
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── 9. Global Technical Footer ── */}
       <footer className="py-12 bg-white dark:bg-[#07111E] border-t border-slate-200 dark:border-slate-800 font-mono text-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">

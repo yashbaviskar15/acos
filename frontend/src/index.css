@@ -13,16 +13,23 @@
 @layer base {
   :root {
     color-scheme: light;
-    --brand-primary: #C6923B;
-    --brand-secondary: #111827;
-    --brand-accent: #D4A347;
+    --primary: #C6923B;
+    --primary-hover: #B07B28;
+    --secondary: #111827;
+    --accent: #D4A347;
     --background: #F8FAFC;
     --surface: #FFFFFF;
     --surface-raised: #F1F5F9;
+    --foreground: #0F172A;
+    --muted: #64748B;
     --border: #E2E8F0;
-    --text-primary: #0F172A;
+
+    --brand-primary: var(--primary);
+    --brand-secondary: var(--secondary);
+    --brand-accent: var(--accent);
+    --text-primary: var(--foreground);
     --text-secondary: #475569;
-    --text-muted: #94A3B8;
+    --text-muted: var(--muted);
     --success: #10B981;
     --warning: #F59E0B;
     --error: #EF4444;
@@ -34,16 +41,23 @@
 
   .dark {
     color-scheme: dark;
-    --brand-primary: #C6923B;
-    --brand-secondary: #0B0F17;
-    --brand-accent: #D4A347;
+    --primary: #C6923B;
+    --primary-hover: #D4A347;
+    --secondary: #111827;
+    --accent: #E5B04E;
     --background: #0B0F17;
     --surface: #111827;
     --surface-raised: #1A2234;
-    --border: #232D42;
-    --text-primary: #F8FAFC;
+    --foreground: #F8FAFC;
+    --muted: #94A3B8;
+    --border: #1E293B;
+
+    --brand-primary: var(--primary);
+    --brand-secondary: var(--secondary);
+    --brand-accent: var(--accent);
+    --text-primary: var(--foreground);
     --text-secondary: #CBD5E1;
-    --text-muted: #64748B;
+    --text-muted: var(--muted);
     --success: #10B981;
     --warning: #F59E0B;
     --error: #F43F5E;
@@ -113,4 +127,15 @@
 
 .animate-fadeIn {
   animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
