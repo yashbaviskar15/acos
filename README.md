@@ -6,7 +6,7 @@ A full-stack cloud operations platform built with React + TypeScript (frontend) 
 
 | | Link |
 |---|---|
-| Frontend | https://arv-frontend.vercel.app/ |
+| Frontend | https://aravantacos.vercel.app/ |
 | Backend API | https://arv-backend.vercel.app/ |
 | API Docs (Swagger) | https://arv-backend.vercel.app/docs |
 

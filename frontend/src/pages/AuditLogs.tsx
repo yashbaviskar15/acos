@@ -39,6 +39,7 @@ export const AuditLogs: React.FC<{ token: string | null }> = ({ token }) => {
 
   useEffect(() => {
     fetchAuditLogs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const handleExport = () => {

@@ -47,6 +47,7 @@ export const Databases: React.FC<DatabaseProps> = ({ token }) => {
 
   useEffect(() => {
     fetchDatabases();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const handleCreateDB = async (e: React.FormEvent) => {

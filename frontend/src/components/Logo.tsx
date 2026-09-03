@@ -13,12 +13,18 @@ export const Logo: React.FC<LogoProps> = ({
   variant = 'auto', 
   className = '' 
 }) => {
-  const [imgError, setImgError] = useState(false);
+  const [imgOk, setImgOk] = useState(false);
 
   const dimensions = {
     sm: 'w-8 h-8',
     md: 'w-10 h-10',
     lg: 'w-12 h-12'
+  }[size];
+
+  const iconInnerSizes = {
+    sm: 'w-5 h-5',
+    md: 'w-5 h-5',
+    lg: 'w-6 h-6'
   }[size];
 
   const textSizes = {
@@ -41,24 +47,32 @@ export const Logo: React.FC<LogoProps> = ({
 
   return (
     <div className={`flex items-center gap-3 select-none ${className}`}>
-      {/* Brand Icon Container */}
-      <div className={`${dimensions} rounded-xl bg-white dark:bg-slate-900 p-1 flex items-center justify-center border border-slate-200 dark:border-slate-800 shadow-sm shrink-0 overflow-hidden`}>
-        {!imgError ? (
-          <img 
-            src="/logo.png" 
-            alt="Aravanta Logo" 
-            onError={() => setImgError(true)}
-            className="w-full h-full object-contain p-0.5" 
-          />
-        ) : (
-          <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-[#C6923B]" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
-            <path d="M12 13v4" stroke="#C6923B" strokeWidth="2.5" />
-          </svg>
-        )}
+      <div className={`relative ${dimensions} rounded-xl bg-white dark:bg-slate-900 p-1 flex items-center justify-center border border-slate-200 dark:border-slate-800 shadow-sm shrink-0 overflow-hidden`}>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          className={`${iconInnerSizes} text-[#C6923B]`}
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden={imgOk ? true : false}
+        >
+          <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
+          <path d="M12 13v4" stroke="#C6923B" strokeWidth="2.5" />
+        </svg>
+        <img
+          src="/logo.png"
+          alt="Aravanta Logo"
+          onLoad={() => setImgOk(true)}
+          onError={() => setImgOk(false)}
+          className={[
+            'absolute inset-0 w-full h-full object-contain p-0.5 transition-opacity duration-200',
+            imgOk ? 'opacity-100' : 'opacity-0 pointer-events-none',
+          ].join(' ')}
+        />
       </div>
 
-      {/* Brand Text */}
       {showText && (
         <div className="flex flex-col">
           <h1 className={`font-black ${textSizes} leading-none tracking-tight ${textColorClass} font-sans`}>

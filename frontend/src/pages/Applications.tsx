@@ -98,6 +98,7 @@ export const Applications: React.FC<{ token: string | null }> = ({ token }) => {
 
   useEffect(() => {
     fetchApps();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const handleRestartApp = (app: ApplicationItem) => {

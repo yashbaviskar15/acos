@@ -80,6 +80,7 @@ export const Incidents: React.FC<{ token: string | null }> = ({ token }) => {
 
   useEffect(() => {
     fetchIncidents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const handleCreateIncident = async (e: React.FormEvent) => {

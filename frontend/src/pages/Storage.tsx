@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { HardDrive, Plus, Trash2, Folder, FileText, RefreshCw, Upload, CheckCircle2, Download, Eye, Copy, Check, Info } from 'lucide-react';
+import { HardDrive, Plus, Trash2, Folder, FileText, RefreshCw, Upload, CheckCircle2, Download, Eye, Copy, Check, Info, AlertCircle, X } from 'lucide-react';
 import { ModalPortal } from '../components/ModalPortal';
 import { apiFetch } from '../config/api';
 
@@ -28,8 +28,17 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
 
   // Form State — Upload File
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [folderPrefix, setFolderPrefix] = useState('uploads/');
+  const [folderPrefix, setFolderPrefix] = useState('');
   const [uploadSuccessMsg, setUploadSuccessMsg] = useState<string | null>(null);
+  const [uploadErrorMsg, setUploadErrorMsg] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  useEffect(() => {
+    setUploadSuccessMsg(null);
+    setUploadErrorMsg(null);
+    setSelectedFile(null);
+    setIsDragOver(false);
+  }, [showUploadModal]);
 
   const handleCopyText = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -102,12 +111,14 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
 
   useEffect(() => {
     fetchBuckets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   useEffect(() => {
     if (selectedBucket?.id) {
       fetchObjects(selectedBucket.id);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBucket?.id]);
 
   const handleCreateBucket = async (e: React.FormEvent) => {
@@ -129,9 +140,18 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
     }
   };
 
+  const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
+
   const handleUploadFile = async (e: React.FormEvent) => {
     e.preventDefault();
+    setUploadErrorMsg(null);
+    setUploadSuccessMsg(null);
     if (!selectedFile || !selectedBucket) return;
+
+    if (selectedFile.size > MAX_FILE_SIZE_BYTES) {
+      setUploadErrorMsg('File too large. Maximum allowed size is 100MB.');
+      return;
+    }
 
     setActionLoading(true);
     const formData = new FormData();
@@ -139,8 +159,6 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
     formData.append('folder_prefix', folderPrefix);
 
     try {
-      // NOTE: FormData body — apiFetch intentionally does NOT set a JSON
-      // Content-Type here so the browser adds the multipart boundary itself.
       const data = await apiFetch<any>(`/v1/storage/buckets/${selectedBucket.id}/upload`, {
         method: 'POST',
         token,
@@ -153,9 +171,23 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
       setTimeout(() => {
         setUploadSuccessMsg(null);
         setShowUploadModal(false);
-      }, 1500);
-    } catch (err) {
-      console.error(err);
+      }, 2200);
+    } catch (err: any) {
+      let msg: string;
+      if (typeof err?.message === 'string' && err.message.length > 0) {
+        msg = err.message;
+      } else if (typeof err?.payload?.detail === 'string') {
+        msg = err.payload.detail;
+      } else if (Array.isArray(err?.payload?.detail)) {
+        msg = err.payload.detail
+          .map((d: any) => (typeof d?.msg === 'string' ? d.msg : String(d)))
+          .join('; ');
+      } else if (typeof err?.error === 'string') {
+        msg = err.error;
+      } else {
+        msg = 'Upload failed. Please check your connection and try again.';
+      }
+      setUploadErrorMsg(msg);
     } finally {
       setActionLoading(false);
     }
@@ -422,7 +454,9 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
             <Upload className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             Upload File to {selectedBucket?.name}
           </h3>
-          <button onClick={() => setShowUploadModal(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white text-lg font-bold cursor-pointer"></button>
+          <button onClick={() => setShowUploadModal(false)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer" aria-label="Close upload dialog">
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {uploadSuccessMsg && (
@@ -432,26 +466,63 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
           </div>
         )}
 
+        {uploadErrorMsg && (
+          <div className="mt-4 p-3 bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-400 rounded-xl text-xs font-bold flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            {uploadErrorMsg}
+          </div>
+        )}
+
         <form onSubmit={handleUploadFile} className="space-y-4 text-xs mt-4">
           <div>
-            <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1.5 uppercase font-mono">Target Folder Prefix</label>
+            <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1.5 uppercase font-mono">Target Folder Prefix <span className="text-slate-400 font-normal normal-case">(optional)</span></label>
             <input
               type="text"
-              required
               value={folderPrefix}
               onChange={(e) => setFolderPrefix(e.target.value)}
-              placeholder="e.g. uploads/ or data/2026/"
+              placeholder="uploads/ or data/2026/"
               className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-slate-900 dark:text-white focus:outline-none focus:border-blue-600 font-mono"
             />
           </div>
 
           <div>
             <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1.5 uppercase font-mono">Select File to Upload</label>
-            <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl p-6 text-center hover:border-blue-500 transition-colors bg-slate-50 dark:bg-slate-900/50">
+            <div
+              onDragEnter={(e) => { e.preventDefault(); setIsDragOver(true); }}
+              onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+              onDragLeave={(e) => { e.preventDefault(); setIsDragOver(false); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragOver(false);
+                const file = e.dataTransfer.files?.[0] || null;
+                if (!file) return;
+                if (file.size > MAX_FILE_SIZE_BYTES) {
+                  setUploadErrorMsg('File too large. Maximum allowed size is 100MB.');
+                  setSelectedFile(null);
+                  return;
+                }
+                setUploadErrorMsg(null);
+                setSelectedFile(file);
+              }}
+              className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all duration-200 bg-slate-50 dark:bg-slate-900/50 ${
+                isDragOver
+                  ? 'border-brandGold-500 bg-brandGold-500/5'
+                  : 'border-slate-300 dark:border-slate-700 hover:border-blue-500'
+              }`}
+            >
               <input
                 type="file"
-                required
-                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                onChange={(e) => {
+                  const file = e.target.files?.[0] || null;
+                  if (!file) return;
+                  if (file.size > MAX_FILE_SIZE_BYTES) {
+                    setUploadErrorMsg('File too large. Maximum allowed size is 100MB.');
+                    setSelectedFile(null);
+                    return;
+                  }
+                  setUploadErrorMsg(null);
+                  setSelectedFile(file);
+                }}
                 className="w-full text-slate-700 dark:text-slate-300 text-xs file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer"
               />
               {selectedFile && (
@@ -459,8 +530,26 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
                   Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
                 </p>
               )}
+              {isDragOver && (
+                <p className="mt-3 text-xs font-bold text-brandGold-500 dark:text-brandGold-400 font-mono animate-pulse">
+                  Drop file here to upload
+                </p>
+              )}
             </div>
           </div>
+
+          {actionLoading && selectedFile && (
+            <div className="space-y-2">
+              <div className="text-center text-xs font-mono text-slate-600 dark:text-slate-400 font-bold">
+                Uploading {selectedFile.name}...
+              </div>
+              <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full shimmer-progress"
+                />
+              </div>
+            </div>
+          )}
 
           <div className="pt-3 flex gap-3">
             <button
@@ -472,7 +561,7 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
             </button>
             <button
               type="submit"
-              disabled={actionLoading || !selectedFile}
+              disabled={actionLoading || !selectedFile || !selectedBucket}
               className="w-1/2 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs shadow-lg shadow-blue-600/20 transition-all cursor-pointer flex items-center justify-center gap-2"
             >
               {actionLoading ? 'Uploading...' : 'Upload Now'}
@@ -485,7 +574,9 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
       <ModalPortal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)}>
         <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3.5">
           <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-wider font-mono">Create Storage Bucket</h3>
-          <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white text-lg font-bold cursor-pointer"></button>
+          <button onClick={() => setShowCreateModal(false)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer" aria-label="Close create bucket dialog">
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         <form onSubmit={handleCreateBucket} className="space-y-4 text-xs mt-4">

@@ -55,6 +55,7 @@ export const Logs: React.FC<{ token: string | null }> = ({ token }) => {
 
   useEffect(() => {
     fetchLogs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedService, selectedLevel, searchTerm, token]);
 
   // Auto-refresh interval (every 4 seconds if enabled)
@@ -64,6 +65,7 @@ export const Logs: React.FC<{ token: string | null }> = ({ token }) => {
       fetchLogs();
     }, 4000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoRefresh, selectedService, selectedLevel, searchTerm]);
 
   const handleCopyLine = (log: LogItem) => {

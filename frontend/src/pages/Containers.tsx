@@ -76,6 +76,7 @@ export const Containers: React.FC<{ token: string | null }> = ({ token }) => {
 
   useEffect(() => {
     fetchContainers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const handleContainerAction = (ctr: ContainerItem, action: 'start' | 'stop' | 'restart') => {

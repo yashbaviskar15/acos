@@ -34,6 +34,17 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
   const [query, setQuery] = useState('');
 
   const commands = [
+    // Public & Docs Navigation
+    { id: 'page-home', label: 'Home — Unified Control Plane Landing', category: 'Public Pages', icon: BookOpen, tab: 'home' },
+    { id: 'page-docs', label: 'Documentation — Guides, Tutorials & References', category: 'Public Pages', icon: BookOpen, tab: 'documentation' },
+    { id: 'page-features', label: 'Features — Capability Matrix & Platform Specs', category: 'Public Pages', icon: Zap, tab: 'features' },
+    { id: 'page-developers', label: 'Developers — CLI, SDK & OpenAPI Schemas', category: 'Public Pages', icon: Terminal, tab: 'developers' },
+    { id: 'page-pricing', label: 'Pricing — Flexible Cloud Tiers & Cost Calculator', category: 'Public Pages', icon: CreditCard, tab: 'pricing' },
+    { id: 'page-about', label: 'Company — About Aravanta CloudOS', category: 'Public Pages', icon: ShieldCheck, tab: 'about' },
+    { id: 'page-login', label: 'Sign In to Control Plane Console', category: 'Account', icon: User, tab: 'login' },
+    { id: 'page-register', label: 'Create Workspace — Start Free Trial', category: 'Account', icon: Zap, tab: 'register' },
+
+    // Operations & Control Plane Console
     { id: 'dashboard', label: 'Dashboard & SRE Operations Console', category: 'Operations', icon: Activity, tab: 'dashboard' },
     { id: 'infrastructure', label: 'Infrastructure — Multi-Cloud Resource Inventory', category: 'Operations', icon: Server, tab: 'infrastructure' },
     { id: 'applications', label: 'Applications — Microservices Catalog & Scaling', category: 'Operations', icon: Layers, tab: 'applications' },

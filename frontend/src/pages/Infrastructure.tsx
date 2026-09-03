@@ -83,6 +83,7 @@ export const Infrastructure: React.FC<{ token: string | null }> = ({ token }) =>
 
   useEffect(() => {
     fetchInventory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   // Filter logic

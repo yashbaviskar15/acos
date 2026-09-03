@@ -28,7 +28,7 @@ interface ProfileProps {
   onNavigateToBilling?: () => void;
 }
 
-export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onNavigateToBilling: _onNavigateToBilling }) => {
+export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'workspace' | 'preferences' | 'permissions'>('profile');
   
   // Profile Form State
@@ -124,6 +124,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onNavigate
         })
         .catch(() => {});
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.email]);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -275,7 +276,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onNavigate
   };
 
   const handleCopyInviteLink = (linkToCopy?: string) => {
-    const text = linkToCopy || lastInviteLink || `https://arv-frontend.vercel.app/join?ws=${user?.workspace_id || 'ws-aravanta'}`;
+    const text = linkToCopy || lastInviteLink || `https://aravantacos.vercel.app/join?ws=${user?.workspace_id || 'ws-aravanta'}`;
     navigator.clipboard.writeText(text);
     setCopiedInviteLink(true);
     setTimeout(() => setCopiedInviteLink(false), 3000);
@@ -335,7 +336,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onNavigate
         return [...prev, memberObj];
       });
 
-      const inviteLink = res.invite_link || `https://arv-frontend.vercel.app/join?ws=${user?.workspace_id || 'ws-prod'}&email=${encodeURIComponent(emailClean)}`;
+      const inviteLink = res.invite_link || `https://aravantacos.vercel.app/join?ws=${user?.workspace_id || 'ws-prod'}&email=${encodeURIComponent(emailClean)}`;
       setLastInviteLink(inviteLink);
       setInviteSuccessMsg(res.message || `Invitation successfully sent to ${emailClean} as ${inviteRole}.`);
       setInviteStatus('success');

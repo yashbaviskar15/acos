@@ -1,6 +1,6 @@
 # ACOS / Aravanta CloudOS — Production Architecture Fix Report
 
-_Browser → `arv-frontend.vercel.app/api/v1/*` → Vercel rewrite → `arv-backend.vercel.app/api/v1/*` → FastAPI. The browser no longer calls the backend domain directly._
+_Browser → `aravantacos.vercel.app/api/v1/*` → Vercel rewrite → `arv-backend.vercel.app/api/v1/*` → FastAPI. The browser no longer calls the backend domain directly._
 
 ---
 
@@ -38,7 +38,7 @@ _Auth, MFA, models, schemas, and the security module were left functionally inta
 
 Secondary issue: the configuration `allow_origins=["*"]` **with** `allow_credentials=True` is an invalid combination that browsers reject even when the app is healthy.
 
-**Fix:** the app now always initializes (guarded `create_all`), and CORS uses an explicit origin list (`https://arv-frontend.vercel.app` + localhost) that is valid alongside credentials.
+**Fix:** the app now always initializes (guarded `create_all`), and CORS uses an explicit origin list (`https://aravantacos.vercel.app` + localhost) that is valid alongside credentials.
 
 ---
 
@@ -56,7 +56,7 @@ Note: `/tmp` SQLite is **ephemeral** per cold start. For durable data set `DATAB
 
 ## 4. Exact cause of the 405 registration error
 
-The failing request was `POST https://arv-frontend.vercel.app/api/v1/auth/register` — it hit the **frontend** deployment, not the backend. `frontend/vercel.json` was invalid (two root JSON objects) so its `/api` proxy rewrite was not reliably applied; the SPA catch-all rewrite `"/(.*)" → "/index.html"` then captured the POST and served the static `index.html`. A static asset only answers GET, so Vercel returned **405 Method Not Allowed**.
+The failing request was `POST https://aravantacos.vercel.app/api/v1/auth/register` — it hit the **frontend** deployment, not the backend. `frontend/vercel.json` was invalid (two root JSON objects) so its `/api` proxy rewrite was not reliably applied; the SPA catch-all rewrite `"/(.*)" → "/index.html"` then captured the POST and served the static `index.html`. A static asset only answers GET, so Vercel returned **405 Method Not Allowed**.
 
 **Fix:** `frontend/vercel.json` is now a single valid JSON object whose **first** rewrite is `"/api/:path*" → "https://arv-backend.vercel.app/api/:path*"`, evaluated before the SPA fallback. The backend route itself was already correct: `POST /api/v1/auth/register` (201) in `arvgate/router.py`, schema `UserRegister{email, password, full_name, role="Developer"}` — matching the frontend payload. No new route was invented.
 
@@ -79,7 +79,7 @@ The failing request was `POST https://arv-frontend.vercel.app/api/v1/auth/regist
 |----------|-----------|-------|
 | `DATABASE_URL` | **Yes for production** | Default is ephemeral SQLite (now `/tmp` on serverless, wiped per cold start). Set to managed Postgres, e.g. `postgresql://user:pass@host:5432/dbname`. `psycopg2-binary` is now bundled to support it. |
 | `SECRET_KEY` | **Yes for production** | JWT (HS256) signing key. Ships with an insecure dev default — override it. |
-| `BACKEND_CORS_ORIGINS` | Optional | Comma-separated allowed origins. Defaults to `https://arv-frontend.vercel.app` + localhost. |
+| `BACKEND_CORS_ORIGINS` | Optional | Comma-separated allowed origins. Defaults to `https://aravantacos.vercel.app` + localhost. |
 | `ACCESS_TOKEN_EXPIRE_MINUTES`, `ALGORITHM` | Optional | Sensible defaults present. |
 | `REDIS_URL` | Optional | Only if Redis-backed features are enabled. |
 | `VERCEL` | Auto | Set by Vercel; used to trigger the `/tmp` SQLite fallback. |

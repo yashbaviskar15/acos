@@ -9,7 +9,7 @@ A comprehensive troubleshooting reference for engineers operating and debugging 
 ### 1.1 CORS (Cross-Origin Resource Sharing) Failures
 
 **Symptoms:**
-- Browser console reports: `Access to fetch at 'https://arv-backend.vercel.app/...' from origin 'https://arv-frontend.vercel.app' has been blocked by CORS policy`.
+- Browser console reports: `Access to fetch at 'https://arv-backend.vercel.app/...' from origin 'https://aravantacos.vercel.app' has been blocked by CORS policy`.
 - API calls return status `(failed) net::ERR_FAILED`.
 
 **Root Cause:**
@@ -20,7 +20,7 @@ FastAPI CORSMiddleware does not include the requesting origin or credentials mod
    ```python
    app.add_middleware(
        CORSMiddleware,
-       allow_origins=["https://arv-frontend.vercel.app", "http://localhost:5173"],
+       allow_origins=["https://aravantacos.vercel.app", "https://arv-frontend.vercel.app", "http://localhost:5173"],
        allow_credentials=True,
        allow_methods=["*"],
        allow_headers=["*"],

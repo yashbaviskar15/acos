@@ -87,12 +87,14 @@ Metrics-server is running and healthy.`);
 
   useEffect(() => {
     fetchClusters();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   useEffect(() => {
     if (selectedCluster?.id) {
       fetchPods(selectedCluster.id);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCluster?.id]);
 
   const handleCreateCluster = async (e: React.FormEvent) => {

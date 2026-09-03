@@ -46,6 +46,7 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
 
   useEffect(() => {
     fetchInstances();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, selectedRegion, selectedStatus]);
 
   const handleDeploy = async (e: React.FormEvent) => {

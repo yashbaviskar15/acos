@@ -26,6 +26,12 @@ import { GettingStarted } from './pages/GettingStarted';
 import { CommandPalette } from './components/CommandPalette';
 import { Login } from './pages/Login';
 import { LandingPage } from './pages/LandingPage';
+import { FeaturesPage } from './pages/FeaturesPage';
+import { DevelopersPage } from './pages/DevelopersPage';
+import { DocumentationPage } from './pages/DocumentationPage';
+import { PricingPage } from './pages/PricingPage';
+import { AboutPage } from './pages/AboutPage';
+import type { LandingView } from './components/ui/Navbar';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { apiFetch } from './config/api';
 
@@ -62,6 +68,18 @@ export default function App() {
     return 'landing';
   });
 
+  const [landingView, setLandingView] = useState<LandingView>(() => {
+    try {
+      const saved = localStorage.getItem('aravanta_landing_view') as LandingView | null;
+      if (saved && ['home', 'features', 'developers', 'documentation', 'pricing', 'about'].includes(saved)) {
+        return saved;
+      }
+    } catch {
+      // Fallback
+    }
+    return 'home';
+  });
+
   const [activeTab, setActiveTab] = useState<string>(() => {
     try {
       return localStorage.getItem('aravanta_active_tab') || 'dashboard';
@@ -73,6 +91,48 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+
+  // Global Cmd+K / Ctrl+K keyboard shortcut listener
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
+
+  const handleUniversalNavigate = (target: string) => {
+    setIsCommandPaletteOpen(false);
+    const validLandingViews: LandingView[] = ['home', 'features', 'developers', 'documentation', 'pricing', 'about'];
+    
+    if (validLandingViews.includes(target as LandingView)) {
+      setLandingView(target as LandingView);
+      setAuthViewState('landing');
+      try {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch {}
+    } else if (target === 'login') {
+      setAuthViewState('login');
+      try {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch {}
+    } else if (target === 'register') {
+      setAuthViewState('register');
+      try {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch {}
+    } else {
+      if (token) {
+        setActiveTab(target);
+      } else {
+        // Redirect to login if user clicks a private console tab without auth
+        setAuthViewState('login');
+      }
+    }
+  };
 
   useEffect(() => {
     try {
@@ -110,9 +170,41 @@ export default function App() {
 
   useEffect(() => {
     try {
+      localStorage.setItem('aravanta_landing_view', landingView);
+    } catch {}
+  }, [landingView]);
+
+  useEffect(() => {
+    try {
       localStorage.setItem('aravanta_active_tab', activeTab);
     } catch {}
   }, [activeTab]);
+
+  const handleNavigate = (view: LandingView) => {
+    const validViews: LandingView[] = ['home', 'features', 'developers', 'documentation', 'pricing', 'about'];
+    if (validViews.includes(view)) {
+      setLandingView(view);
+      // Ensure we're in landing mode (not login/register)
+      if (authViewState !== 'landing') setAuthViewState('landing');
+      try {
+        window.scrollTo({ top: 0, behavior: 'auto' });
+      } catch {}
+    }
+  };
+
+  const handleGoToLogin = () => {
+    setAuthViewState('login');
+    try {
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    } catch {}
+  };
+
+  const handleGoToRegister = () => {
+    setAuthViewState('register');
+    try {
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    } catch {}
+  };
 
   const handleLoginSuccess = (userData: any, newToken: string) => {
     setToken(newToken);
@@ -140,16 +232,53 @@ export default function App() {
             initialTab={authViewState === 'register' ? 'register' : 'signin'}
             onGoToLanding={() => setAuthViewState('landing')}
           />
+          <CommandPalette
+            isOpen={isCommandPaletteOpen}
+            onClose={() => setIsCommandPaletteOpen(false)}
+            onNavigate={handleUniversalNavigate}
+          />
         </ErrorBoundary>
       );
     }
 
+    const sharedLandingProps = {
+      onNavigate: handleNavigate,
+      currentView: landingView,
+      onGoToLogin: handleGoToLogin,
+      onGoToRegister: handleGoToRegister,
+      onOpenCommandPalette: () => setIsCommandPaletteOpen(true),
+    };
+
+    let PageComponent: React.ComponentType<any>;
+    switch (landingView) {
+      case 'features':
+        PageComponent = FeaturesPage;
+        break;
+      case 'developers':
+        PageComponent = DevelopersPage;
+        break;
+      case 'documentation':
+        PageComponent = DocumentationPage;
+        break;
+      case 'pricing':
+        PageComponent = PricingPage;
+        break;
+      case 'about':
+        PageComponent = AboutPage;
+        break;
+      case 'home':
+      default:
+        PageComponent = LandingPage;
+        break;
+    }
+
     return (
       <ErrorBoundary>
-        <LandingPage
-          onGoToLogin={() => setAuthViewState('login')}
-          onGoToRegister={() => setAuthViewState('register')}
-          onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+        <PageComponent {...sharedLandingProps} />
+        <CommandPalette
+          isOpen={isCommandPaletteOpen}
+          onClose={() => setIsCommandPaletteOpen(false)}
+          onNavigate={handleUniversalNavigate}
         />
       </ErrorBoundary>
     );
@@ -270,7 +399,7 @@ export default function App() {
         <CommandPalette
           isOpen={isCommandPaletteOpen}
           onClose={() => setIsCommandPaletteOpen(false)}
-          onNavigate={(tab) => setActiveTab(tab)}
+          onNavigate={handleUniversalNavigate}
         />
       </div>
     </div>

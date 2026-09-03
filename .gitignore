@@ -19,4 +19,5 @@ data/
 .env.local
 .vscode/
 .idea/
+.trae/
 .DS_Store

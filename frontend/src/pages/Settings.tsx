@@ -33,6 +33,7 @@ export const Settings: React.FC<{ token: string | null }> = ({ token }) => {
 
   useEffect(() => {
     fetchHealth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   return (

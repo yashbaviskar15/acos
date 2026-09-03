@@ -54,6 +54,7 @@ export const Alerts: React.FC<{ token: string | null; onNavigate?: (tab: string)
 
   useEffect(() => {
     fetchAlerts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const handleAcknowledge = async (alertId: string, e?: React.MouseEvent) => {

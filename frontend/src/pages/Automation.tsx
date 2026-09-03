@@ -65,6 +65,7 @@ export const Automation: React.FC<{ token: string | null }> = ({ token }) => {
 
   useEffect(() => {
     fetchWorkflows();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const handleRunWorkflow = (wf: WorkflowItem) => {

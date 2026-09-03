@@ -32,8 +32,6 @@ export const Header: React.FC<HeaderProps> = ({
   user,
   onUpdateUser,
   onRefresh, 
-  searchTerm: _searchTerm = '', 
-  onSearchChange: _onSearchChange,
   onMobileMenuToggle,
   onNavigateToProfile,
   onOpenCommandPalette

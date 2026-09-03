@@ -3,6 +3,7 @@ import json
 import secrets
 import datetime
 import random
+from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
@@ -246,7 +247,7 @@ def invite_workspace_member(
         db.commit()
         db.refresh(current_user)
 
-    invite_url = f"https://arv-frontend.vercel.app/join?ws={current_user.workspace_id}&email={clean_email}"
+    invite_url = f"https://aravantacos.vercel.app/join?ws={current_user.workspace_id}&email={clean_email}"
 
     existing = db.query(User).filter(func.lower(User.email) == clean_email).first()
     if existing:

@@ -77,6 +77,7 @@ export const Backups: React.FC<{ token: string | null }> = ({ token }) => {
 
   useEffect(() => {
     fetchBackups();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const handleCreateBackup = async (e: React.FormEvent) => {

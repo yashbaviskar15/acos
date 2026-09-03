@@ -90,7 +90,7 @@ def _create_seed_workspace_data(workspace_name: str = "Enterprise Production Clo
             "strategy": "Canary",
             "image": "aravanta/web-console:v1.5.2",
             "repository": "github.com/yashbaviskar15/acos-frontend",
-            "endpoints": ["https://arv-frontend.vercel.app", "https://console.aravanta.cloud"],
+            "endpoints": ["https://aravantacos.vercel.app", "https://console.aravanta.cloud"],
             "ports": [3000, 80],
             "created_at": (now - timedelta(days=100)).isoformat() + "Z",
             "last_deployed_at": (now - timedelta(hours=14)).isoformat() + "Z",
