@@ -34,6 +34,8 @@ import { AboutPage } from './pages/AboutPage';
 import type { LandingView } from './components/ui/Navbar';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { apiFetch } from './config/api';
+import { canAccessTab } from './utils/rbac';
+import { AccessDenied } from './components/AccessDenied';
 
 export default function App() {
   const [token, setToken] = useState<string | null>(() => {
@@ -350,49 +352,59 @@ export default function App() {
         {/* Dynamic Route Pages with Error Boundary Protection */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 xs:p-4 sm:p-6 space-y-4 sm:space-y-6 min-w-0">
           <ErrorBoundary onReset={() => setActiveTab('dashboard')}>
-            {activeTab === 'dashboard' && <Dashboard token={token} onNavigate={(tab) => setActiveTab(tab)} />}
-            {activeTab === 'infrastructure' && <Infrastructure token={token} />}
-            {activeTab === 'applications' && <Applications token={token} />}
-            {activeTab === 'deployments' && <Deployments token={token} />}
-            {activeTab === 'containers' && <Containers token={token} />}
-            {activeTab === 'monitoring' && <Monitoring token={token} />}
-            {activeTab === 'logs' && <Logs token={token} />}
-            {activeTab === 'alerts' && <Alerts token={token} onNavigate={(tab) => setActiveTab(tab)} />}
-            {activeTab === 'incidents' && <Incidents token={token} />}
-            {activeTab === 'automation' && <Automation token={token} />}
-            {activeTab === 'backups' && <Backups token={token} />}
-            {activeTab === 'audit' && <AuditLogs token={token} />}
-            {activeTab === 'settings' && <Settings token={token} />}
-            
-            {/* Cloud Resources */}
-            {activeTab === 'compute' && <Compute token={token} />}
-            {activeTab === 'kubernetes' && <Kubernetes token={token} />}
-            {activeTab === 'storage' && <Storage token={token} />}
-            {activeTab === 'database' && <Databases token={token} />}
-            {activeTab === 'cicd' && <CICD />}
-            {activeTab === 'security' && <Security token={token} />}
-            {activeTab === 'billing' && <Billing />}
-            {activeTab === 'profile' && (
-              <Profile
-                user={user}
-                onUpdateUser={(updatedUser: any, newToken?: string) => {
-                  setUser(updatedUser);
-                  if (newToken) setToken(newToken);
-                }}
-                onNavigateToBilling={() => setActiveTab('billing')}
+            {!canAccessTab(activeTab, user?.role || user?.roles?.[0] || 'SuperAdmin') ? (
+              <AccessDenied
+                tabId={activeTab}
+                userRole={user?.role || user?.roles?.[0] || 'SuperAdmin'}
+                onNavigate={(tab) => setActiveTab(tab)}
               />
-            )}
-            {activeTab === 'guide' && <GettingStarted onNavigate={(tab) => setActiveTab(tab)} />}
-            
-            {/* Fallback for unhandled tab */}
-            {![
-              'dashboard', 'infrastructure', 'applications', 'deployments', 
-              'containers', 'monitoring', 'logs', 'alerts', 'incidents', 
-              'automation', 'backups', 'audit', 'settings', 'compute', 
-              'kubernetes', 'storage', 'database', 'cicd', 'security', 
-              'billing', 'profile', 'guide'
-            ].includes(activeTab) && (
-              <Dashboard token={token} onNavigate={(tab) => setActiveTab(tab)} />
+            ) : (
+              <>
+                {activeTab === 'dashboard' && <Dashboard token={token} onNavigate={(tab) => setActiveTab(tab)} />}
+                {activeTab === 'infrastructure' && <Infrastructure token={token} />}
+                {activeTab === 'applications' && <Applications token={token} />}
+                {activeTab === 'deployments' && <Deployments token={token} />}
+                {activeTab === 'containers' && <Containers token={token} />}
+                {activeTab === 'monitoring' && <Monitoring token={token} />}
+                {activeTab === 'logs' && <Logs token={token} />}
+                {activeTab === 'alerts' && <Alerts token={token} onNavigate={(tab) => setActiveTab(tab)} />}
+                {activeTab === 'incidents' && <Incidents token={token} />}
+                {activeTab === 'automation' && <Automation token={token} />}
+                {activeTab === 'backups' && <Backups token={token} />}
+                {activeTab === 'audit' && <AuditLogs token={token} />}
+                {activeTab === 'settings' && <Settings token={token} />}
+                
+                {/* Cloud Resources */}
+                {activeTab === 'compute' && <Compute token={token} />}
+                {activeTab === 'kubernetes' && <Kubernetes token={token} />}
+                {activeTab === 'storage' && <Storage token={token} />}
+                {activeTab === 'database' && <Databases token={token} />}
+                {activeTab === 'cicd' && <CICD />}
+                {activeTab === 'security' && <Security token={token} />}
+                {activeTab === 'billing' && <Billing />}
+                {activeTab === 'profile' && (
+                  <Profile
+                    user={user}
+                    onUpdateUser={(updatedUser: any, newToken?: string) => {
+                      setUser(updatedUser);
+                      if (newToken) setToken(newToken);
+                    }}
+                    onNavigateToBilling={() => setActiveTab('billing')}
+                  />
+                )}
+                {activeTab === 'guide' && <GettingStarted onNavigate={(tab) => setActiveTab(tab)} />}
+                
+                {/* Fallback for unhandled tab */}
+                {![
+                  'dashboard', 'infrastructure', 'applications', 'deployments', 
+                  'containers', 'monitoring', 'logs', 'alerts', 'incidents', 
+                  'automation', 'backups', 'audit', 'settings', 'compute', 
+                  'kubernetes', 'storage', 'database', 'cicd', 'security', 
+                  'billing', 'profile', 'guide'
+                ].includes(activeTab) && (
+                  <Dashboard token={token} onNavigate={(tab) => setActiveTab(tab)} />
+                )}
+              </>
             )}
           </ErrorBoundary>
         </main>

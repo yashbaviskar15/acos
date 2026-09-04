@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.services.arvgate.models import User, AuditLog
-from app.services.arvgate.dependencies import get_current_user_flexible
+from app.services.arvgate.dependencies import get_current_user, require_roles
 from app.core.cloud_models import ComputeInstance, emit_notification
 
 router = APIRouter(prefix="/api/v1/compute", tags=["ArvCompute"])
@@ -67,10 +67,10 @@ def list_instances(
     region: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible)
+    current_user: User = Depends(get_current_user)
 ):
     query = db.query(ComputeInstance)
-    if current_user.role != "SuperAdmin":
+    if (current_user.role or "").strip().lower() not in ["superadmin", "admin"]:
         query = query.filter(
             (ComputeInstance.user_id == current_user.id) |
             (ComputeInstance.workspace_id == current_user.workspace_id)
@@ -87,12 +87,13 @@ def list_instances(
 def get_instance(
     instance_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible)
+    current_user: User = Depends(get_current_user)
 ):
     inst = db.query(ComputeInstance).filter(ComputeInstance.id == instance_id).first()
     if not inst:
         raise HTTPException(status_code=404, detail=f"Instance {instance_id} not found")
-    if current_user.role != "SuperAdmin" and inst.user_id != current_user.id and inst.workspace_id != current_user.workspace_id:
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"] and inst.user_id != current_user.id and inst.workspace_id != current_user.workspace_id:
         raise HTTPException(status_code=403, detail="Access denied to this instance")
     return inst.to_dict()
 
@@ -100,7 +101,7 @@ def get_instance(
 def create_instance(
     req: CreateInstanceRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible)
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator"]))
 ):
     inst_id = _det_id("arv-i", req.name)
     now = datetime.utcnow()
@@ -154,15 +155,44 @@ def instance_action(
     instance_id: str,
     req: ActionRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible)
+    current_user: User = Depends(get_current_user)
 ):
     inst = db.query(ComputeInstance).filter(ComputeInstance.id == instance_id).first()
     if not inst:
         raise HTTPException(status_code=404, detail=f"Instance {instance_id} not found")
-    if current_user.role != "SuperAdmin" and inst.user_id != current_user.id and inst.workspace_id != current_user.workspace_id:
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"] and inst.user_id != current_user.id and inst.workspace_id != current_user.workspace_id:
         raise HTTPException(status_code=403, detail="Access denied to this instance")
 
     action = req.action.lower()
+    if action == "terminate":
+        if user_role not in ["superadmin", "admin"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"User role '{current_user.role}' is not authorized to terminate instances."
+            )
+        inst_name = inst.name
+        db.delete(inst)
+        emit_notification(
+            db=db,
+            user_id=current_user.id,
+            workspace_id=current_user.workspace_id,
+            title="Instance Terminated",
+            desc=f"VM instance {inst_name} ({instance_id}) was terminated and removed.",
+            type="error"
+        )
+        db.commit()
+        return {"message": f"Instance {instance_id} terminated"}
+
+    if action in ["start", "stop", "reboot"]:
+        if user_role not in ["superadmin", "admin", "operator", "developer"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"User role '{current_user.role}' is not authorized to perform {action} action."
+            )
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown action: {action}")
+
     if action == "start":
         inst.status = "RUNNING"
         inst.cpu_usage = round(random.uniform(8, 25), 1)
@@ -201,21 +231,6 @@ def instance_action(
             desc=f"VM instance {inst.name} completed reboot cycle.",
             type="info"
         )
-    elif action == "terminate":
-        inst_name = inst.name
-        db.delete(inst)
-        emit_notification(
-            db=db,
-            user_id=current_user.id,
-            workspace_id=current_user.workspace_id,
-            title="Instance Terminated",
-            desc=f"VM instance {inst_name} ({instance_id}) was terminated and removed.",
-            type="error"
-        )
-        db.commit()
-        return {"message": f"Instance {instance_id} terminated"}
-    else:
-        raise HTTPException(status_code=400, detail=f"Unknown action: {action}")
 
     db.commit()
     db.refresh(inst)
@@ -225,12 +240,13 @@ def instance_action(
 def delete_instance(
     instance_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible)
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin"]))
 ):
     inst = db.query(ComputeInstance).filter(ComputeInstance.id == instance_id).first()
     if not inst:
         raise HTTPException(status_code=404, detail=f"Instance {instance_id} not found")
-    if current_user.role != "SuperAdmin" and inst.user_id != current_user.id and inst.workspace_id != current_user.workspace_id:
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"] and inst.user_id != current_user.id and inst.workspace_id != current_user.workspace_id:
         raise HTTPException(status_code=403, detail="Access denied to this instance")
 
     inst_name = inst.name
@@ -261,10 +277,11 @@ def list_os_images():
 @router.get("/summary")
 def compute_summary(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible)
+    current_user: User = Depends(get_current_user)
 ):
     query = db.query(ComputeInstance)
-    if current_user.role != "SuperAdmin":
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"]:
         query = query.filter(
             (ComputeInstance.user_id == current_user.id) |
             (ComputeInstance.workspace_id == current_user.workspace_id)

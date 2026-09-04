@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.services.arvgate.models import User, AuditLog
-from app.services.arvgate.dependencies import get_current_user_flexible
+from app.services.arvgate.dependencies import get_current_user, require_roles
 from app.core.cloud_models import KubeCluster, emit_notification
 
 router = APIRouter(prefix="/api/v1/kubernetes", tags=["ArvKube"])
@@ -39,10 +39,11 @@ class ScaleRequest(BaseModel):
 @router.get("/clusters")
 def list_clusters(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible)
+    current_user: User = Depends(get_current_user)
 ):
     query = db.query(KubeCluster)
-    if current_user.role != "SuperAdmin":
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"]:
         query = query.filter(
             (KubeCluster.user_id == current_user.id) |
             (KubeCluster.workspace_id == current_user.workspace_id)
@@ -54,12 +55,13 @@ def list_clusters(
 def get_cluster(
     cluster_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible)
+    current_user: User = Depends(get_current_user)
 ):
     cluster = db.query(KubeCluster).filter(KubeCluster.id == cluster_id).first()
     if not cluster:
         raise HTTPException(404, "Cluster not found")
-    if current_user.role != "SuperAdmin" and cluster.user_id != current_user.id and cluster.workspace_id != current_user.workspace_id:
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"] and cluster.user_id != current_user.id and cluster.workspace_id != current_user.workspace_id:
         raise HTTPException(403, "Access denied to this cluster")
     return cluster.to_dict()
 
@@ -67,7 +69,7 @@ def get_cluster(
 def create_cluster(
     req: CreateClusterRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible)
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator"]))
 ):
     cid = _det_id("arv-k8s", req.name)
     now = datetime.utcnow()
@@ -118,12 +120,13 @@ def create_cluster(
 def delete_cluster(
     cluster_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible)
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin"]))
 ):
     cluster = db.query(KubeCluster).filter(KubeCluster.id == cluster_id).first()
     if not cluster:
         raise HTTPException(404, "Cluster not found")
-    if current_user.role != "SuperAdmin" and cluster.user_id != current_user.id and cluster.workspace_id != current_user.workspace_id:
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"] and cluster.user_id != current_user.id and cluster.workspace_id != current_user.workspace_id:
         raise HTTPException(403, "Access denied to this cluster")
 
     c_name = cluster.name
@@ -144,12 +147,13 @@ def scale_cluster(
     cluster_id: str,
     req: ScaleRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible)
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator", "Developer"]))
 ):
     cluster = db.query(KubeCluster).filter(KubeCluster.id == cluster_id).first()
     if not cluster:
         raise HTTPException(404, "Cluster not found")
-    if current_user.role != "SuperAdmin" and cluster.user_id != current_user.id and cluster.workspace_id != current_user.workspace_id:
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"] and cluster.user_id != current_user.id and cluster.workspace_id != current_user.workspace_id:
         raise HTTPException(403, "Access denied to this cluster")
 
     cluster.node_count = req.node_count
@@ -175,7 +179,7 @@ def list_pods(
     cluster_id: str,
     namespace: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible)
+    current_user: User = Depends(get_current_user)
 ):
     cluster = db.query(KubeCluster).filter(KubeCluster.id == cluster_id).first()
     if not cluster:
@@ -213,10 +217,11 @@ def list_versions():
 @router.get("/summary")
 def kube_summary(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible)
+    current_user: User = Depends(get_current_user)
 ):
     query = db.query(KubeCluster)
-    if current_user.role != "SuperAdmin":
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"]:
         query = query.filter(
             (KubeCluster.user_id == current_user.id) |
             (KubeCluster.workspace_id == current_user.workspace_id)
@@ -233,3 +238,4 @@ def kube_summary(
         "total_cpu_cores": sum(c.cpu_cores_total for c in clusters),
         "total_ram_gb": sum(c.ram_gb_total for c in clusters),
     }
+

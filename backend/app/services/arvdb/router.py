@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.services.arvgate.models import User
-from app.services.arvgate.dependencies import get_current_user_flexible
+from app.services.arvgate.dependencies import get_current_user, require_roles
 from app.core.cloud_models import DatabaseInstance, emit_notification
 
 router = APIRouter(prefix="/api/v1/databases", tags=["ArvDB"])
@@ -56,11 +56,12 @@ class CreateDatabaseRequest(BaseModel):
 @router.get("/instances")
 def list_databases(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(get_current_user),
 ):
     """List database instances accessible to current user."""
     query = db.query(DatabaseInstance)
-    if current_user.role != "admin":
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"]:
         query = query.filter(DatabaseInstance.user_id == current_user.id)
     instances = query.all()
     return [_format_db_dict(inst) for inst in instances]
@@ -70,13 +71,14 @@ def list_databases(
 def get_database(
     db_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(get_current_user),
 ):
     """Get database instance details by ID."""
     instance = db.query(DatabaseInstance).filter(DatabaseInstance.id == db_id).first()
     if not instance:
         raise HTTPException(status_code=404, detail="Database not found")
-    if current_user.role != "admin" and instance.user_id != current_user.id:
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"] and instance.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied to this database")
     return _format_db_dict(instance)
 
@@ -85,7 +87,7 @@ def get_database(
 def create_database(
     req: CreateDatabaseRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator"])),
 ):
     """Provision a new managed database instance."""
     db_id = f"arv-db-{hashlib.md5(f'{req.name}-{datetime.utcnow().timestamp()}'.encode()).hexdigest()[:8]}"
@@ -131,13 +133,14 @@ def create_database(
 def delete_database(
     db_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin"])),
 ):
     """Terminate and delete a managed database instance."""
     instance = db.query(DatabaseInstance).filter(DatabaseInstance.id == db_id).first()
     if not instance:
         raise HTTPException(status_code=404, detail="Database not found")
-    if current_user.role != "admin" and instance.user_id != current_user.id:
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"] and instance.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied to this database")
 
     name = instance.name
@@ -161,11 +164,12 @@ def delete_database(
 @router.get("/summary")
 def database_summary(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(get_current_user),
 ):
     """Get aggregate metrics for all managed database instances."""
     query = db.query(DatabaseInstance)
-    if current_user.role != "admin":
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"]:
         query = query.filter(DatabaseInstance.user_id == current_user.id)
     instances = query.all()
 
@@ -179,4 +183,5 @@ def database_summary(
         "engines": list(set(inst.engine for inst in instances)),
         "total_monthly_cost": round(total_monthly, 2),
     }
+
 

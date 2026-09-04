@@ -228,7 +228,7 @@ def get_workspace_members(
 def invite_workspace_member(
     req: InviteMemberRequest,
     request: Request,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin"])),
     db: Session = Depends(get_db)
 ):
     clean_email = req.email.strip().lower()
@@ -473,7 +473,8 @@ def get_audit_logs(
     db: Session = Depends(get_db), 
     current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Auditor", "Operator"]))
 ):
-    if current_user.role in ["SuperAdmin", "Admin"]:
+    user_role = (current_user.role or "").strip().lower()
+    if user_role in ["superadmin", "admin"]:
         logs = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).limit(100).all()
     else:
         logs = db.query(AuditLog).filter(AuditLog.workspace_id == current_user.workspace_id).order_by(AuditLog.timestamp.desc()).limit(100).all()

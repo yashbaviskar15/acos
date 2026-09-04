@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.services.arvgate.models import User
-from app.services.arvgate.dependencies import get_current_user_flexible
+from app.services.arvgate.dependencies import get_current_user, require_roles
 from app.core.cloud_models import StorageBucket, StorageObject, emit_notification
 
 router = APIRouter(prefix="/api/v1/storage", tags=["ArvStore"])
@@ -37,11 +37,12 @@ class CreateBucketRequest(BaseModel):
 @router.get("/buckets")
 def list_buckets(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(get_current_user),
 ):
     """List storage buckets accessible to current user."""
     query = db.query(StorageBucket)
-    if current_user.role != "admin":
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"]:
         query = query.filter(StorageBucket.user_id == current_user.id)
     buckets = query.all()
     return [b.to_dict() for b in buckets]
@@ -51,13 +52,14 @@ def list_buckets(
 def get_bucket(
     bucket_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(get_current_user),
 ):
     """Get bucket details by ID."""
     bucket = db.query(StorageBucket).filter(StorageBucket.id == bucket_id).first()
     if not bucket:
         raise HTTPException(status_code=404, detail="Bucket not found")
-    if current_user.role != "admin" and bucket.user_id != current_user.id:
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"] and bucket.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied to this bucket")
     return bucket.to_dict()
 
@@ -66,7 +68,7 @@ def get_bucket(
 def create_bucket(
     req: CreateBucketRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator", "Developer"])),
 ):
     """Create a new object storage bucket."""
     existing = db.query(StorageBucket).filter(StorageBucket.name == req.name).first()
@@ -110,13 +112,14 @@ def create_bucket(
 def delete_bucket(
     bucket_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin"])),
 ):
     """Delete a bucket and all its contained objects."""
     bucket = db.query(StorageBucket).filter(StorageBucket.id == bucket_id).first()
     if not bucket:
         raise HTTPException(status_code=404, detail="Bucket not found")
-    if current_user.role != "admin" and bucket.user_id != current_user.id:
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"] and bucket.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied to this bucket")
 
     name = bucket.name
@@ -143,13 +146,14 @@ def list_objects(
     bucket_id: str,
     prefix: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(get_current_user),
 ):
     """List objects in a bucket with optional prefix filter."""
     bucket = db.query(StorageBucket).filter(StorageBucket.id == bucket_id).first()
     if not bucket:
         raise HTTPException(status_code=404, detail="Bucket not found")
-    if current_user.role != "admin" and bucket.user_id != current_user.id:
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"] and bucket.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied to this bucket")
 
     query = db.query(StorageObject).filter(StorageObject.bucket_id == bucket_id)
@@ -173,13 +177,14 @@ async def upload_file(
     file: UploadFile = File(...),
     folder_prefix: str = Form("uploads/"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator", "Developer"])),
 ):
     """Upload a file to a bucket."""
     bucket = db.query(StorageBucket).filter(StorageBucket.id == bucket_id).first()
     if not bucket:
         raise HTTPException(status_code=404, detail="Bucket not found")
-    if current_user.role != "admin" and bucket.user_id != current_user.id:
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"] and bucket.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied to this bucket")
 
     content = await file.read()
@@ -198,53 +203,52 @@ async def upload_file(
         StorageObject.key == key_path
     ).first()
 
+    now = datetime.utcnow()
+    content_type = file.content_type or "application/octet-stream"
+
     if existing:
+        old_size = existing.size_bytes
         existing.size_bytes = file_size
-        existing.content_type = file.content_type or "application/octet-stream"
-        existing.last_modified = datetime.utcnow()
-        obj = existing
+        existing.content_type = content_type
+        existing.last_modified = now
+        bucket.size_gb = max(0.0, round(bucket.size_gb + (file_size - old_size) / (1024 ** 3), 4))
+        bucket.monthly_cost = round(bucket.size_gb * 0.023, 2)
+        db.commit()
+        db.refresh(existing)
+        target_obj = existing
     else:
-        obj = StorageObject(
+        new_obj = StorageObject(
             id=obj_id,
             bucket_id=bucket_id,
             key=key_path,
             size_bytes=file_size,
+            content_type=content_type,
             storage_class=bucket.storage_class,
-            content_type=file.content_type or "application/octet-stream",
-            last_modified=datetime.utcnow(),
+            etag=f'"{hashlib.md5(content).hexdigest()}"',
+            last_modified=now,
         )
-        db.add(obj)
+        db.add(new_obj)
         bucket.object_count += 1
-
-    # Recalculate bucket size
-    total_bytes = db.query(StorageObject).filter(StorageObject.bucket_id == bucket_id).with_entities(
-        StorageObject.size_bytes
-    ).all()
-    size_sum = sum(s[0] for s in total_bytes if s[0]) + (file_size if not existing else 0)
-    bucket.size_gb = round(size_sum / (1024 ** 3), 3)
-    bucket.monthly_cost = round(bucket.size_gb * 0.023, 2)
+        bucket.size_gb = round(bucket.size_gb + file_size / (1024 ** 3), 4)
+        bucket.monthly_cost = round(bucket.size_gb * 0.023, 2)
+        db.commit()
+        db.refresh(new_obj)
+        target_obj = new_obj
 
     db.commit()
-    db.refresh(obj)
-
-    od = obj.to_dict()
-    od["s3_uri"] = f"s3://{bucket.name}/{key_path}"
-    od["download_url"] = f"/api/v1/storage/buckets/{bucket_id}/objects/{key_path}/download"
+    db.refresh(bucket)
 
     emit_notification(
         db,
-        title="File Uploaded",
-        message=f"Uploaded '{file.filename}' ({file_size} bytes) to s3://{bucket.name}/{key_path}",
+        title="File Uploaded to S3",
+        message=f"Uploaded '{key_path}' ({round(file_size / 1024, 1)} KB) to bucket '{bucket.name}'.",
         severity="INFO",
         source="ArvStore",
         user_id=current_user.id,
         workspace_id=bucket.workspace_id,
     )
 
-    return {
-        "message": f"File '{file.filename}' uploaded successfully to bucket '{bucket.name}'",
-        "object": od
-    }
+    return target_obj.to_dict()
 
 
 @router.get("/buckets/{bucket_id}/objects/{object_key:path}/download")
@@ -252,13 +256,14 @@ def download_object(
     bucket_id: str,
     object_key: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(get_current_user),
 ):
     """Download stored object."""
     bucket = db.query(StorageBucket).filter(StorageBucket.id == bucket_id).first()
     if not bucket:
         raise HTTPException(status_code=404, detail="Bucket not found")
-    if current_user.role != "admin" and bucket.user_id != current_user.id:
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"] and bucket.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied to this bucket")
 
     bname = bucket.name
@@ -282,13 +287,14 @@ def preview_object(
     bucket_id: str,
     object_key: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(get_current_user),
 ):
     """Preview metadata and content of an object."""
     bucket = db.query(StorageBucket).filter(StorageBucket.id == bucket_id).first()
     if not bucket:
         raise HTTPException(status_code=404, detail="Bucket not found")
-    if current_user.role != "admin" and bucket.user_id != current_user.id:
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"] and bucket.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied to this bucket")
 
     obj = db.query(StorageObject).filter(
@@ -313,13 +319,14 @@ def delete_object(
     bucket_id: str,
     object_key: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator"])),
 ):
     """Delete an object from a bucket."""
     bucket = db.query(StorageBucket).filter(StorageBucket.id == bucket_id).first()
     if not bucket:
         raise HTTPException(status_code=404, detail="Bucket not found")
-    if current_user.role != "admin" and bucket.user_id != current_user.id:
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"] and bucket.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied to this bucket")
 
     obj = db.query(StorageObject).filter(
@@ -347,11 +354,12 @@ def delete_object(
 @router.get("/summary")
 def storage_summary(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(get_current_user),
 ):
     """Return aggregate storage statistics."""
     query = db.query(StorageBucket)
-    if current_user.role != "admin":
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"]:
         query = query.filter(StorageBucket.user_id == current_user.id)
     buckets = query.all()
 

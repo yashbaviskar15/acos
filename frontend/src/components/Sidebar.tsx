@@ -18,10 +18,12 @@ import {
   Settings as SettingsIcon, 
   BookOpen, 
   LogOut, 
-  X,
-  FileCheck
+  FileCheck,
+  Lock,
+  X
 } from 'lucide-react';
 import { Logo } from './Logo';
+import { canAccessTab } from '../utils/rbac';
 
 interface SidebarProps {
   activeTab: string;
@@ -152,6 +154,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {sec.items.map((item) => {
                   const Icon = item.icon;
                   const isActive = activeTab === item.id;
+                  const isPermitted = canAccessTab(item.id, displayRole);
                   return (
                     <button
                       key={item.id}
@@ -159,7 +162,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer group ${
                         isActive
                           ? 'bg-[#C6923B] text-white shadow-md shadow-[#C6923B]/30'
-                          : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-[#C6923B] dark:hover:text-[#E5B04E]'
+                          : isPermitted
+                          ? 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-[#C6923B] dark:hover:text-[#E5B04E]'
+                          : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100/50 dark:hover:bg-slate-800/40 opacity-70'
                       }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
@@ -167,13 +172,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           className={`w-4 h-4 shrink-0 transition-colors ${
                             isActive 
                               ? 'text-white' 
-                              : 'text-[#C6923B] dark:text-[#D4A347] group-hover:text-[#B07B28]'
+                              : isPermitted
+                              ? 'text-[#C6923B] dark:text-[#D4A347] group-hover:text-[#B07B28]'
+                              : 'text-slate-400 dark:text-slate-600'
                           }`} 
                         />
                         <span className="truncate">{item.label}</span>
                       </div>
 
-                      {item.badge && (
+                      {!isPermitted && (
+                        <span title="Restricted to authorized roles" className="p-0.5 rounded bg-slate-200/50 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500">
+                          <Lock className="w-3 h-3" />
+                        </span>
+                      )}
+
+                      {isPermitted && item.badge && (
                         <span className={`px-1.5 py-0.5 text-[9px] font-extrabold uppercase rounded ${
                           isActive
                             ? 'bg-white/20 text-white'
@@ -183,7 +196,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         </span>
                       )}
 
-                      {item.count && !item.badge && (
+                      {isPermitted && item.count && !item.badge && (
                         <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded ${
                           isActive
                             ? 'bg-white/20 text-white'

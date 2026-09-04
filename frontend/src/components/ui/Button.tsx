@@ -32,7 +32,7 @@ const sizeClasses: Record<ButtonSize, string> = {
   xl: 'h-14 px-8 text-base gap-2.5 rounded-2xl',
 };
 
-export const Button: React.FC<ButtonProps> = ({
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(({
   variant = 'primary',
   size = 'md',
   loading = false,
@@ -42,11 +42,12 @@ export const Button: React.FC<ButtonProps> = ({
   className = '',
   children,
   ...rest
-}) => {
+}, ref) => {
   const isDisabled = disabled || loading;
 
   return (
     <button
+      ref={ref}
       disabled={isDisabled}
       className={[
         'inline-flex items-center justify-center font-semibold transition-all duration-200',
@@ -67,4 +68,7 @@ export const Button: React.FC<ButtonProps> = ({
       {!loading && rightIcon && <span className="shrink-0">{rightIcon}</span>}
     </button>
   );
-};
+});
+
+Button.displayName = 'Button';
+

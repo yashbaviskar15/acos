@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.services.arvgate.models import User
-from app.services.arvgate.dependencies import get_current_user_flexible
+from app.services.arvgate.dependencies import get_current_user, require_roles
 from app.core.cloud_models import Notification, emit_notification
 
 router = APIRouter(prefix="/api/v1/operations", tags=["ArvOperations — Cloud Platform Operations"])
@@ -489,7 +489,7 @@ def create_application(
     body: ApplicationCreate,
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator", "Developer"])),
 ):
     ws = _get_workspace_store(workspace_id)
     app_id = f"app-{body.name.lower().replace(' ', '-')}"
@@ -545,7 +545,7 @@ def scale_application(
     body: ApplicationScale,
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator", "Developer"])),
 ):
     ws = _get_workspace_store(workspace_id)
     if app_id not in ws["applications"]:
@@ -577,7 +577,7 @@ def restart_application(
     app_id: str,
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator", "Developer"])),
 ):
     ws = _get_workspace_store(workspace_id)
     if app_id not in ws["applications"]:
@@ -604,7 +604,7 @@ def rollback_application(
     body: ApplicationRollback,
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator", "Developer"])),
 ):
     ws = _get_workspace_store(workspace_id)
     if app_id not in ws["applications"]:
@@ -634,7 +634,7 @@ def delete_application(
     app_id: str,
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin"])),
 ):
     ws = _get_workspace_store(workspace_id)
     if app_id not in ws["applications"]:
@@ -677,7 +677,7 @@ def trigger_deployment(
     body: DeploymentTrigger,
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator", "Developer"])),
 ):
     ws = _get_workspace_store(workspace_id)
     dep_id = f"dep-{random.randint(8850, 9999)}"
@@ -753,7 +753,7 @@ def container_action(
     body: ContainerActionRequest,
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator", "Developer"])),
 ):
     ws = _get_workspace_store(workspace_id)
     target = None
@@ -842,7 +842,7 @@ def declare_incident(
     body: IncidentCreate,
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator"])),
 ):
     ws = _get_workspace_store(workspace_id)
     inc_id = f"inc-2026-{random.randint(100, 999)}"
@@ -881,7 +881,7 @@ def transition_incident(
     body: IncidentTransition,
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator"])),
 ):
     ws = _get_workspace_store(workspace_id)
     for inc in ws["incidents"]:
@@ -938,12 +938,19 @@ def update_incident_rca(
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/automation/workflows", summary="List automation playbooks")
-def list_workflows(workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+def list_workflows(
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    current_user: User = Depends(get_current_user),
+):
     ws = _get_workspace_store(workspace_id)
     return ws["workflows"]
 
 @router.post("/automation/workflows/{workflow_id}/run", summary="Trigger runbook execution")
-def run_workflow(workflow_id: str, workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+def run_workflow(
+    workflow_id: str, 
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator", "Developer"])),
+):
     ws = _get_workspace_store(workspace_id)
     for wf in ws["workflows"]:
         if wf["id"] == workflow_id:
@@ -957,7 +964,10 @@ def run_workflow(workflow_id: str, workspace_id: Optional[str] = Header(None, al
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/backups", summary="List backup snapshots")
-def list_backups(workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+def list_backups(
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator"])),
+):
     ws = _get_workspace_store(workspace_id)
     return ws["backups"]
 
@@ -966,7 +976,7 @@ def create_backup(
     body: CreateBackupRequest,
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator"])),
 ):
     ws = _get_workspace_store(workspace_id)
     bkp_id = f"snap-{random.randint(1000, 9999)}"
@@ -1003,7 +1013,7 @@ def restore_backup(
     backup_id: str,
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator"])),
 ):
     ws = _get_workspace_store(workspace_id)
     for bkp in ws["backups"]:
@@ -1025,7 +1035,7 @@ def delete_backup(
     backup_id: str,
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin"])),
 ):
     ws = _get_workspace_store(workspace_id)
     ws["backups"] = [b for b in ws["backups"] if b["id"] != backup_id]
@@ -1048,7 +1058,10 @@ def delete_backup(
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/infrastructure/inventory", summary="Multi-cloud resource inventory")
-def get_infrastructure_inventory(workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+def get_infrastructure_inventory(
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    current_user: User = Depends(get_current_user),
+):
     ws = _get_workspace_store(workspace_id)
     return {
         "workspace": ws["workspace_name"],
@@ -1061,7 +1074,7 @@ def provision_resource(
     body: ProvisionResourceRequest,
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator"])),
 ):
     ws = _get_workspace_store(workspace_id)
     res_id = f"res-{uuid.uuid4().hex[:8]}"
@@ -1096,7 +1109,7 @@ def restart_resource(
     res_id: str,
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator", "Developer"])),
 ):
     ws = _get_workspace_store(workspace_id)
     for r in ws["infrastructure"]:
@@ -1119,7 +1132,7 @@ def stop_resource(
     res_id: str,
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator", "Developer"])),
 ):
     ws = _get_workspace_store(workspace_id)
     for r in ws["infrastructure"]:
@@ -1142,7 +1155,7 @@ def decommission_resource(
     res_id: str,
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin"])),
 ):
     ws = _get_workspace_store(workspace_id)
     target = next((r for r in ws["infrastructure"] if r["id"] == res_id), None)
@@ -1169,10 +1182,11 @@ def decommission_resource(
 def list_notifications(
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(get_current_user),
 ):
     query = db.query(Notification)
-    if current_user.role != "admin":
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"]:
         query = query.filter((Notification.user_id == current_user.id) | (Notification.user_id == "system"))
     notifs = query.order_by(Notification.created_at.desc()).limit(50).all()
     if not notifs:
@@ -1186,7 +1200,7 @@ def mark_notification_read(
     notif_id: str,
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(get_current_user),
 ):
     notif = db.query(Notification).filter(Notification.id == notif_id).first()
     if notif:
@@ -1205,10 +1219,11 @@ def mark_notification_read(
 def mark_all_notifications_read(
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(get_current_user),
 ):
     query = db.query(Notification)
-    if current_user.role != "admin":
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"]:
         query = query.filter(Notification.user_id == current_user.id)
     query.update({Notification.read: True})
     db.commit()
@@ -1223,7 +1238,10 @@ def mark_all_notifications_read(
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/billing/summary", summary="Get workspace billing & FinOps usage summary")
-def get_billing_summary(workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+def get_billing_summary(
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin"])),
+):
     ws = _get_workspace_store(workspace_id)
     return {
         "workspace_name": ws["workspace_name"],
@@ -1233,19 +1251,26 @@ def get_billing_summary(workspace_id: Optional[str] = Header(None, alias="x-work
     }
 
 @router.get("/billing/invoices", summary="List workspace invoices")
-def list_invoices(workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+def list_invoices(
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin"])),
+):
     ws = _get_workspace_store(workspace_id)
     return ws["invoices"]
 
 @router.get("/billing/payment-methods", summary="List saved payment methods")
-def list_payment_methods(workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+def list_payment_methods(
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin"])),
+):
     ws = _get_workspace_store(workspace_id)
     return ws["payment_methods"]
 
 @router.post("/billing/payment-methods", status_code=status.HTTP_201_CREATED, summary="Add payment method")
 def add_payment_method(
     body: PaymentMethodAdd,
-    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin"])),
 ):
     ws = _get_workspace_store(workspace_id)
     pm_id = f"pm_card_{uuid.uuid4().hex[:8]}"
@@ -1267,13 +1292,21 @@ def add_payment_method(
     return new_pm
 
 @router.delete("/billing/payment-methods/{pm_id}", summary="Remove payment method")
-def remove_payment_method(pm_id: str, workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+def remove_payment_method(
+    pm_id: str, 
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin"])),
+):
     ws = _get_workspace_store(workspace_id)
     ws["payment_methods"] = [pm for pm in ws["payment_methods"] if pm["id"] != pm_id]
     return {"message": "Payment method removed successfully."}
 
 @router.post("/billing/payment-methods/{pm_id}/default", summary="Set default payment method")
-def set_default_payment_method(pm_id: str, workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+def set_default_payment_method(
+    pm_id: str, 
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin"])),
+):
     ws = _get_workspace_store(workspace_id)
     found = False
     for pm in ws["payment_methods"]:
@@ -1289,7 +1322,8 @@ def set_default_payment_method(pm_id: str, workspace_id: Optional[str] = Header(
 @router.post("/billing/plan/change", summary="Upgrade or downgrade workspace subscription plan")
 def change_subscription_plan(
     body: PlanChangeRequest,
-    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin"])),
 ):
     ws = _get_workspace_store(workspace_id)
     plan_map = {
@@ -1306,3 +1340,4 @@ def change_subscription_plan(
     ws["usage"]["metrics"]["storage_gb_limit"] = target["storage"]
 
     return {"message": f"Plan updated to {target['name']}", "usage": ws["usage"]}
+

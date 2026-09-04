@@ -40,24 +40,36 @@ def get_current_user_optional(token: str = Depends(oauth2_scheme_optional), db: 
         return None
     return db.query(User).filter(User.email == user_email).first()
 
-def get_current_user_flexible(token: str = Depends(oauth2_scheme_optional), db: Session = Depends(get_db)) -> User:
-    user = get_current_user_optional(token, db)
-    if user and user.is_active:
-        return user
-    admin = db.query(User).filter(User.email == "yashbaviskar67@gmail.com").first()
-    if admin:
-        return admin
-    first_u = db.query(User).first()
-    if first_u:
-        return first_u
-    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+def get_current_user_flexible(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+    """Strictly authenticate user from Bearer token without insecure fallback."""
+    return get_current_user(token, db)
 
-def require_roles(allowed_roles: list[str]):
-    def role_checker(user: User = Depends(get_current_user)):
-        if user.role not in allowed_roles and user.role != "SuperAdmin":
+def require_roles(*allowed_roles):
+    """
+    Dependency factory to enforce RBAC.
+    Accepts roles as a list, tuple, set, or separate string arguments.
+    Roles are compared case-insensitively.
+    'SuperAdmin' always passes (platform owner).
+    Raises HTTP 403 FORBIDDEN if the authenticated user's role is not authorized.
+    """
+    flat_roles = set()
+    for r in allowed_roles:
+        if isinstance(r, (list, tuple, set)):
+            for item in r:
+                flat_roles.add(str(item).strip().lower())
+        else:
+            flat_roles.add(str(r).strip().lower())
+
+    def role_checker(user: User = Depends(get_current_user)) -> User:
+        user_role = (user.role or "").strip().lower()
+        if user_role == "superadmin":
+            return user
+        if user_role not in flat_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"User role '{user.role}' is not authorized to perform this operation."
             )
         return user
+
     return role_checker
+
