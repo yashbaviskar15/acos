@@ -1,12 +1,19 @@
 """
 Aravanta CloudOS — ArvDB Service Router
-Full CRUD for managed database instances.
+Full CRUD for managed database instances backed by persistent database storage,
+scoped to authenticated users, with real notification emission.
 """
 import hashlib
-import random
-from datetime import datetime, timedelta
-from fastapi import APIRouter, HTTPException
+from datetime import datetime
+from typing import Optional, List
+from fastapi import APIRouter, HTTPException, Depends, status
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from app.core.database import get_db
+from app.services.arvgate.models import User
+from app.services.arvgate.dependencies import get_current_user_flexible
+from app.core.cloud_models import DatabaseInstance, emit_notification
 
 router = APIRouter(prefix="/api/v1/databases", tags=["ArvDB"])
 
@@ -20,10 +27,6 @@ DB_TIERS = [
     {"id": "db.arv.2xlarge", "vcpus": 8, "ram_gb": 32, "price_hr": 0.576},
 ]
 
-_databases: dict[str, dict] = {}
-
-def _deterministic_id(prefix: str, name: str) -> str:
-    return f"{prefix}-{hashlib.md5(name.encode()).hexdigest()[:8]}"
 
 def _get_tier_price(tier_id: str) -> float:
     for t in DB_TIERS:
@@ -31,42 +34,15 @@ def _get_tier_price(tier_id: str) -> float:
             return t["price_hr"]
     return 0.072
 
-# Seed databases
-_seed_dbs = [
-    ("aravanta-core-db", "PostgreSQL 16", "db.arv.large", "arv-us-east-1", 100),
-    ("aravanta-analytics", "PostgreSQL 15", "db.arv.xlarge", "arv-us-east-1", 500),
-    ("session-cache", "Redis 7.2", "db.arv.medium", "arv-us-east-1", 0),
-    ("user-documents", "MongoDB 7.0", "db.arv.large", "arv-us-west-2", 200),
-]
 
-random.seed(42)
-for name, engine, tier, region, storage in _seed_dbs:
-    db_id = _deterministic_id("arv-db", name)
-    port = "6379" if "Redis" in engine else ("27017" if "MongoDB" in engine else "5432")
-    conn_active = random.randint(5, 120)
-    conn_max = random.choice([100, 200, 500])
-    storage_used = round(storage * random.uniform(0.4, 0.95), 1) if storage > 0 else 0
-    _databases[db_id] = {
-        "id": db_id,
-        "name": name,
-        "engine": engine,
-        "tier": tier,
-        "region": region,
-        "storage_gb": storage,
-        "storage_used_gb": storage_used,
-        "status": "AVAILABLE",
-        "endpoint": f"{name}.db.aravanta.cloud",
-        "port": port,
-        "connection_count": conn_active,
-        "connections_active": conn_active,
-        "connections_max": conn_max,
-        "latency_ms": round(random.uniform(0.5, 8.0), 1),
-        "iops": random.randint(1000, 15000),
-        "created_at": (datetime.utcnow() - timedelta(days=random.randint(10, 100))).isoformat() + "Z",
-        "multi_az": True,
-        "monthly_cost_usd": round(_get_tier_price(tier) * 730, 2),
-    }
-random.seed()
+def _format_db_dict(instance: DatabaseInstance) -> dict:
+    d = instance.to_dict()
+    d["connections_active"] = instance.connection_count
+    d["connections_max"] = instance.max_connections
+    d["monthly_cost_usd"] = round(_get_tier_price(instance.tier) * 730, 2)
+    d["multi_az"] = True
+    return d
+
 
 class CreateDatabaseRequest(BaseModel):
     name: str
@@ -76,60 +52,131 @@ class CreateDatabaseRequest(BaseModel):
     storage_gb: int = 100
     multi_az: bool = False
 
+
 @router.get("/instances")
-def list_databases():
-    return list(_databases.values())
+def list_databases(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible),
+):
+    """List database instances accessible to current user."""
+    query = db.query(DatabaseInstance)
+    if current_user.role != "admin":
+        query = query.filter(DatabaseInstance.user_id == current_user.id)
+    instances = query.all()
+    return [_format_db_dict(inst) for inst in instances]
+
 
 @router.get("/instances/{db_id}")
-def get_database(db_id: str):
-    if db_id not in _databases:
+def get_database(
+    db_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible),
+):
+    """Get database instance details by ID."""
+    instance = db.query(DatabaseInstance).filter(DatabaseInstance.id == db_id).first()
+    if not instance:
         raise HTTPException(status_code=404, detail="Database not found")
-    return _databases[db_id]
+    if current_user.role != "admin" and instance.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied to this database")
+    return _format_db_dict(instance)
+
 
 @router.post("/instances", status_code=201)
-def create_database(req: CreateDatabaseRequest):
-    db_id = _deterministic_id("arv-db", req.name)
+def create_database(
+    req: CreateDatabaseRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible),
+):
+    """Provision a new managed database instance."""
+    db_id = f"arv-db-{hashlib.md5(f'{req.name}-{datetime.utcnow().timestamp()}'.encode()).hexdigest()[:8]}"
     port = "6379" if "Redis" in req.engine else ("27017" if "MongoDB" in req.engine else "5432")
-    new_db = {
-        "id": db_id,
-        "name": req.name,
-        "engine": req.engine,
-        "tier": req.tier,
-        "region": req.region,
-        "storage_gb": req.storage_gb,
-        "storage_used_gb": 0,
-        "status": "AVAILABLE",
-        "endpoint": f"{req.name}.db.aravanta.cloud",
-        "port": port,
-        "connection_count": 0,
-        "connections_active": 0,
-        "connections_max": 200,
-        "latency_ms": 0,
-        "iops": 0,
-        "created_at": datetime.utcnow().isoformat() + "Z",
-        "multi_az": req.multi_az,
-        "monthly_cost_usd": round(_get_tier_price(req.tier) * 730, 2),
-    }
-    _databases[db_id] = new_db
-    return new_db
+
+    instance = DatabaseInstance(
+        id=db_id,
+        user_id=current_user.id,
+        workspace_id=getattr(current_user, "workspace_id", "default") or "default",
+        name=req.name,
+        engine=req.engine,
+        tier=req.tier,
+        region=req.region,
+        storage_gb=req.storage_gb,
+        storage_used_gb=round(req.storage_gb * 0.1, 1) if req.storage_gb > 0 else 0.0,
+        status="AVAILABLE",
+        endpoint=f"{req.name}.db.aravanta.cloud",
+        port=port,
+        connection_count=1,
+        max_connections=200,
+        latency_ms=1.2,
+        iops=3000,
+        created_at=datetime.utcnow(),
+    )
+    db.add(instance)
+    db.commit()
+    db.refresh(instance)
+
+    emit_notification(
+        db,
+        title="Database Instance Provisioned",
+        message=f"Managed database '{instance.name}' ({instance.engine}) provisioned in region {instance.region}.",
+        severity="INFO",
+        source="ArvDB",
+        user_id=current_user.id,
+        workspace_id=instance.workspace_id,
+    )
+
+    return _format_db_dict(instance)
+
 
 @router.delete("/instances/{db_id}")
-def delete_database(db_id: str):
-    if db_id not in _databases:
+def delete_database(
+    db_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible),
+):
+    """Terminate and delete a managed database instance."""
+    instance = db.query(DatabaseInstance).filter(DatabaseInstance.id == db_id).first()
+    if not instance:
         raise HTTPException(status_code=404, detail="Database not found")
-    del _databases[db_id]
+    if current_user.role != "admin" and instance.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied to this database")
+
+    name = instance.name
+    workspace_id = instance.workspace_id
+    db.delete(instance)
+    db.commit()
+
+    emit_notification(
+        db,
+        title="Database Instance Terminated",
+        message=f"Database '{name}' has been terminated and storage decommissioned.",
+        severity="WARNING",
+        source="ArvDB",
+        user_id=current_user.id,
+        workspace_id=workspace_id,
+    )
+
     return {"message": f"Database {db_id} deleted"}
 
+
 @router.get("/summary")
-def database_summary():
-    dbs = list(_databases.values())
-    total_monthly = sum(d.get("monthly_cost_usd", 0) for d in dbs)
+def database_summary(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible),
+):
+    """Get aggregate metrics for all managed database instances."""
+    query = db.query(DatabaseInstance)
+    if current_user.role != "admin":
+        query = query.filter(DatabaseInstance.user_id == current_user.id)
+    instances = query.all()
+
+    total_monthly = sum(_get_tier_price(inst.tier) * 730 for inst in instances)
     return {
-        "total_databases": len(dbs),
-        "total_instances": len(dbs),
-        "available": len([d for d in dbs if d["status"] == "AVAILABLE"]),
-        "total_storage_gb": sum(d["storage_gb"] for d in dbs),
-        "total_connections": sum(d.get("connections_active", d.get("connection_count", 0)) for d in dbs),
-        "engines": list(set(d["engine"] for d in dbs)),
-        "total_monthly_cost": total_monthly,
+        "total_databases": len(instances),
+        "total_instances": len(instances),
+        "available": len([inst for inst in instances if inst.status == "AVAILABLE"]),
+        "total_storage_gb": sum(inst.storage_gb for inst in instances),
+        "total_connections": sum(inst.connection_count for inst in instances),
+        "engines": list(set(inst.engine for inst in instances)),
+        "total_monthly_cost": round(total_monthly, 2),
     }
+

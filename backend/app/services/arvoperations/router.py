@@ -9,6 +9,12 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, HTTPException, Query, status, Header, Depends
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
+from app.core.database import get_db
+from app.services.arvgate.models import User
+from app.services.arvgate.dependencies import get_current_user_flexible
+from app.core.cloud_models import Notification, emit_notification
 
 router = APIRouter(prefix="/api/v1/operations", tags=["ArvOperations — Cloud Platform Operations"])
 
@@ -856,25 +862,57 @@ def decommission_resource(res_id: str, workspace_id: Optional[str] = Header(None
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/notifications", summary="List user notifications")
-def list_notifications(workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
-    ws = _get_workspace_store(workspace_id)
-    return ws["notifications"]
+def list_notifications(
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible),
+):
+    query = db.query(Notification)
+    if current_user.role != "admin":
+        query = query.filter((Notification.user_id == current_user.id) | (Notification.user_id == "system"))
+    notifs = query.order_by(Notification.created_at.desc()).limit(50).all()
+    if not notifs:
+        ws = _get_workspace_store(workspace_id)
+        return ws.get("notifications", [])
+    return [n.to_dict() for n in notifs]
+
 
 @router.post("/notifications/{notif_id}/read", summary="Mark notification as read")
-def mark_notification_read(notif_id: str, workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+def mark_notification_read(
+    notif_id: str,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible),
+):
+    notif = db.query(Notification).filter(Notification.id == notif_id).first()
+    if notif:
+        notif.read = True
+        db.commit()
+        return notif.to_dict()
     ws = _get_workspace_store(workspace_id)
-    for n in ws["notifications"]:
+    for n in ws.get("notifications", []):
         if n["id"] == notif_id:
             n["read"] = True
             return n
     return {"message": "Notification updated"}
 
+
 @router.post("/notifications/read-all", summary="Mark all notifications as read")
-def mark_all_notifications_read(workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+def mark_all_notifications_read(
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible),
+):
+    query = db.query(Notification)
+    if current_user.role != "admin":
+        query = query.filter(Notification.user_id == current_user.id)
+    query.update({Notification.read: True})
+    db.commit()
     ws = _get_workspace_store(workspace_id)
-    for n in ws["notifications"]:
+    for n in ws.get("notifications", []):
         n["read"] = True
     return {"message": "All notifications marked as read"}
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 10. Billing, Invoices & Payment Methods

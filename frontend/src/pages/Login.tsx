@@ -97,30 +97,7 @@ export const Login: React.FC<LoginProps> = ({
         onLoginSuccess(userObj, data.access_token);
       }
     } catch (err: any) {
-      // Graceful offline/network resilience fallback for administrative accounts
-      const cleanEmail = email.trim().toLowerCase();
-      const isNetworkFail = err.message && (err.message.includes('Unable to connect') || err.message.includes('fetch'));
-      if (
-        isNetworkFail &&
-        ((cleanEmail === 'yashbaviskar67@gmail.com' && password === 'Padma@0215') ||
-         (cleanEmail === 'admin@aravanta.cloud' && password === 'Aravanta@2026!') ||
-         cleanEmail === 'demo@aravanta.cloud' ||
-         cleanEmail.includes('admin'))
-      ) {
-        const fallbackUser = {
-          id: cleanEmail === 'yashbaviskar67@gmail.com' ? 'usr-yash-admin-001' : 'usr-cloud-admin-002',
-          account_id: 'ARV-ACC-100001',
-          workspace_id: 'ws-yash-prod',
-          workspace_name: cleanEmail === 'yashbaviskar67@gmail.com' ? "Yash's Production Cloud Ops" : "Enterprise Platform Operations",
-          email: cleanEmail,
-          full_name: cleanEmail === 'yashbaviskar67@gmail.com' ? 'Yash Baviskar' : 'Enterprise Administrator',
-          role: signInRole || 'SuperAdmin',
-          is_mfa_enabled: false
-        };
-        onLoginSuccess(fallbackUser, `session-token-${Date.now()}`);
-        return;
-      }
-      setError(err.message || 'Authentication failed. Please verify credentials.');
+      setError(err.message || 'Authentication failed. Please check your credentials or network connection.');
     } finally {
       setLoading(false);
     }

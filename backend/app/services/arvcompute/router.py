@@ -1,17 +1,24 @@
 """
 Aravanta CloudOS — ArvCompute Service Router
-Full CRUD for virtual machine instances with in-memory data store.
+Full CRUD for virtual machine instances backed by persistent database storage,
+scoped to authenticated users, with real notification emission.
 """
 import hashlib
+import json
 import random
-from datetime import datetime, timedelta
-from typing import Optional
-from fastapi import APIRouter, HTTPException, Query
+from datetime import datetime
+from typing import Optional, List
+from fastapi import APIRouter, HTTPException, Query, Depends, status
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from app.core.database import get_db
+from app.services.arvgate.models import User, AuditLog
+from app.services.arvgate.dependencies import get_current_user_flexible
+from app.core.cloud_models import ComputeInstance, emit_notification
 
 router = APIRouter(prefix="/api/v1/compute", tags=["ArvCompute"])
 
-# ─── In-Memory Data Store ───────────────────────────────────────
 REGIONS = ["arv-us-east-1", "arv-us-west-2", "arv-eu-west-1", "arv-ap-south-1"]
 INSTANCE_TYPES = [
     {"id": "arv.nano", "vcpus": 1, "ram_gb": 0.5, "price_hr": 0.005},
@@ -34,49 +41,13 @@ OS_IMAGES = [
 ]
 
 def _det_id(prefix: str, name: str) -> str:
-    return f"{prefix}-{hashlib.md5(name.encode()).hexdigest()[:12]}"
+    return f"{prefix}-{hashlib.md5(f'{name}-{datetime.utcnow().timestamp()}'.encode()).hexdigest()[:10]}"
 
 def _random_ip():
     return f"10.{random.randint(0,255)}.{random.randint(1,254)}.{random.randint(1,254)}"
 
 def _random_public_ip():
     return f"{random.randint(34,52)}.{random.randint(100,255)}.{random.randint(1,254)}.{random.randint(1,254)}"
-
-# Seed initial instances
-_instances: dict[str, dict] = {}
-_seed_names = [
-    ("web-server-prod-01", "arv.large", "Ubuntu 22.04 LTS", "arv-us-east-1"),
-    ("api-gateway-prod", "arv.xlarge", "Aravanta CoreOS 1.0", "arv-us-east-1"),
-    ("worker-node-01", "arv.compute.large", "Ubuntu 24.04 LTS", "arv-us-east-1"),
-    ("worker-node-02", "arv.compute.large", "Ubuntu 24.04 LTS", "arv-us-east-1"),
-    ("ml-training-gpu", "arv.gpu.medium", "Ubuntu 22.04 LTS", "arv-us-west-2"),
-    ("staging-app-01", "arv.medium", "Ubuntu 22.04 LTS", "arv-eu-west-1"),
-    ("db-replica-reader", "arv.memory.large", "Amazon Linux 2023", "arv-us-east-1"),
-    ("monitoring-stack", "arv.large", "Aravanta CoreOS 1.0", "arv-us-east-1"),
-    ("ci-runner-01", "arv.compute.medium", "Ubuntu 24.04 LTS", "arv-us-west-2"),
-    ("bastion-host", "arv.small", "Ubuntu 22.04 LTS", "arv-us-east-1"),
-]
-
-random.seed(42)
-for name, itype, os_img, region in _seed_names:
-    inst_id = _det_id("arv-i", name)
-    launched = datetime.utcnow() - timedelta(days=random.randint(1, 90), hours=random.randint(0, 23))
-    _instances[inst_id] = {
-        "id": inst_id,
-        "name": name,
-        "instance_type": itype,
-        "os_image": os_img,
-        "region": region,
-        "status": random.choice(["RUNNING", "RUNNING", "RUNNING", "RUNNING", "STOPPED"]),
-        "private_ip": _random_ip(),
-        "public_ip": _random_public_ip() if random.random() > 0.3 else None,
-        "cpu_usage": round(random.uniform(5, 85), 1),
-        "ram_usage": round(random.uniform(20, 90), 1),
-        "disk_gb": random.choice([20, 50, 100, 200, 500]),
-        "launched_at": launched.isoformat() + "Z",
-        "tags": {"env": random.choice(["production", "staging", "development"]), "team": random.choice(["platform", "backend", "ml", "devops"])},
-    }
-random.seed()
 
 # ─── Schemas ────────────────────────────────────────────────────
 class CreateInstanceRequest(BaseModel):
@@ -92,69 +63,187 @@ class ActionRequest(BaseModel):
 
 # ─── Endpoints ──────────────────────────────────────────────────
 @router.get("/instances")
-def list_instances(region: Optional[str] = Query(None), status: Optional[str] = Query(None)):
-    result = list(_instances.values())
+def list_instances(
+    region: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible)
+):
+    query = db.query(ComputeInstance)
+    if current_user.role != "SuperAdmin":
+        query = query.filter(
+            (ComputeInstance.user_id == current_user.id) |
+            (ComputeInstance.workspace_id == current_user.workspace_id)
+        )
     if region:
-        result = [i for i in result if i["region"] == region]
+        query = query.filter(ComputeInstance.region == region)
     if status:
-        result = [i for i in result if i["status"] == status.upper()]
-    return result
+        query = query.filter(ComputeInstance.status == status.upper())
+    
+    instances = query.order_by(ComputeInstance.created_at.desc()).all()
+    return [inst.to_dict() for inst in instances]
 
 @router.get("/instances/{instance_id}")
-def get_instance(instance_id: str):
-    if instance_id not in _instances:
+def get_instance(
+    instance_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible)
+):
+    inst = db.query(ComputeInstance).filter(ComputeInstance.id == instance_id).first()
+    if not inst:
         raise HTTPException(status_code=404, detail=f"Instance {instance_id} not found")
-    return _instances[instance_id]
+    if current_user.role != "SuperAdmin" and inst.user_id != current_user.id and inst.workspace_id != current_user.workspace_id:
+        raise HTTPException(status_code=403, detail="Access denied to this instance")
+    return inst.to_dict()
 
 @router.post("/instances", status_code=201)
-def create_instance(req: CreateInstanceRequest):
+def create_instance(
+    req: CreateInstanceRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible)
+):
     inst_id = _det_id("arv-i", req.name)
-    instance = {
-        "id": inst_id,
-        "name": req.name,
-        "instance_type": req.instance_type,
-        "os_image": req.os_image,
-        "region": req.region,
-        "status": "RUNNING",
-        "private_ip": _random_ip(),
-        "public_ip": _random_public_ip(),
-        "cpu_usage": round(random.uniform(2, 15), 1),
-        "ram_usage": round(random.uniform(10, 30), 1),
-        "disk_gb": req.disk_gb,
-        "launched_at": datetime.utcnow().isoformat() + "Z",
-        "tags": req.tags,
-    }
-    _instances[inst_id] = instance
-    return instance
+    now = datetime.utcnow()
+    new_inst = ComputeInstance(
+        id=inst_id,
+        user_id=current_user.id,
+        workspace_id=current_user.workspace_id or "default",
+        name=req.name.strip(),
+        instance_type=req.instance_type,
+        os_image=req.os_image,
+        region=req.region,
+        status="RUNNING",
+        private_ip=_random_ip(),
+        public_ip=_random_public_ip(),
+        cpu_usage=round(random.uniform(5, 18), 1),
+        ram_usage=round(random.uniform(15, 35), 1),
+        disk_gb=req.disk_gb,
+        tags=json.dumps(req.tags or {}),
+        created_at=now,
+        updated_at=now
+    )
+    db.add(new_inst)
+
+    # Log audit entry
+    audit = AuditLog(
+        id=f"audit-{hashlib.md5(f'{inst_id}-{now.isoformat()}'.encode()).hexdigest()[:12]}",
+        workspace_id=current_user.workspace_id,
+        user_email=current_user.email,
+        action="CREATE_INSTANCE",
+        resource=req.name.strip(),
+        details=f"Deployed {req.instance_type} in {req.region}"
+    )
+    db.add(audit)
+
+    # Emit persistent notification
+    emit_notification(
+        db=db,
+        user_id=current_user.id,
+        workspace_id=current_user.workspace_id,
+        title="VM Instance Deployed",
+        desc=f"Instance {req.name} ({req.instance_type}) was launched successfully in {req.region}.",
+        type="success"
+    )
+
+    db.commit()
+    db.refresh(new_inst)
+    return new_inst.to_dict()
 
 @router.post("/instances/{instance_id}/action")
-def instance_action(instance_id: str, req: ActionRequest):
-    if instance_id not in _instances:
+def instance_action(
+    instance_id: str,
+    req: ActionRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible)
+):
+    inst = db.query(ComputeInstance).filter(ComputeInstance.id == instance_id).first()
+    if not inst:
         raise HTTPException(status_code=404, detail=f"Instance {instance_id} not found")
-    inst = _instances[instance_id]
+    if current_user.role != "SuperAdmin" and inst.user_id != current_user.id and inst.workspace_id != current_user.workspace_id:
+        raise HTTPException(status_code=403, detail="Access denied to this instance")
+
     action = req.action.lower()
     if action == "start":
-        inst["status"] = "RUNNING"
-        inst["cpu_usage"] = round(random.uniform(5, 25), 1)
+        inst.status = "RUNNING"
+        inst.cpu_usage = round(random.uniform(8, 25), 1)
+        inst.ram_usage = round(random.uniform(20, 45), 1)
+        inst.updated_at = datetime.utcnow()
+        emit_notification(
+            db=db,
+            user_id=current_user.id,
+            workspace_id=current_user.workspace_id,
+            title="Instance Started",
+            desc=f"VM instance {inst.name} is now RUNNING in {inst.region}.",
+            type="info"
+        )
     elif action == "stop":
-        inst["status"] = "STOPPED"
-        inst["cpu_usage"] = 0.0
-        inst["ram_usage"] = 0.0
+        inst.status = "STOPPED"
+        inst.cpu_usage = 0.0
+        inst.ram_usage = 0.0
+        inst.updated_at = datetime.utcnow()
+        emit_notification(
+            db=db,
+            user_id=current_user.id,
+            workspace_id=current_user.workspace_id,
+            title="Instance Stopped",
+            desc=f"VM instance {inst.name} was STOPPED.",
+            type="warning"
+        )
     elif action == "reboot":
-        inst["status"] = "RUNNING"
-        inst["cpu_usage"] = round(random.uniform(5, 15), 1)
+        inst.status = "RUNNING"
+        inst.cpu_usage = round(random.uniform(10, 20), 1)
+        inst.updated_at = datetime.utcnow()
+        emit_notification(
+            db=db,
+            user_id=current_user.id,
+            workspace_id=current_user.workspace_id,
+            title="Instance Rebooted",
+            desc=f"VM instance {inst.name} completed reboot cycle.",
+            type="info"
+        )
     elif action == "terminate":
-        del _instances[instance_id]
+        inst_name = inst.name
+        db.delete(inst)
+        emit_notification(
+            db=db,
+            user_id=current_user.id,
+            workspace_id=current_user.workspace_id,
+            title="Instance Terminated",
+            desc=f"VM instance {inst_name} ({instance_id}) was terminated and removed.",
+            type="error"
+        )
+        db.commit()
         return {"message": f"Instance {instance_id} terminated"}
     else:
         raise HTTPException(status_code=400, detail=f"Unknown action: {action}")
-    return inst
+
+    db.commit()
+    db.refresh(inst)
+    return inst.to_dict()
 
 @router.delete("/instances/{instance_id}")
-def delete_instance(instance_id: str):
-    if instance_id not in _instances:
+def delete_instance(
+    instance_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible)
+):
+    inst = db.query(ComputeInstance).filter(ComputeInstance.id == instance_id).first()
+    if not inst:
         raise HTTPException(status_code=404, detail=f"Instance {instance_id} not found")
-    del _instances[instance_id]
+    if current_user.role != "SuperAdmin" and inst.user_id != current_user.id and inst.workspace_id != current_user.workspace_id:
+        raise HTTPException(status_code=403, detail="Access denied to this instance")
+
+    inst_name = inst.name
+    db.delete(inst)
+    emit_notification(
+        db=db,
+        user_id=current_user.id,
+        workspace_id=current_user.workspace_id,
+        title="Instance Terminated",
+        desc=f"VM instance {inst_name} ({instance_id}) was deleted.",
+        type="error"
+    )
+    db.commit()
     return {"message": f"Instance {instance_id} terminated"}
 
 @router.get("/instance-types")
@@ -170,23 +259,37 @@ def list_os_images():
     return [{"id": img, "name": img} for img in OS_IMAGES]
 
 @router.get("/summary")
-def compute_summary():
-    instances = list(_instances.values())
-    running = len([i for i in instances if i["status"] == "RUNNING"])
-    stopped = len([i for i in instances if i["status"] == "STOPPED"])
+def compute_summary(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible)
+):
+    query = db.query(ComputeInstance)
+    if current_user.role != "SuperAdmin":
+        query = query.filter(
+            (ComputeInstance.user_id == current_user.id) |
+            (ComputeInstance.workspace_id == current_user.workspace_id)
+        )
+    instances = query.all()
+
+    running = len([i for i in instances if i.status == "RUNNING"])
+    stopped = len([i for i in instances if i.status == "STOPPED"])
     total_vcpus = 0
     total_ram = 0
     for inst in instances:
-        if inst["status"] == "RUNNING":
-            itype = next((t for t in INSTANCE_TYPES if t["id"] == inst["instance_type"]), None)
+        if inst.status == "RUNNING":
+            itype = next((t for t in INSTANCE_TYPES if t["id"] == inst.instance_type), None)
             if itype:
                 total_vcpus += itype["vcpus"]
                 total_ram += itype["ram_gb"]
+            else:
+                total_vcpus += 2
+                total_ram += 4
+
     return {
         "total_instances": len(instances),
         "running": running,
         "stopped": stopped,
         "total_vcpus": total_vcpus,
         "total_ram_gb": total_ram,
-        "regions_active": len(set(i["region"] for i in instances)),
+        "regions_active": len(set(i.region for i in instances)) if instances else 0,
     }

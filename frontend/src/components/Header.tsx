@@ -18,7 +18,7 @@ interface HeaderProps {
 }
 
 interface NotificationItem {
-  id: number;
+  id: string | number;
   title: string;
   desc: string;
   time: string;
@@ -88,26 +88,38 @@ export const Header: React.FC<HeaderProps> = ({
   useEffect(() => {
     const fetchNotifications = async () => {
       try {
-        const alerts = await apiFetch<any[]>('/v1/monitoring/alerts');
-        if (Array.isArray(alerts) && alerts.length > 0) {
-          setNotifications(alerts.map((a: any, i: number) => ({
-            id: a.id || i + 1,
-            title: a.title || a.name || 'System Alert',
-            desc: a.message || a.description || 'Alert triggered',
-            time: a.created_at ? new Date(a.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Just now',
-            type: a.severity === 'critical' ? 'error' : a.severity === 'warning' ? 'warning' : 'info',
-            read: false
+        const token = localStorage.getItem('aravanta_token');
+        const notifs = await apiFetch<any[]>('/v1/operations/notifications', { token }).catch(() => null);
+        if (Array.isArray(notifs) && notifs.length > 0) {
+          setNotifications(notifs.map((n: any, i: number) => ({
+            id: n.id || `notif-${i}`,
+            title: n.title || 'System Notification',
+            desc: n.message || n.desc || 'Platform event',
+            time: n.created_at ? new Date(n.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Just now',
+            type: (n.severity === 'CRITICAL' || n.severity === 'ERROR') ? 'error' : (n.severity === 'WARNING' ? 'warning' : (n.severity === 'SUCCESS' ? 'success' : 'info')),
+            read: !!n.read
           })));
         } else {
-          // Set reasonable defaults if API returns empty
-          setNotifications([
-            { id: 1, title: 'System Operational', desc: 'All Aravanta CloudOS services are running normally', time: 'Now', type: 'success', read: false },
-            { id: 2, title: 'Trial Active', desc: 'Your 10-day free trial is active. Complete payment to continue.', time: '1h ago', type: 'info', read: false },
-          ]);
+          // Fallback to alerts if no notifications
+          const alerts = await apiFetch<any[]>('/v1/monitoring/alerts', { token }).catch(() => null);
+          if (Array.isArray(alerts) && alerts.length > 0) {
+            setNotifications(alerts.map((a: any, i: number) => ({
+              id: a.id || `alert-${i}`,
+              title: a.title || a.name || 'System Alert',
+              desc: a.message || a.description || 'Alert triggered',
+              time: a.fired_at || a.created_at ? new Date(a.fired_at || a.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Just now',
+              type: a.severity === 'critical' ? 'error' : a.severity === 'warning' ? 'warning' : 'info',
+              read: a.status === 'resolved'
+            })));
+          } else {
+            setNotifications([
+              { id: '1', title: 'System Operational', desc: 'All Aravanta CloudOS services are running normally', time: 'Now', type: 'success', read: false },
+            ]);
+          }
         }
       } catch {
         setNotifications([
-          { id: 1, title: 'System Operational', desc: 'All services running normally', time: 'Now', type: 'success', read: false },
+          { id: '1', title: 'System Operational', desc: 'All services running normally', time: 'Now', type: 'success', read: false },
         ]);
       }
     };
@@ -151,8 +163,17 @@ export const Header: React.FC<HeaderProps> = ({
     }
   }, [hasNotificationPermission]);
 
-  const markAllRead = () => {
+  const markAllRead = async () => {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    const token = localStorage.getItem('aravanta_token');
+    try {
+      await apiFetch('/v1/operations/notifications/read-all', {
+        method: 'POST',
+        token,
+      });
+    } catch {
+      // Ignored
+    }
   };
 
   const unreadCount = notifications.filter(n => !n.read).length;

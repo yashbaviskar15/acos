@@ -44,7 +44,11 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   private handleClearCache = () => {
+    const token = localStorage.getItem('aravanta_token');
+    const user = localStorage.getItem('aravanta_user');
     localStorage.clear();
+    if (token) localStorage.setItem('aravanta_token', token);
+    if (user) localStorage.setItem('aravanta_user', user);
     window.location.href = '/';
   };
 

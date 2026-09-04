@@ -145,9 +145,12 @@ export default function App() {
               setUser((prev: any) => ({ ...prev, ...freshUser, is_mfa_enabled: Boolean(freshUser.is_mfa_enabled) }));
             }
           })
-          .catch(() => {});
-      } else {
-        localStorage.removeItem('aravanta_token');
+          .catch((err: any) => {
+            // Only clear token if the server explicitly rejected authentication with 401
+            if (err && (err.status === 401 || err.message?.includes('401') || err.message?.includes('Unauthorized') || err.message?.includes('Could not validate'))) {
+              handleLogout();
+            }
+          });
       }
     } catch {}
   }, [token]);
@@ -156,8 +159,6 @@ export default function App() {
     try {
       if (user) {
         localStorage.setItem('aravanta_user', JSON.stringify(user));
-      } else {
-        localStorage.removeItem('aravanta_user');
       }
     } catch {}
   }, [user]);

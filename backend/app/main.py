@@ -1,4 +1,6 @@
 import logging
+import uuid
+import datetime
 from sqlalchemy import text
 
 from fastapi import FastAPI
@@ -18,6 +20,8 @@ from app.services.arvwatch.router import router as arvwatch_router
 from app.services.arvcicd.router import router as arvcicd_router
 from app.services.arvbilling.router import router as arvbilling_router
 from app.services.arvoperations.router import router as arvoperations_router
+import app.services.arvgate.models
+import app.core.cloud_models
 
 logger = logging.getLogger("aravanta.startup")
 
@@ -48,6 +52,11 @@ def init_db():
         from app.core.database import SessionLocal
         from app.services.arvgate.models import User
         from app.core.security import get_password_hash, generate_mfa_secret
+        from app.core.cloud_models import (
+            Notification, ComputeInstance, KubeCluster, StorageBucket, StorageObject,
+            DatabaseInstance, ApplicationRecord, DeploymentRecord, IncidentRecord,
+            AlertRecord, WorkflowRecord, BackupRecord
+        )
 
         db = SessionLocal()
         try:
@@ -68,6 +77,7 @@ def init_db():
                     mfa_secret=generate_mfa_secret()
                 )
                 db.add(new_user)
+                user = new_user
 
             # Seed platform admin account
             cloud_admin = db.query(User).filter(User.email == "admin@aravanta.cloud").first()
@@ -85,6 +95,231 @@ def init_db():
                     mfa_secret=generate_mfa_secret()
                 )
                 db.add(new_admin)
+
+            db.commit()
+
+            # Seed persistent initial infrastructure ONLY for primary admin workspace if DB is empty
+            admin_id = user.id if user else "usr-yash-admin-001"
+            admin_ws = "ws-yash-prod"
+
+            if db.query(ComputeInstance).count() == 0:
+                demo_vms = [
+                    ComputeInstance(
+                        id="arv-i-prod-web01",
+                        user_id=admin_id,
+                        workspace_id=admin_ws,
+                        name="web-server-prod-01",
+                        instance_type="arv.large",
+                        os_image="Ubuntu 22.04 LTS",
+                        region="arv-us-east-1",
+                        status="RUNNING",
+                        private_ip="10.0.1.12",
+                        public_ip="34.120.45.89",
+                        cpu_usage=18.5,
+                        ram_usage=42.0,
+                        disk_gb=100,
+                        tags='{"env": "production", "tier": "frontend"}'
+                    ),
+                    ComputeInstance(
+                        id="arv-i-prod-api01",
+                        user_id=admin_id,
+                        workspace_id=admin_ws,
+                        name="api-gateway-prod",
+                        instance_type="arv.xlarge",
+                        os_image="Ubuntu 24.04 LTS",
+                        region="arv-us-east-1",
+                        status="RUNNING",
+                        private_ip="10.0.1.15",
+                        public_ip="34.120.45.90",
+                        cpu_usage=24.0,
+                        ram_usage=55.0,
+                        disk_gb=150,
+                        tags='{"env": "production", "tier": "backend"}'
+                    ),
+                    ComputeInstance(
+                        id="arv-i-prod-worker01",
+                        user_id=admin_id,
+                        workspace_id=admin_ws,
+                        name="worker-node-01",
+                        instance_type="arv.compute.large",
+                        os_image="Ubuntu 22.04 LTS",
+                        region="arv-us-west-2",
+                        status="RUNNING",
+                        private_ip="10.0.2.20",
+                        public_ip=None,
+                        cpu_usage=38.0,
+                        ram_usage=64.0,
+                        disk_gb=200,
+                        tags='{"env": "production", "tier": "workers"}'
+                    ),
+                    ComputeInstance(
+                        id="arv-i-stg-app01",
+                        user_id=admin_id,
+                        workspace_id=admin_ws,
+                        name="staging-app-01",
+                        instance_type="arv.medium",
+                        os_image="Ubuntu 22.04 LTS",
+                        region="arv-eu-west-1",
+                        status="STOPPED",
+                        private_ip="10.0.3.5",
+                        public_ip=None,
+                        cpu_usage=0.0,
+                        ram_usage=0.0,
+                        disk_gb=50,
+                        tags='{"env": "staging"}'
+                    ),
+                ]
+                db.add_all(demo_vms)
+
+            if db.query(KubeCluster).count() == 0:
+                demo_cluster = KubeCluster(
+                    id="arv-k8s-prod01",
+                    user_id=admin_id,
+                    workspace_id=admin_ws,
+                    name="aravanta-prod",
+                    version="1.30.1",
+                    region="arv-us-east-1",
+                    status="ACTIVE",
+                    node_count=3,
+                    node_size="arv.large",
+                    endpoint="https://arv-k8s-prod01.k8s.aravanta.cloud:6443",
+                    cpu_cores_total=24,
+                    ram_gb_total=96,
+                    pod_count=18
+                )
+                db.add(demo_cluster)
+
+            if db.query(StorageBucket).count() == 0:
+                demo_buckets = [
+                    StorageBucket(
+                        id="arv-s3-assets-prod",
+                        user_id=admin_id,
+                        workspace_id=admin_ws,
+                        name="aravanta-assets-prod",
+                        region="arv-us-east-1",
+                        storage_class="STANDARD",
+                        size_gb=156.8,
+                        object_count=1240,
+                        versioning=True,
+                        encryption="AES-256",
+                        access="PRIVATE",
+                        monthly_cost=3.61
+                    ),
+                    StorageBucket(
+                        id="arv-s3-backups",
+                        user_id=admin_id,
+                        workspace_id=admin_ws,
+                        name="aravanta-backups",
+                        region="arv-us-east-1",
+                        storage_class="INFREQUENT_ACCESS",
+                        size_gb=420.3,
+                        object_count=89,
+                        versioning=False,
+                        encryption="AES-256",
+                        access="PRIVATE",
+                        monthly_cost=9.67
+                    ),
+                ]
+                db.add_all(demo_buckets)
+
+            if db.query(DatabaseInstance).count() == 0:
+                demo_db = DatabaseInstance(
+                    id="arv-db-core-prod",
+                    user_id=admin_id,
+                    workspace_id=admin_ws,
+                    name="aravanta-core-db",
+                    engine="PostgreSQL 16",
+                    tier="db.arv.large",
+                    region="arv-us-east-1",
+                    storage_gb=200,
+                    storage_used_gb=84.5,
+                    status="AVAILABLE",
+                    endpoint="aravanta-core-db.db.aravanta.cloud",
+                    port="5432",
+                    connection_count=42,
+                    max_connections=200,
+                    latency_ms=1.2,
+                    iops=4500
+                )
+                db.add(demo_db)
+
+            if db.query(ApplicationRecord).count() == 0:
+                demo_apps = [
+                    ApplicationRecord(
+                        id="app-api-gateway",
+                        user_id=admin_id,
+                        workspace_id=admin_ws,
+                        name="api-gateway",
+                        environment="production",
+                        version="v2.4.1",
+                        previous_version="v2.4.0",
+                        replicas=4,
+                        target_replicas=4,
+                        status="HEALTHY",
+                        health_percent=100.0,
+                        error_rate_percent=0.01,
+                        cpu_usage_m=420,
+                        memory_usage_mb=680,
+                        p95_latency_ms=38.5,
+                        requests_per_sec=4200,
+                        strategy="RollingUpdate",
+                        image="aravanta/api-gateway:v2.4.1",
+                        repository="github.com/yashbaviskar15/acos-gateway",
+                        endpoints='["https://api.aravanta.cloud", "https://arv-backend.vercel.app"]',
+                        ports="[8000, 443]",
+                        env_vars='{"NODE_ENV": "production", "LOG_LEVEL": "info"}'
+                    ),
+                    ApplicationRecord(
+                        id="app-web-console",
+                        user_id=admin_id,
+                        workspace_id=admin_ws,
+                        name="web-console",
+                        environment="production",
+                        version="v1.5.2",
+                        previous_version="v1.5.1",
+                        replicas=3,
+                        target_replicas=3,
+                        status="HEALTHY",
+                        health_percent=100.0,
+                        error_rate_percent=0.0,
+                        cpu_usage_m=190,
+                        memory_usage_mb=310,
+                        p95_latency_ms=18.2,
+                        requests_per_sec=3100,
+                        strategy="Canary",
+                        image="aravanta/web-console:v1.5.2",
+                        repository="github.com/yashbaviskar15/acos-frontend",
+                        endpoints='["https://aravantacos.vercel.app"]',
+                        ports="[3000, 80]",
+                        env_vars='{"VITE_API_URL": "https://arv-backend.vercel.app"}'
+                    ),
+                ]
+                db.add_all(demo_apps)
+
+            if db.query(Notification).count() == 0:
+                demo_notifs = [
+                    Notification(
+                        id=f"notif-{uuid.uuid4().hex[:12]}",
+                        user_id=admin_id,
+                        workspace_id=admin_ws,
+                        title="Control Plane Active",
+                        desc="Unified CloudOS control plane operational across Mumbai & Global regions.",
+                        type="success",
+                        read=False,
+                        created_at=datetime.datetime.utcnow() - datetime.timedelta(hours=2)
+                    ),
+                    Notification(
+                        id=f"notif-{uuid.uuid4().hex[:12]}",
+                        user_id=admin_id,
+                        workspace_id=admin_ws,
+                        title="10-Day Trial Active",
+                        desc="Your enterprise trial is active with unrestricted resource provisioning.",
+                        type="info",
+                        read=False,
+                        created_at=datetime.datetime.utcnow() - datetime.timedelta(hours=5)
+                    ),
+                ]
+                db.add_all(demo_notifs)
 
             db.commit()
         except Exception as err:
