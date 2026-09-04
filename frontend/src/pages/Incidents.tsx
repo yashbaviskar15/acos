@@ -133,6 +133,7 @@ export const Incidents: React.FC<{ token: string | null }> = ({ token }) => {
         method: 'POST',
         body: JSON.stringify({
           author: 'Yash Baviskar (Incident Commander)',
+          event: timelineNote,
           note: timelineNote,
           type: 'UPDATE'
         }),

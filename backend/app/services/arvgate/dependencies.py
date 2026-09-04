@@ -1,6 +1,7 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from app.core.database import get_db
 from app.core.security import decode_access_token
 from app.services.arvgate.models import User
@@ -23,7 +24,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user_email is None:
         raise credentials_exception
         
-    user = db.query(User).filter(User.email == user_email).first()
+    user = db.query(User).filter(func.lower(User.email) == str(user_email).strip().lower()).first()
     if user is None or not user.is_active:
         raise credentials_exception
         
@@ -38,7 +39,7 @@ def get_current_user_optional(token: str = Depends(oauth2_scheme_optional), db: 
     user_email = payload.get("sub")
     if not user_email:
         return None
-    return db.query(User).filter(User.email == user_email).first()
+    return db.query(User).filter(func.lower(User.email) == str(user_email).strip().lower()).first()
 
 def get_current_user_flexible(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
     """Strictly authenticate user from Bearer token without insecure fallback."""

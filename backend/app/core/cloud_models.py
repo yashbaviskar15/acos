@@ -454,26 +454,38 @@ class BackupRecord(Base):
 
 def emit_notification(
     db,
-    user_id: str,
-    title: str,
-    desc: str,
+    user_id: Optional[str] = None,
+    title: str = "Notification",
+    desc: Optional[str] = None,
     type: str = "info",
     workspace_id: Optional[str] = None,
-    link: Optional[str] = None
+    link: Optional[str] = None,
+    message: Optional[str] = None,
+    severity: Optional[str] = None,
+    **kwargs
 ) -> Notification:
     """Helper to persist a real user notification from application lifecycle events."""
+    description = desc or message or title
+    notif_type = (type or severity or "info").lower()
+    if notif_type not in ["info", "success", "warning", "error"]:
+        notif_type = "info"
+    uid = user_id or "usr-system"
+
     notif = Notification(
         id=f"notif-{uuid.uuid4().hex[:12]}",
-        user_id=user_id,
-        workspace_id=workspace_id,
+        user_id=uid,
+        workspace_id=workspace_id or "default",
         title=title,
-        desc=desc,
-        type=type,
+        desc=description,
+        type=notif_type,
         read=False,
         link=link,
         created_at=datetime.datetime.utcnow()
     )
-    db.add(notif)
-    db.commit()
-    db.refresh(notif)
+    try:
+        db.add(notif)
+        db.commit()
+        db.refresh(notif)
+    except Exception:
+        db.rollback()
     return notif

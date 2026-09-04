@@ -148,8 +148,9 @@ export default function App() {
             }
           })
           .catch((err: any) => {
-            // Only clear token if the server explicitly rejected authentication with 401
-            if (err && (err.status === 401 || err.message?.includes('401') || err.message?.includes('Unauthorized') || err.message?.includes('Could not validate'))) {
+            // Only clear token if the server explicitly returned HTTP 401 Unauthorized
+            // Never log out on network connectivity errors, CORS preflights, or server boots
+            if (err && err.status === 401) {
               handleLogout();
             }
           });

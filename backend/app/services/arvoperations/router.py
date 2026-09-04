@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.services.arvgate.models import User
 from app.services.arvgate.dependencies import get_current_user, require_roles
-from app.core.cloud_models import Notification, emit_notification
+from app.core.cloud_models import Notification, emit_notification, DeploymentRecord, ApplicationRecord, BackupRecord
 
 router = APIRouter(prefix="/api/v1/operations", tags=["ArvOperations — Cloud Platform Operations"])
 
@@ -432,7 +432,10 @@ class IncidentTransition(BaseModel):
     note: Optional[str] = None
 
 class IncidentTimelineEvent(BaseModel):
-    event: str = Field(..., example="HPA autoscaler increased worker pods to 8 replicas")
+    event: Optional[str] = None
+    note: Optional[str] = None
+    author: Optional[str] = None
+    type: Optional[str] = "UPDATE"
 
 class IncidentRCA(BaseModel):
     rca_notes: str
@@ -720,6 +723,64 @@ def trigger_deployment(
 
     return new_dep
 
+
+@router.post("/deployments/{deployment_id}/rollback", summary="Rollback specific deployment")
+def rollback_deployment(
+    deployment_id: str,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator", "Developer"])),
+):
+    ws = _get_workspace_store(workspace_id)
+    target_dep = None
+    for d in ws["deployments"]:
+        if d["id"] == deployment_id:
+            target_dep = d
+            break
+
+    db_dep = db.query(DeploymentRecord).filter(DeploymentRecord.id == deployment_id).first()
+    app_name = target_dep["application_name"] if target_dep else (db_dep.service_name if db_dep else "service")
+    target_version = (target_dep.get("previous_version") if target_dep else None) or "v1.0.0"
+
+    if target_dep:
+        target_dep["status"] = "SUCCESSFUL"
+        target_dep["commit_message"] = f"Emergency rollback to {target_version}"
+
+    if db_dep:
+        db_dep.status = "SUCCESSFUL"
+        db.commit()
+
+    for app in ws["applications"].values():
+        if app.get("name") == app_name:
+            app["version"] = target_version
+            app["status"] = "HEALTHY"
+            app["health_percent"] = 100.0
+            app["error_rate_percent"] = 0.01
+
+    db_app = db.query(ApplicationRecord).filter(ApplicationRecord.name == app_name).first()
+    if db_app:
+        db_app.version = target_version
+        db_app.status = "HEALTHY"
+        db_app.health_percent = 100.0
+        db.commit()
+
+    emit_notification(
+        db,
+        title=f"Rollback Completed: {deployment_id}",
+        message=f"Deployment '{deployment_id}' for {app_name} rolled back to stable release {target_version}.",
+        severity="WARNING",
+        source="ArvOperations",
+        user_id=current_user.id,
+        workspace_id=workspace_id or "default",
+    )
+
+    return {
+        "message": f"Successfully rolled back deployment {deployment_id} to {target_version}",
+        "deployment_id": deployment_id,
+        "target_version": target_version
+    }
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 3. Containers Fleet Management
 # ─────────────────────────────────────────────────────────────────────────────
@@ -913,10 +974,17 @@ def post_incident_timeline(
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
 ):
     ws = _get_workspace_store(workspace_id)
+    ev_text = body.event or body.note or "Timeline note logged"
     for inc in ws["incidents"]:
         if inc["id"] == incident_id:
             now = datetime.utcnow().isoformat() + "Z"
-            inc["timeline"].append({"timestamp": now, "event": body.event})
+            inc["timeline"].append({
+                "timestamp": now,
+                "event": ev_text,
+                "note": ev_text,
+                "author": body.author or "Incident Commander",
+                "type": body.type or "UPDATE"
+            })
             return inc
     raise HTTPException(status_code=404, detail="Incident not found")
 

@@ -49,7 +49,8 @@ def log_audit(db: Session, email: str, action: str, resource: str, request: Requ
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register_user(user_in: UserRegister, request: Request, db: Session = Depends(get_db)):
-    existing = db.query(User).filter(User.email == user_in.email).first()
+    clean_email = str(user_in.email).strip().lower()
+    existing = db.query(User).filter(func.lower(User.email) == clean_email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email is already registered")
 
@@ -66,8 +67,8 @@ def register_user(user_in: UserRegister, request: Request, db: Session = Depends
         account_id=account_id,
         workspace_id=workspace_id,
         workspace_name=workspace_name,
-        email=user_in.email,
-        full_name=user_in.full_name,
+        email=clean_email,
+        full_name=user_in.full_name.strip(),
         hashed_password=hashed_pwd,
         role=assigned_role,
         mfa_secret=mfa_secret,
