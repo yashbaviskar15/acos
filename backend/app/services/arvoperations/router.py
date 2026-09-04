@@ -479,7 +479,9 @@ def list_applications(
 @router.post("/applications", status_code=status.HTTP_201_CREATED, summary="Create microservice")
 def create_application(
     body: ApplicationCreate,
-    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible),
 ):
     ws = _get_workspace_store(workspace_id)
     app_id = f"app-{body.name.lower().replace(' ', '-')}"
@@ -509,6 +511,17 @@ def create_application(
         "env_vars": body.env_vars or {},
     }
     ws["applications"][app_id] = new_app
+
+    emit_notification(
+        db,
+        title="Application Deployed",
+        message=f"Application '{body.name}' ({body.environment}) deployed with {body.replicas} replica(s).",
+        severity="INFO",
+        source="ArvOperations",
+        user_id=current_user.id,
+        workspace_id=workspace_id or "default",
+    )
+
     return new_app
 
 @router.get("/applications/{app_id}", summary="Get application details")
@@ -522,7 +535,9 @@ def get_application(app_id: str, workspace_id: Optional[str] = Header(None, alia
 def scale_application(
     app_id: str, 
     body: ApplicationScale,
-    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible),
 ):
     ws = _get_workspace_store(workspace_id)
     if app_id not in ws["applications"]:
@@ -536,23 +551,52 @@ def scale_application(
     else:
         app["status"] = "HEALTHY"
         app["health_percent"] = 100.0
+
+    emit_notification(
+        db,
+        title="Application Scaled",
+        message=f"Application '{app['name']}' scaled to {body.replicas} replica(s).",
+        severity="INFO",
+        source="ArvOperations",
+        user_id=current_user.id,
+        workspace_id=workspace_id or "default",
+    )
+
     return {"message": f"Scaled {app['name']} to {body.replicas} replicas", "application": app}
 
 @router.post("/applications/{app_id}/restart", summary="Rolling restart of application")
-def restart_application(app_id: str, workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+def restart_application(
+    app_id: str,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible),
+):
     ws = _get_workspace_store(workspace_id)
     if app_id not in ws["applications"]:
         raise HTTPException(status_code=404, detail=f"Application {app_id} not found")
     app = ws["applications"][app_id]
     app["status"] = "HEALTHY"
     app["health_percent"] = 100.0
+
+    emit_notification(
+        db,
+        title="Application Restarted",
+        message=f"Rolling restart completed for '{app['name']}'.",
+        severity="INFO",
+        source="ArvOperations",
+        user_id=current_user.id,
+        workspace_id=workspace_id or "default",
+    )
+
     return {"message": f"Rolling restart completed for {app['name']} across {app['replicas']} pods"}
 
 @router.post("/applications/{app_id}/rollback", summary="Rollback application version")
 def rollback_application(
     app_id: str, 
     body: ApplicationRollback,
-    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible),
 ):
     ws = _get_workspace_store(workspace_id)
     if app_id not in ws["applications"]:
@@ -564,14 +608,42 @@ def rollback_application(
     app["status"] = "HEALTHY"
     app["health_percent"] = 100.0
     app["error_rate_percent"] = 0.01
+
+    emit_notification(
+        db,
+        title="Application Rolled Back",
+        message=f"Application '{app['name']}' rolled back to {body.target_version}.",
+        severity="WARNING",
+        source="ArvOperations",
+        user_id=current_user.id,
+        workspace_id=workspace_id or "default",
+    )
+
     return {"message": f"Successfully rolled back {app['name']} to {body.target_version}", "application": app}
 
 @router.delete("/applications/{app_id}", summary="Delete application")
-def delete_application(app_id: str, workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+def delete_application(
+    app_id: str,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible),
+):
     ws = _get_workspace_store(workspace_id)
     if app_id not in ws["applications"]:
         raise HTTPException(status_code=404, detail=f"Application {app_id} not found")
+    name = ws["applications"][app_id]["name"]
     del ws["applications"][app_id]
+
+    emit_notification(
+        db,
+        title="Application Deleted",
+        message=f"Application '{name}' decommissioned and removed.",
+        severity="WARNING",
+        source="ArvOperations",
+        user_id=current_user.id,
+        workspace_id=workspace_id or "default",
+    )
+
     return {"message": f"Application {app_id} deleted successfully"}
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -595,7 +667,9 @@ def list_deployments(
 @router.post("/deployments", status_code=status.HTTP_201_CREATED, summary="Trigger deployment")
 def trigger_deployment(
     body: DeploymentTrigger,
-    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible),
 ):
     ws = _get_workspace_store(workspace_id)
     dep_id = f"dep-{random.randint(8850, 9999)}"
@@ -625,6 +699,17 @@ def trigger_deployment(
         ]
     }
     ws["deployments"].insert(0, new_dep)
+
+    emit_notification(
+        db,
+        title="Deployment Initiated",
+        message=f"Deployment for '{new_dep['application_name']}' ({body.version}) triggered to {body.environment}.",
+        severity="INFO",
+        source="ArvOperations",
+        user_id=current_user.id,
+        workspace_id=workspace_id or "default",
+    )
+
     return new_dep
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -695,7 +780,9 @@ def list_incidents(
 @router.post("/incidents", status_code=status.HTTP_201_CREATED, summary="Declare new incident")
 def declare_incident(
     body: IncidentCreate,
-    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible),
 ):
     ws = _get_workspace_store(workspace_id)
     inc_id = f"inc-2026-{random.randint(100, 999)}"
@@ -715,13 +802,26 @@ def declare_incident(
         "rca_notes": ""
     }
     ws["incidents"].insert(0, new_inc)
+
+    emit_notification(
+        db,
+        title=f"Incident Declared [{body.severity}]",
+        message=f"{body.title} - Affected: {body.affected_service}",
+        severity="CRITICAL" if body.severity in ["P1", "critical"] else "WARNING",
+        source="ArvOperations",
+        user_id=current_user.id,
+        workspace_id=workspace_id or "default",
+    )
+
     return new_inc
 
 @router.post("/incidents/{incident_id}/transition", summary="Transition incident lifecycle state")
 def transition_incident(
     incident_id: str, 
     body: IncidentTransition,
-    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible),
 ):
     ws = _get_workspace_store(workspace_id)
     for inc in ws["incidents"]:
@@ -732,6 +832,17 @@ def transition_incident(
             inc["timeline"].append({"timestamp": now, "event": note})
             if body.status == "Resolved":
                 inc["resolved_at"] = now
+
+            emit_notification(
+                db,
+                title=f"Incident {body.status}",
+                message=f"Incident '{inc['title']}' moved to status '{body.status}'.",
+                severity="INFO" if body.status == "Resolved" else "WARNING",
+                source="ArvOperations",
+                user_id=current_user.id,
+                workspace_id=workspace_id or "default",
+            )
+
             return inc
     raise HTTPException(status_code=404, detail="Incident not found")
 
