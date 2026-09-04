@@ -458,6 +458,14 @@ class ProvisionResourceRequest(BaseModel):
     specs: str = Field("8 vCPU, 16GB RAM, 200GB NVMe", example="8 vCPU, 16GB RAM, 200GB NVMe")
     tags: Optional[Dict[str, str]] = Field(default_factory=dict)
 
+class CreateBackupRequest(BaseModel):
+    resource_type: str = "database"
+    resource_name: str
+    retention_days: int = 30
+
+class ContainerActionRequest(BaseModel):
+    action: str = "restart"
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. Applications Workloads Catalog
 # ─────────────────────────────────────────────────────────────────────────────
@@ -739,6 +747,58 @@ def stop_container(container_id: str, workspace_id: Optional[str] = Header(None,
             c["status"] = "STOPPED"
     return {"message": f"Pod {container_id} terminated."}
 
+@router.post("/containers/{container_id}/action", summary="Perform container action (start/stop/restart)")
+def container_action(
+    container_id: str,
+    body: ContainerActionRequest,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible),
+):
+    ws = _get_workspace_store(workspace_id)
+    target = None
+    for c in ws["containers"]:
+        if c["id"] == container_id:
+            target = c
+            if body.action == "stop":
+                c["status"] = "STOPPED"
+            elif body.action in ["start", "restart"]:
+                c["status"] = "RUNNING"
+                if body.action == "restart":
+                    c["restarts"] = (c.get("restarts") or 0) + 1
+            break
+
+    name = target["name"] if target else container_id
+    emit_notification(
+        db,
+        title=f"Container {body.action.capitalize()}ed",
+        message=f"Container '{name}' action '{body.action}' completed successfully.",
+        severity="INFO",
+        source="ArvOperations",
+        user_id=current_user.id,
+        workspace_id=workspace_id or "default",
+    )
+
+    return {"message": f"Container {name} {body.action} executed successfully."}
+
+@router.get("/containers/{container_id}/logs", summary="Get logs for a specific pod")
+def get_container_logs(
+    container_id: str,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    limit: int = 50,
+):
+    ws = _get_workspace_store(workspace_id)
+    logs = ws.get("logs", [])
+    pod_logs = [l for l in logs if container_id in l.get("message", "") or container_id in l.get("service", "")]
+    if not pod_logs:
+        now = datetime.utcnow()
+        pod_logs = [
+            {"timestamp": (now - timedelta(seconds=i * 10)).isoformat() + "Z", "level": "INFO", "service": container_id, "message": f"Container {container_id} stdout: Worker loop tick {i} - status OK"}
+            for i in range(10)
+        ]
+    return pod_logs[:limit]
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 4. Log Explorer Stream
 # ─────────────────────────────────────────────────────────────────────────────
@@ -901,13 +961,87 @@ def list_backups(workspace_id: Optional[str] = Header(None, alias="x-workspace-i
     ws = _get_workspace_store(workspace_id)
     return ws["backups"]
 
+@router.post("/backups", status_code=status.HTTP_201_CREATED, summary="Create backup snapshot")
+def create_backup(
+    body: CreateBackupRequest,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible),
+):
+    ws = _get_workspace_store(workspace_id)
+    bkp_id = f"snap-{random.randint(1000, 9999)}"
+    now = datetime.utcnow()
+    new_bkp = {
+        "id": bkp_id,
+        "name": f"{body.resource_name.split(' ')[0]}-snap-{now.strftime('%Y%m%d%H%M')}",
+        "resource_type": body.resource_type,
+        "resource_name": body.resource_name,
+        "size_mb": random.randint(1200, 8500),
+        "status": "COMPLETED",
+        "created_at": now.isoformat() + "Z",
+        "retention_days": body.retention_days,
+        "restore_point": (now - timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M:%S UTC"),
+        "region": "arv-us-east-1",
+        "encryption": "AES-256",
+    }
+    ws["backups"].insert(0, new_bkp)
+
+    emit_notification(
+        db,
+        title="Backup Snapshot Created",
+        message=f"Disaster recovery snapshot '{new_bkp['name']}' created for {body.resource_name}.",
+        severity="INFO",
+        source="ArvOperations",
+        user_id=current_user.id,
+        workspace_id=workspace_id or "default",
+    )
+
+    return new_bkp
+
 @router.post("/backups/{backup_id}/restore", summary="Restore from backup snapshot")
-def restore_backup(backup_id: str, workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+def restore_backup(
+    backup_id: str,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible),
+):
     ws = _get_workspace_store(workspace_id)
     for bkp in ws["backups"]:
         if bkp["id"] == backup_id:
+            emit_notification(
+                db,
+                title="Backup Restore Initiated",
+                message=f"Restoration from snapshot '{bkp['name']}' completed successfully.",
+                severity="INFO",
+                source="ArvOperations",
+                user_id=current_user.id,
+                workspace_id=workspace_id or "default",
+            )
             return {"message": f"Restore completed successfully from snapshot {backup_id}."}
     raise HTTPException(status_code=404, detail="Backup snapshot not found")
+
+@router.delete("/backups/{backup_id}", summary="Delete backup snapshot")
+def delete_backup(
+    backup_id: str,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible),
+):
+    ws = _get_workspace_store(workspace_id)
+    ws["backups"] = [b for b in ws["backups"] if b["id"] != backup_id]
+
+    emit_notification(
+        db,
+        title="Backup Snapshot Deleted",
+        message=f"Backup snapshot '{backup_id}' removed from disaster recovery storage.",
+        severity="INFO",
+        source="ArvOperations",
+        user_id=current_user.id,
+        workspace_id=workspace_id or "default",
+    )
+
+    return {"message": f"Backup snapshot {backup_id} deleted"}
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 8. Infrastructure Multi-Cloud Inventory
@@ -925,7 +1059,9 @@ def get_infrastructure_inventory(workspace_id: Optional[str] = Header(None, alia
 @router.post("/infrastructure/provision", status_code=status.HTTP_201_CREATED, summary="Provision infrastructure resource")
 def provision_resource(
     body: ProvisionResourceRequest,
-    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible),
 ):
     ws = _get_workspace_store(workspace_id)
     res_id = f"res-{uuid.uuid4().hex[:8]}"
@@ -942,30 +1078,87 @@ def provision_resource(
         "tags": body.tags or {"env": body.env}
     }
     ws["infrastructure"].insert(0, new_res)
+
+    emit_notification(
+        db,
+        title="Infrastructure Provisioned",
+        message=f"Infrastructure node '{body.name}' ({body.type}) provisioned in {body.region}.",
+        severity="INFO",
+        source="ArvOperations",
+        user_id=current_user.id,
+        workspace_id=workspace_id or "default",
+    )
+
     return new_res
 
 @router.post("/infrastructure/{res_id}/restart", summary="Rolling restart infrastructure node")
-def restart_resource(res_id: str, workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+def restart_resource(
+    res_id: str,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible),
+):
     ws = _get_workspace_store(workspace_id)
     for r in ws["infrastructure"]:
         if r["id"] == res_id:
             r["status"] = "RUNNING"
+            emit_notification(
+                db,
+                title="Infrastructure Restarted",
+                message=f"Infrastructure node '{r['name']}' restarted successfully.",
+                severity="INFO",
+                source="ArvOperations",
+                user_id=current_user.id,
+                workspace_id=workspace_id or "default",
+            )
             return {"message": f"Resource {r['name']} restarted successfully."}
     raise HTTPException(status_code=404, detail="Resource not found")
 
 @router.post("/infrastructure/{res_id}/stop", summary="Halt infrastructure resource")
-def stop_resource(res_id: str, workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+def stop_resource(
+    res_id: str,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible),
+):
     ws = _get_workspace_store(workspace_id)
     for r in ws["infrastructure"]:
         if r["id"] == res_id:
             r["status"] = "STOPPED"
+            emit_notification(
+                db,
+                title="Infrastructure Halted",
+                message=f"Infrastructure node '{r['name']}' has been stopped.",
+                severity="WARNING",
+                source="ArvOperations",
+                user_id=current_user.id,
+                workspace_id=workspace_id or "default",
+            )
             return {"message": f"Resource {r['name']} halted."}
     raise HTTPException(status_code=404, detail="Resource not found")
 
 @router.delete("/infrastructure/{res_id}", summary="Decommission infrastructure resource")
-def decommission_resource(res_id: str, workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+def decommission_resource(
+    res_id: str,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_flexible),
+):
     ws = _get_workspace_store(workspace_id)
+    target = next((r for r in ws["infrastructure"] if r["id"] == res_id), None)
+    name = target["name"] if target else res_id
     ws["infrastructure"] = [r for r in ws["infrastructure"] if r["id"] != res_id]
+
+    emit_notification(
+        db,
+        title="Infrastructure Decommissioned",
+        message=f"Infrastructure resource '{name}' decommissioned and released.",
+        severity="WARNING",
+        source="ArvOperations",
+        user_id=current_user.id,
+        workspace_id=workspace_id or "default",
+    )
+
     return {"message": f"Resource {res_id} decommissioned."}
 
 # ─────────────────────────────────────────────────────────────────────────────

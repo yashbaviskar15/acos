@@ -131,9 +131,15 @@ export const Infrastructure: React.FC<{ token: string | null }> = ({ token }) =>
         action: async () => {
           setActionLoading(true);
           try {
-            await new Promise(r => setTimeout(r, 600));
+            await apiFetch(`/api/v1/operations/infrastructure/${res.id}/restart`, {
+              method: 'POST',
+              token,
+            });
             showToast(`Restart command sent to ${res.name}. Health probes verified.`);
             setConfirmModal(prev => ({ ...prev, isOpen: false }));
+            fetchInventory();
+          } catch (err: any) {
+            showToast(`Restart failed: ${err.message}`);
           } finally {
             setActionLoading(false);
           }
@@ -148,10 +154,16 @@ export const Infrastructure: React.FC<{ token: string | null }> = ({ token }) =>
         action: async () => {
           setActionLoading(true);
           try {
-            await new Promise(r => setTimeout(r, 600));
+            await apiFetch(`/api/v1/operations/infrastructure/${res.id}/stop`, {
+              method: 'POST',
+              token,
+            });
             setResources(prev => prev.map(item => item.id === res.id ? { ...item, status: 'STOPPED' } : item));
             showToast(`Resource ${res.name} has been stopped.`);
             setConfirmModal(prev => ({ ...prev, isOpen: false }));
+            fetchInventory();
+          } catch (err: any) {
+            showToast(`Stop failed: ${err.message}`);
           } finally {
             setActionLoading(false);
           }
@@ -166,10 +178,16 @@ export const Infrastructure: React.FC<{ token: string | null }> = ({ token }) =>
         action: async () => {
           setActionLoading(true);
           try {
-            await new Promise(r => setTimeout(r, 600));
+            await apiFetch(`/api/v1/operations/infrastructure/${res.id}`, {
+              method: 'DELETE',
+              token,
+            });
             setResources(prev => prev.filter(item => item.id !== res.id));
             showToast(`Resource ${res.name} decommissioned successfully.`);
             setConfirmModal(prev => ({ ...prev, isOpen: false }));
+            fetchInventory();
+          } catch (err: any) {
+            showToast(`Decommission failed: ${err.message}`);
           } finally {
             setActionLoading(false);
           }
