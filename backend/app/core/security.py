@@ -16,17 +16,37 @@ def get_password_hash(password: str) -> str:
     hashed = bcrypt.hashpw(password_bytes, salt)
     return hashed.decode('utf-8')
 
-def create_access_token(subject: str | Any, roles: list[str] = None, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(
+    subject: str | Any, 
+    roles: list[str] = None, 
+    expires_delta: Optional[timedelta] = None,
+    user_obj: Any = None
+) -> str:
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
         expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     
+    clean_sub = str(subject).strip().lower()
     to_encode = {
         "exp": expire,
-        "sub": str(subject),
+        "sub": clean_sub,
         "roles": roles or ["Developer"]
     }
+    if user_obj:
+        if hasattr(user_obj, "id") and user_obj.id:
+            to_encode["uid"] = user_obj.id
+        if hasattr(user_obj, "account_id") and user_obj.account_id:
+            to_encode["acc"] = user_obj.account_id
+        if hasattr(user_obj, "workspace_id") and user_obj.workspace_id:
+            to_encode["ws_id"] = user_obj.workspace_id
+        if hasattr(user_obj, "workspace_name") and user_obj.workspace_name:
+            to_encode["ws_name"] = user_obj.workspace_name
+        if hasattr(user_obj, "full_name") and user_obj.full_name:
+            to_encode["name"] = user_obj.full_name
+        if hasattr(user_obj, "role") and user_obj.role:
+            to_encode["role"] = user_obj.role
+            
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 

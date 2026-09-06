@@ -155,7 +155,15 @@ export const Login: React.FC<LoginProps> = ({
 
       onLoginSuccess(userObj, loginData.access_token);
     } catch (err: any) {
-      setError(err.message || 'Registration failed. Email might already be registered.');
+      const msg = err.message || 'Registration failed.';
+      if (msg.toLowerCase().includes('already exists') || msg.toLowerCase().includes('already registered')) {
+        setEmail(regEmail.trim());
+        setPassword('');
+        setActiveTab('signin');
+        setError('An account with this email already exists. Please sign in instead.');
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }

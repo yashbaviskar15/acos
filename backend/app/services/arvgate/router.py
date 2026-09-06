@@ -52,7 +52,17 @@ def register_user(user_in: UserRegister, request: Request, db: Session = Depends
     clean_email = str(user_in.email).strip().lower()
     existing = db.query(User).filter(func.lower(User.email) == clean_email).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Email is already registered")
+        if verify_password(user_in.password, existing.hashed_password):
+            if user_in.full_name and user_in.full_name.strip():
+                existing.full_name = user_in.full_name.strip()
+            if user_in.role:
+                existing.role = user_in.role
+            if user_in.workspace_name and user_in.workspace_name.strip():
+                existing.workspace_name = user_in.workspace_name.strip()
+            db.commit()
+            db.refresh(existing)
+            return existing
+        raise HTTPException(status_code=400, detail="An account with this email already exists. Please sign in instead.")
 
     user_id = str(uuid.uuid4())
     account_id = f"ARV-ACC-{random.randint(100000, 999999)}"
@@ -132,7 +142,7 @@ def login_user(login_in: UserLogin, request: Request, db: Session = Depends(get_
             is_mfa_enabled=True
         )
 
-    token = create_access_token(subject=user.email, roles=[user.role])
+    token = create_access_token(subject=user.email, roles=[user.role], user_obj=user)
     log_audit(db, user.email, "USER_LOGIN", "ArvGate", request, f"Successful login for {user.full_name} ({user.account_id}) as {user.role}", workspace_id=user.workspace_id)
 
     return TokenResponse(
@@ -356,7 +366,7 @@ def verify_mfa(mfa_in: MFAVerifyRequest, request: Request, db: Session = Depends
     if not is_valid:
         raise HTTPException(status_code=401, detail="Invalid 6-digit MFA passcode. Please check your authenticator app.")
 
-    token = create_access_token(subject=user.email, roles=[user.role])
+    token = create_access_token(subject=user.email, roles=[user.role], user_obj=user)
     log_audit(db, user.email, "USER_MFA_VERIFY", "ArvGate", request, "Successful MFA verification", workspace_id=user.workspace_id)
 
     return TokenResponse(
@@ -383,7 +393,7 @@ def update_role(req: RoleUpdateRequest, request: Request, current_user: User = D
     db.commit()
     db.refresh(current_user)
 
-    new_token = create_access_token(subject=current_user.email, roles=[current_user.role])
+    new_token = create_access_token(subject=current_user.email, roles=[current_user.role], user_obj=current_user)
     log_audit(db, current_user.email, "ROLE_UPDATE", "ArvGate", request, f"System role changed to '{req.role}'", workspace_id=current_user.workspace_id)
 
     return {

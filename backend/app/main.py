@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import make_asgi_app
 
 from app.core.config import settings
-from app.core.database import Base, engine
+from app.core.database import Base, engine, DATABASE_URL
 from app.services.arvgate.router import router as arvgate_router
 from app.services.arvcompute.router import router as arvcompute_router
 from app.services.arvkube.router import router as arvkube_router
@@ -25,29 +25,40 @@ import app.core.cloud_models
 
 logger = logging.getLogger("aravanta.startup")
 
-# Initialize database tables and seed default users safely.
+_is_sqlite = DATABASE_URL.startswith("sqlite")
+_is_postgres = DATABASE_URL.startswith("postgresql")
+
+
 def init_db():
+    """Initialize database tables and seed default admin users.
+    
+    This function is idempotent:
+    - create_all() only creates tables that don't exist
+    - Seed data checks by primary key, not by table count
+    - Safe to call on every cold start
+    """
     try:
         Base.metadata.create_all(bind=engine)
-        
-        # Safely migrate new columns if using SQLite
-        try:
-            with engine.connect() as conn:
-                for col_sql in [
-                    "ALTER TABLE users ADD COLUMN workspace_id VARCHAR(50)",
-                    "ALTER TABLE users ADD COLUMN workspace_name VARCHAR(100)",
-                    "ALTER TABLE users ADD COLUMN avatar_url VARCHAR(500)",
-                    "ALTER TABLE users ADD COLUMN timezone VARCHAR(50) DEFAULT 'Asia/Kolkata'",
-                    "ALTER TABLE users ADD COLUMN preferences TEXT DEFAULT '{}'",
-                    "ALTER TABLE audit_logs ADD COLUMN workspace_id VARCHAR(50)",
-                ]:
-                    try:
-                        conn.execute(text(col_sql))
-                        conn.commit()
-                    except Exception:
-                        pass
-        except Exception:
-            pass
+
+        # SQLite-only: add columns that may be missing from older schemas
+        if _is_sqlite:
+            try:
+                with engine.connect() as conn:
+                    for col_sql in [
+                        "ALTER TABLE users ADD COLUMN workspace_id VARCHAR(50)",
+                        "ALTER TABLE users ADD COLUMN workspace_name VARCHAR(100)",
+                        "ALTER TABLE users ADD COLUMN avatar_url VARCHAR(500)",
+                        "ALTER TABLE users ADD COLUMN timezone VARCHAR(50) DEFAULT 'Asia/Kolkata'",
+                        "ALTER TABLE users ADD COLUMN preferences TEXT DEFAULT '{}'",
+                        "ALTER TABLE audit_logs ADD COLUMN workspace_id VARCHAR(50)",
+                    ]:
+                        try:
+                            conn.execute(text(col_sql))
+                            conn.commit()
+                        except Exception:
+                            pass
+            except Exception:
+                pass
 
         from app.core.database import SessionLocal
         from app.services.arvgate.models import User
@@ -60,7 +71,7 @@ def init_db():
 
         db = SessionLocal()
         try:
-            # Seed primary administrator account
+            # Seed primary administrator account (idempotent — check by email)
             admin_email = "yashbaviskar67@gmail.com"
             user = db.query(User).filter(User.email == admin_email).first()
             if not user:
@@ -79,7 +90,7 @@ def init_db():
                 db.add(new_user)
                 user = new_user
 
-            # Seed platform admin account
+            # Seed platform admin account (idempotent — check by email)
             cloud_admin = db.query(User).filter(User.email == "admin@aravanta.cloud").first()
             if not cloud_admin:
                 new_admin = User(
@@ -98,11 +109,12 @@ def init_db():
 
             db.commit()
 
-            # Seed persistent initial infrastructure ONLY for primary admin workspace if DB is empty
+            # Seed demo infrastructure ONLY for primary admin workspace
+            # Idempotent: check by specific IDs, not by count
             admin_id = user.id if user else "usr-yash-admin-001"
             admin_ws = "ws-yash-prod"
 
-            if db.query(ComputeInstance).count() == 0:
+            if not db.query(ComputeInstance).filter(ComputeInstance.id == "arv-i-prod-web01").first():
                 demo_vms = [
                     ComputeInstance(
                         id="arv-i-prod-web01",
@@ -171,7 +183,7 @@ def init_db():
                 ]
                 db.add_all(demo_vms)
 
-            if db.query(KubeCluster).count() == 0:
+            if not db.query(KubeCluster).filter(KubeCluster.id == "arv-k8s-prod01").first():
                 demo_cluster = KubeCluster(
                     id="arv-k8s-prod01",
                     user_id=admin_id,
@@ -189,7 +201,7 @@ def init_db():
                 )
                 db.add(demo_cluster)
 
-            if db.query(StorageBucket).count() == 0:
+            if not db.query(StorageBucket).filter(StorageBucket.id == "arv-s3-assets-prod").first():
                 demo_buckets = [
                     StorageBucket(
                         id="arv-s3-assets-prod",
@@ -222,7 +234,7 @@ def init_db():
                 ]
                 db.add_all(demo_buckets)
 
-            if db.query(DatabaseInstance).count() == 0:
+            if not db.query(DatabaseInstance).filter(DatabaseInstance.id == "arv-db-core-prod").first():
                 demo_db = DatabaseInstance(
                     id="arv-db-core-prod",
                     user_id=admin_id,
@@ -243,7 +255,7 @@ def init_db():
                 )
                 db.add(demo_db)
 
-            if db.query(ApplicationRecord).count() == 0:
+            if not db.query(ApplicationRecord).filter(ApplicationRecord.id == "app-api-gateway").first():
                 demo_apps = [
                     ApplicationRecord(
                         id="app-api-gateway",
@@ -296,7 +308,7 @@ def init_db():
                 ]
                 db.add_all(demo_apps)
 
-            if db.query(Notification).count() == 0:
+            if not db.query(Notification).filter(Notification.title == "Control Plane Active").first():
                 demo_notifs = [
                     Notification(
                         id=f"notif-{uuid.uuid4().hex[:12]}",
@@ -322,6 +334,7 @@ def init_db():
                 db.add_all(demo_notifs)
 
             db.commit()
+            logger.info("Database initialized successfully. Engine: %s", "PostgreSQL" if _is_postgres else "SQLite")
         except Exception as err:
             logger.warning("Seed error: %s", err)
             db.rollback()
@@ -380,8 +393,25 @@ def root():
 @app.get("/health", tags=["Health"])
 @app.get("/api/v1/health", tags=["Health"])
 def health_check():
+    db_status = "unknown"
+    db_engine_type = "postgresql" if _is_postgres else ("sqlite" if _is_sqlite else "unknown")
+    try:
+        from app.core.database import SessionLocal
+        db = SessionLocal()
+        try:
+            db.execute(text("SELECT 1"))
+            db_status = "connected"
+        except Exception as e:
+            db_status = f"error: {str(e)[:100]}"
+        finally:
+            db.close()
+    except Exception as e:
+        db_status = f"error: {str(e)[:100]}"
+
     return {
-        "status": "HEALTHY",
+        "status": "HEALTHY" if db_status == "connected" else "DEGRADED",
         "service": "Aravanta CloudOS Microservices API",
-        "version": settings.VERSION
+        "version": settings.VERSION,
+        "database": db_status,
+        "database_engine": db_engine_type,
     }

@@ -211,8 +211,15 @@ export default function App() {
   };
 
   const handleLoginSuccess = (userData: any, newToken: string) => {
+    // Synchronously persist to localStorage BEFORE setting React state
+    try {
+      localStorage.setItem('aravanta_token', newToken);
+      localStorage.setItem('aravanta_user', JSON.stringify(userData));
+      localStorage.setItem('aravanta_active_tab', 'dashboard');
+    } catch {}
     setToken(newToken);
     setUser(userData);
+    setActiveTab('dashboard');
     setAuthViewState('landing');
   };
 
