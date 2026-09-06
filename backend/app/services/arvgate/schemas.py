@@ -1,18 +1,34 @@
 import datetime
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, model_validator
 
 class UserRegister(BaseModel):
     email: EmailStr
     password: str
     full_name: str
     workspace_name: Optional[str] = "Production Cloud Ops"
-    role: Optional[str] = "Developer"
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_client_role(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "role" in data:
+            raise ValueError(
+                "Client-specified 'role' is forbidden. Roles are server-assigned and immutable during registration."
+            )
+        return data
 
 class UserLogin(BaseModel):
     email: str  # Accepts either Email (e.g. user@domain.com) OR Account ID (e.g. ARV-ACC-123456)
     password: str
-    role: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_client_role(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "role" in data:
+            raise ValueError(
+                "Client-specified 'role' is forbidden. Roles cannot be selected or changed at login time."
+            )
+        return data
 
 class TokenResponse(BaseModel):
     access_token: str

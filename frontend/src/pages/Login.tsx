@@ -39,7 +39,6 @@ export const Login: React.FC<LoginProps> = ({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [signInRole, setSignInRole] = useState('SuperAdmin');
   const [rememberMe, setRememberMe] = useState(true);
 
   // Register form state
@@ -48,7 +47,6 @@ export const Login: React.FC<LoginProps> = ({
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPwd, setRegConfirmPwd] = useState('');
   const [regWorkspaceName, setRegWorkspaceName] = useState('');
-  const [regRole, setRegRole] = useState('SuperAdmin');
 
   // MFA & Password Reset
   const [mfaCode, setMfaCode] = useState('');
@@ -115,8 +113,7 @@ export const Login: React.FC<LoginProps> = ({
         method: 'POST',
         body: JSON.stringify({
           email: email.trim(),
-          password: password,
-          role: signInRole
+          password: password
         })
       });
 
@@ -168,7 +165,6 @@ export const Login: React.FC<LoginProps> = ({
           email: regEmail.trim(),
           password: regPassword,
           full_name: regFullName.trim(),
-          role: regRole,
           workspace_name: regWorkspaceName.trim() || `${regFullName.trim()}'s Workspace`
         })
       });
@@ -178,8 +174,7 @@ export const Login: React.FC<LoginProps> = ({
         method: 'POST',
         body: JSON.stringify({
           email: regEmail.trim(),
-          password: regPassword,
-          role: regRole
+          password: regPassword
         })
       });
 
@@ -543,33 +538,16 @@ export const Login: React.FC<LoginProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 pt-1">
-                <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Assigned Role</label>
-                  <select
-                    value={signInRole}
-                    onChange={(e) => setSignInRole(e.target.value)}
-                    className="w-full px-3 py-2 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-700 dark:text-slate-300 font-bold cursor-pointer"
-                  >
-                    <option value="SuperAdmin">SuperAdmin (Full Access)</option>
-                    <option value="Admin">Admin (Workspace)</option>
-                    <option value="Operator">Operator (SRE)</option>
-                    <option value="Developer">Developer</option>
-                    <option value="Viewer">Viewer (Read-Only)</option>
-                  </select>
-                </div>
-
-                <div className="flex items-center pt-5">
-                  <label className="flex items-center gap-2 cursor-pointer text-slate-600 dark:text-slate-400">
-                    <input
-                      type="checkbox"
-                      checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
-                      className="rounded text-[#C6923B] accent-[#C6923B] focus:ring-[#C6923B]"
-                    />
-                    <span className="text-[11px]">Remember session</span>
-                  </label>
-                </div>
+              <div className="flex items-center justify-between pt-1">
+                <label className="flex items-center gap-2 cursor-pointer text-slate-600 dark:text-slate-400">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="rounded text-[#C6923B] accent-[#C6923B] focus:ring-[#C6923B]"
+                  />
+                  <span className="text-[11px]">Remember session</span>
+                </label>
               </div>
 
               <button
@@ -645,21 +623,6 @@ export const Login: React.FC<LoginProps> = ({
                     className="w-full px-3 py-2 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/30 focus:border-[#C6923B]"
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Workspace System Role</label>
-                <select
-                  value={regRole}
-                  onChange={(e) => setRegRole(e.target.value)}
-                  className="w-full px-3 py-2 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-700 dark:text-slate-300 font-bold cursor-pointer"
-                >
-                  <option value="SuperAdmin">SuperAdmin (Full Platform Control)</option>
-                  <option value="Admin">Admin (Workspace Admin)</option>
-                  <option value="Operator">Operator (SRE & Release)</option>
-                  <option value="Developer">Developer</option>
-                  <option value="Viewer">Viewer (Read-Only)</option>
-                </select>
               </div>
 
               <button

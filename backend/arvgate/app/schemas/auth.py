@@ -2,19 +2,33 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
+from typing import Any
 
 
 class UserRegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=12)
     full_name: str = Field(min_length=2, max_length=255)
-    role: str = Field(default="Developer")
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_client_role(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "role" in data:
+            raise ValueError("Client-specified 'role' is forbidden. Roles are server-assigned and immutable during registration.")
+        return data
 
 
 class UserLoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_client_role(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "role" in data:
+            raise ValueError("Client-specified 'role' is forbidden. Roles cannot be selected or changed at login time.")
+        return data
 
 
 class MFAVerifyRequest(BaseModel):

@@ -57,7 +57,7 @@ async def register(
     if existing_user:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
 
-    role = payload.role if payload.role in role_names() else "Viewer"
+    role = "Developer"
     mfa_secret = generate_totp_secret()
     user = User(
         email=payload.email,

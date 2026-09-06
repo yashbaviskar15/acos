@@ -64,8 +64,6 @@ def register_user(user_in: UserRegister, request: Request, db: Session = Depends
             existing.hashed_password = get_password_hash(user_in.password)
             if user_in.full_name and user_in.full_name.strip():
                 existing.full_name = user_in.full_name.strip()
-            if user_in.role:
-                existing.role = user_in.role
             if user_in.workspace_name and user_in.workspace_name.strip():
                 existing.workspace_name = user_in.workspace_name.strip()
             
@@ -102,7 +100,7 @@ def register_user(user_in: UserRegister, request: Request, db: Session = Depends
     else:
         workspace_id = f"ws-{random.randint(10000, 99999)}"
         workspace_name = user_in.workspace_name.strip() if user_in.workspace_name else f"{user_in.full_name}'s Workspace"
-        assigned_role = user_in.role if user_in.role in ["SuperAdmin", "Admin", "Operator", "Developer", "Viewer"] else "Developer"
+        assigned_role = "Developer"
 
     hashed_pwd = get_password_hash(user_in.password)
     mfa_secret = generate_mfa_secret()
@@ -142,12 +140,6 @@ def login_user(login_in: UserLogin, request: Request, db: Session = Depends(get_
 
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account is disabled")
-
-    # If user selected a specific system role during sign in, apply it immediately
-    if login_in.role and login_in.role in ["SuperAdmin", "Admin", "Operator", "Developer", "Viewer"]:
-        user.role = login_in.role
-        db.commit()
-        db.refresh(user)
 
     if not user.account_id:
         user.account_id = f"ARV-ACC-{random.randint(100000, 999999)}"
@@ -581,7 +573,12 @@ def verify_mfa(mfa_in: MFAVerifyRequest, request: Request, db: Session = Depends
     )
 
 @router.post("/role/update")
-def update_role(req: RoleUpdateRequest, request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_role(
+    req: RoleUpdateRequest,
+    request: Request,
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin"])),
+    db: Session = Depends(get_db)
+):
     if req.role not in ["SuperAdmin", "Admin", "Operator", "Developer", "Viewer"]:
         raise HTTPException(status_code=400, detail="Invalid system role specified")
 
@@ -606,6 +603,62 @@ def update_role(req: RoleUpdateRequest, request: Request, current_user: User = D
             "role": current_user.role,
             "is_active": current_user.is_active,
             "is_mfa_enabled": current_user.is_mfa_enabled
+        }
+    }
+
+class MemberRoleUpdateRequest(BaseModel):
+    role: str
+
+@router.post("/workspace/members/{member_id}/role")
+def update_workspace_member_role(
+    member_id: str,
+    req: MemberRoleUpdateRequest,
+    request: Request,
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin"])),
+    db: Session = Depends(get_db)
+):
+    if req.role not in ["SuperAdmin", "Admin", "Operator", "Developer", "Viewer"]:
+        raise HTTPException(status_code=400, detail="Invalid system role specified")
+
+    target_user = db.query(User).filter(
+        or_(
+            User.id == member_id,
+            func.lower(User.email) == member_id.lower()
+        )
+    ).first()
+
+    if not target_user:
+        raise HTTPException(status_code=404, detail="Workspace member not found")
+
+    # Prevent demoting the last active SuperAdmin in the workspace
+    if target_user.id == current_user.id and target_user.role == "SuperAdmin" and req.role != "SuperAdmin":
+        admin_count = db.query(User).filter(
+            User.workspace_id == current_user.workspace_id,
+            User.role == "SuperAdmin",
+            User.is_active == True
+        ).count()
+        if admin_count <= 1:
+            raise HTTPException(status_code=400, detail="Cannot demote the only active SuperAdmin of this workspace")
+
+    old_role = target_user.role
+    target_user.role = req.role
+    db.commit()
+    db.refresh(target_user)
+
+    log_audit(
+        db, current_user.email, "MEMBER_ROLE_CHANGE", "Workspace", request,
+        f"Admin {current_user.email} changed role of member {target_user.email} from '{old_role}' to '{req.role}'",
+        workspace_id=current_user.workspace_id
+    )
+
+    return {
+        "message": f"Member role updated to '{req.role}'",
+        "member": {
+            "id": target_user.id,
+            "email": target_user.email,
+            "full_name": target_user.full_name,
+            "role": target_user.role,
+            "workspace_id": target_user.workspace_id
         }
     }
 
