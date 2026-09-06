@@ -1,204 +1,314 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Cookie, X, Shield, ChevronDown, ChevronUp } from 'lucide-react';
+import { Cookie, X, Shield, ChevronDown, ChevronUp, Lock, ExternalLink } from 'lucide-react';
 
-// ─── Cookie Consent Banner ───
+export interface CookiePreferences {
+  necessary: boolean;
+  analytics: boolean;
+  preferences: boolean;
+  marketing: boolean;
+  timestamp?: number;
+}
+
+const COOKIE_STORAGE_KEY = 'aravanta_cookie_consent';
+const COOKIE_NAME = 'aravanta_cookie_consent';
+
+// ─── Utility to set actual browser cookie ───
+const writeBrowserCookie = (prefs: CookiePreferences) => {
+  try {
+    const d = new Date();
+    d.setTime(d.getTime() + (365 * 24 * 60 * 60 * 1000)); // 1 year
+    const expires = 'expires=' + d.toUTCString();
+    const secure = typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : '';
+    document.cookie = `${COOKIE_NAME}=${encodeURIComponent(JSON.stringify(prefs))}; ${expires}; path=/; SameSite=Lax${secure}`;
+  } catch (err) {
+    console.warn('Unable to write browser cookie:', err);
+  }
+};
+
+// ─── Helper to open preferences from anywhere in the app ───
+export const openCookiePreferences = () => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('open_cookie_preferences'));
+  }
+};
+
+// ─── Main Cookie Consent Banner & Preferences ───
 export const CookieConsent: React.FC = () => {
   const [visible, setVisible] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
-  const [preferences, setPreferences] = useState({
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [preferences, setPreferences] = useState<CookiePreferences>({
     necessary: true,
-    analytics: false,
+    analytics: true,
+    preferences: true,
     marketing: false,
   });
 
   useEffect(() => {
-    const consent = localStorage.getItem('aravanta_cookie_consent');
-    if (!consent) {
-      // Small delay so the page loads first
-      const timer = setTimeout(() => setVisible(true), 1500);
-      return () => clearTimeout(timer);
+    // Check if user has already made a choice
+    try {
+      const saved = localStorage.getItem(COOKIE_STORAGE_KEY);
+      if (saved) {
+        setPreferences(JSON.parse(saved));
+      } else {
+        // Small delay for smooth entry after initial page load
+        const timer = setTimeout(() => setVisible(true), 1200);
+        return () => clearTimeout(timer);
+      }
+    } catch {
+      setVisible(true);
     }
   }, []);
 
-  const accept = (all: boolean) => {
-    const value = all
-      ? { necessary: true, analytics: true, marketing: true, timestamp: Date.now() }
-      : { ...preferences, necessary: true, timestamp: Date.now() };
-    localStorage.setItem('aravanta_cookie_consent', JSON.stringify(value));
+  // Listen for global reopen trigger (e.g. from footer or settings)
+  useEffect(() => {
+    const handleReopen = () => {
+      setVisible(true);
+      setShowDetails(true);
+    };
+    window.addEventListener('open_cookie_preferences', handleReopen);
+    return () => window.removeEventListener('open_cookie_preferences', handleReopen);
+  }, []);
+
+  const saveConsent = useCallback((prefs: CookiePreferences) => {
+    const finalPrefs = { ...prefs, necessary: true, timestamp: Date.now() };
+    try {
+      localStorage.setItem(COOKIE_STORAGE_KEY, JSON.stringify(finalPrefs));
+      writeBrowserCookie(finalPrefs);
+      window.dispatchEvent(new CustomEvent('aravanta_cookie_consent_updated', { detail: finalPrefs }));
+    } catch (e) {
+      console.error('Failed to save cookie consent:', e);
+    }
+    setPreferences(finalPrefs);
     setVisible(false);
+  }, []);
+
+  const acceptAll = () => {
+    saveConsent({
+      necessary: true,
+      analytics: true,
+      preferences: true,
+      marketing: true,
+    });
   };
 
-  const decline = () => {
-    localStorage.setItem(
-      'aravanta_cookie_consent',
-      JSON.stringify({ necessary: true, analytics: false, marketing: false, timestamp: Date.now() })
-    );
-    setVisible(false);
+  const rejectOptional = () => {
+    saveConsent({
+      necessary: true,
+      analytics: false,
+      preferences: false,
+      marketing: false,
+    });
   };
 
-  return (
-    <AnimatePresence>
-      {visible && (
-        <motion.div
-          initial={{ y: 100, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 80, opacity: 0 }}
-          transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-          className="fixed bottom-0 left-0 right-0 z-[60] p-4 sm:p-5"
-        >
-          <div className="max-w-2xl mx-auto bg-white border border-slate-200 rounded-2xl shadow-2xl shadow-slate-900/10 overflow-hidden">
-            {/* Main bar */}
-            <div className="p-5 sm:p-6">
-              <div className="flex items-start gap-3.5">
-                <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center shrink-0 mt-0.5">
-                  <Cookie className="w-4.5 h-4.5 text-amber-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[14px] font-semibold text-slate-800 leading-snug">
-                    We use cookies to improve your experience
-                  </p>
-                  <p className="text-[12.5px] text-slate-500 mt-1 leading-relaxed">
-                    We use essential cookies for core functionality and optional cookies for analytics and personalisation.
-                    Read our{' '}
-                    <PrivacyPolicyLink />{' '}
-                    for details.
-                  </p>
-                </div>
-                <button
-                  onClick={decline}
-                  className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer shrink-0 text-slate-400 hover:text-slate-600"
-                  aria-label="Dismiss"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Expandable preferences */}
-              <AnimatePresence>
-                {showDetails && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
-                      {/* Necessary */}
-                      <CookieToggle
-                        label="Strictly Necessary"
-                        description="Required for the site to function. Cannot be disabled."
-                        checked={true}
-                        disabled
-                      />
-                      {/* Analytics */}
-                      <CookieToggle
-                        label="Analytics"
-                        description="Help us understand how visitors interact with the site."
-                        checked={preferences.analytics}
-                        onChange={(v) => setPreferences((p) => ({ ...p, analytics: v }))}
-                      />
-                      {/* Marketing */}
-                      <CookieToggle
-                        label="Marketing"
-                        description="Used to deliver relevant advertisements and track campaigns."
-                        checked={preferences.marketing}
-                        onChange={(v) => setPreferences((p) => ({ ...p, marketing: v }))}
-                      />
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Actions */}
-              <div className="flex items-center gap-2 mt-4 flex-wrap">
-                <button
-                  onClick={() => accept(true)}
-                  className="h-9 px-4 bg-slate-900 hover:bg-slate-800 text-white text-[13px] font-semibold rounded-lg transition-colors cursor-pointer shadow-sm"
-                >
-                  Accept All
-                </button>
-                <button
-                  onClick={() => showDetails ? accept(false) : decline()}
-                  className="h-9 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[13px] font-medium rounded-lg transition-colors cursor-pointer"
-                >
-                  {showDetails ? 'Save Preferences' : 'Reject Optional'}
-                </button>
-                <button
-                  onClick={() => setShowDetails(!showDetails)}
-                  className="h-9 px-3 text-[13px] font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer flex items-center gap-1 ml-auto"
-                >
-                  {showDetails ? 'Less' : 'Customise'}
-                  {showDetails ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
-                </button>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-};
-
-// ─── Cookie Toggle Row ───
-const CookieToggle: React.FC<{
-  label: string;
-  description: string;
-  checked: boolean;
-  disabled?: boolean;
-  onChange?: (val: boolean) => void;
-}> = ({ label, description, checked, disabled, onChange }) => (
-  <label className={`flex items-center justify-between gap-3 p-3 rounded-xl border transition-colors ${
-    disabled ? 'bg-slate-50 border-slate-100' : 'bg-white border-slate-150 hover:border-slate-200 cursor-pointer'
-  }`}>
-    <div>
-      <p className="text-[13px] font-medium text-slate-700 leading-tight">{label}</p>
-      <p className="text-[11px] text-slate-400 mt-0.5">{description}</p>
-    </div>
-    <div className="relative shrink-0">
-      <input
-        type="checkbox"
-        className="sr-only peer"
-        checked={checked}
-        disabled={disabled}
-        onChange={(e) => onChange?.(e.target.checked)}
-      />
-      <div className={`w-9 h-5 rounded-full transition-colors ${
-        disabled
-          ? 'bg-slate-300'
-          : checked
-            ? 'bg-blue-600'
-            : 'bg-slate-200'
-      }`} />
-      <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${
-        checked ? 'translate-x-4' : 'translate-x-0'
-      }`} />
-    </div>
-  </label>
-);
-
-
-// ─── Privacy Policy Link (opens modal) ───
-const PrivacyPolicyLink: React.FC = () => {
-  const [open, setOpen] = useState(false);
+  const saveCustom = () => {
+    saveConsent(preferences);
+  };
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="underline underline-offset-2 text-slate-600 hover:text-slate-900 transition-colors cursor-pointer font-medium"
-      >
-        Privacy Policy
-      </button>
-      <PrivacyPolicyModal open={open} onClose={() => setOpen(false)} />
+      <AnimatePresence>
+        {visible && (
+          <motion.div
+            initial={{ y: 80, opacity: 0, scale: 0.96 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 60, opacity: 0, scale: 0.96 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+            className="fixed bottom-3 sm:bottom-5 right-3 sm:right-5 left-3 sm:left-auto z-[80] sm:max-w-md w-auto"
+          >
+            <div className="bg-white/95 dark:bg-[#0F2038]/95 backdrop-blur-xl border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl shadow-slate-900/20 overflow-hidden font-sans text-slate-900 dark:text-slate-100">
+              {/* Header Accent Bar */}
+              <div className="h-1 w-full bg-gradient-to-r from-brandGold-400 via-brandGold-500 to-amber-600" />
+
+              <div className="p-4 sm:p-5 space-y-3.5">
+                {/* Top Row: Icon + Title + Close Button */}
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-brandGold-500/15 border border-brandGold-500/30 flex items-center justify-center shrink-0 mt-0.5 text-brandGold-500">
+                    <Cookie className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white tracking-tight">
+                        Cookie & Telemetry Preferences
+                      </h3>
+                    </div>
+                    <p className="text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                      We use essential cookies to maintain secure sessions and multi-cloud telemetry. Optional cookies help us optimize SRE tooling and service observability.
+                    </p>
+                  </div>
+                  <button
+                    onClick={rejectOptional}
+                    className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors shrink-0 cursor-pointer"
+                    title="Dismiss optional cookies"
+                    aria-label="Dismiss"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Expandable Category Toggles */}
+                <AnimatePresence>
+                  {showDetails && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.22, ease: 'easeInOut' }}
+                      className="overflow-hidden"
+                    >
+                      <div className="pt-2 pb-1 border-t border-slate-100 dark:border-slate-800/80 space-y-2 text-xs">
+                        {/* Strictly Necessary */}
+                        <CookieToggleRow
+                          title="Strictly Necessary"
+                          description="JWT auth tokens, workspace routing, and security rate limits. Cannot be disabled."
+                          checked={true}
+                          disabled
+                          badge="Required"
+                        />
+
+                        {/* Observability & Telemetry */}
+                        <CookieToggleRow
+                          title="Observability & Telemetry"
+                          description="ArvWatch telemetry pings, error logging, and latency metrics."
+                          checked={preferences.analytics}
+                          onChange={(checked) => setPreferences(prev => ({ ...prev, analytics: checked }))}
+                        />
+
+                        {/* Experience & Regional Preferences */}
+                        <CookieToggleRow
+                          title="Console Preferences"
+                          description="Currency preference (INR/USD), dark/light mode, and sidebar layout."
+                          checked={preferences.preferences}
+                          onChange={(checked) => setPreferences(prev => ({ ...prev, preferences: checked }))}
+                        />
+
+                        {/* Product Updates */}
+                        <CookieToggleRow
+                          title="Feature Updates & Notices"
+                          description="New service announcements and maintenance notices."
+                          checked={preferences.marketing}
+                          onChange={(checked) => setPreferences(prev => ({ ...prev, marketing: checked }))}
+                        />
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Footer Links & Actions */}
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 px-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setShowPrivacyModal(true)}
+                      className="text-brandGold-600 dark:text-brandGold-400 hover:underline font-medium cursor-pointer flex items-center gap-1"
+                    >
+                      Privacy & SOC 2 Policy <ExternalLink className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowDetails(!showDetails)}
+                      className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white font-semibold flex items-center gap-0.5 cursor-pointer"
+                    >
+                      {showDetails ? (
+                        <>Less <ChevronUp className="w-3.5 h-3.5" /></>
+                      ) : (
+                        <>Customize <ChevronDown className="w-3.5 h-3.5" /></>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Button Group */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={acceptAll}
+                      className="py-2 px-3 bg-brandGold-500 hover:bg-brandGold-400 text-slate-950 font-black text-xs rounded-xl transition-all shadow-sm hover:shadow-brandGold-500/20 text-center cursor-pointer"
+                    >
+                      Accept All
+                    </button>
+                    <button
+                      onClick={showDetails ? saveCustom : rejectOptional}
+                      className="py-2 px-3 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl border border-slate-200 dark:border-slate-800 transition-colors text-center cursor-pointer"
+                    >
+                      {showDetails ? 'Save Selected' : 'Essential Only'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Embedded Privacy & SOC 2 Modal */}
+      <PrivacyPolicyModal open={showPrivacyModal} onClose={() => setShowPrivacyModal(false)} />
     </>
   );
 };
 
-// ─── Privacy Policy Modal ───
+// ─── Category Toggle Row ───
+interface CookieToggleRowProps {
+  title: string;
+  description: string;
+  checked: boolean;
+  disabled?: boolean;
+  badge?: string;
+  onChange?: (val: boolean) => void;
+}
+
+const CookieToggleRow: React.FC<CookieToggleRowProps> = ({
+  title,
+  description,
+  checked,
+  disabled,
+  badge,
+  onChange,
+}) => {
+  return (
+    <label className={`flex items-start justify-between gap-3 p-2.5 rounded-xl border transition-colors ${
+      disabled 
+        ? 'bg-slate-50 dark:bg-slate-900/40 border-slate-100 dark:border-slate-800/60' 
+        : 'bg-white dark:bg-slate-900/70 border-slate-200 dark:border-slate-800 hover:border-brandGold-500/40 cursor-pointer'
+    }`}>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">{title}</span>
+          {badge && (
+            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+              {badge}
+            </span>
+          )}
+        </div>
+        <p className="text-[10.5px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">{description}</p>
+      </div>
+
+      <div className="relative shrink-0 mt-0.5">
+        <input
+          type="checkbox"
+          className="sr-only"
+          checked={checked}
+          disabled={disabled}
+          onChange={(e) => onChange?.(e.target.checked)}
+        />
+        <div className={`w-8 h-4.5 rounded-full transition-colors ${
+          disabled
+            ? 'bg-slate-300 dark:bg-slate-700'
+            : checked
+              ? 'bg-brandGold-500'
+              : 'bg-slate-200 dark:bg-slate-800'
+        }`} />
+        <div className={`absolute top-0.5 left-0.5 w-3.5 h-3.5 rounded-full bg-white dark:bg-slate-100 shadow-sm transition-transform flex items-center justify-center ${
+          checked ? 'translate-x-3.5' : 'translate-x-0'
+        }`}>
+          {disabled && <Lock className="w-2 h-2 text-slate-500" />}
+        </div>
+      </div>
+    </label>
+  );
+};
+
+// ─── Privacy & Cookie Policy Modal ───
 export const PrivacyPolicyModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
-  // Lock scroll when open
   useEffect(() => {
     if (open) {
       document.body.style.overflow = 'hidden';
@@ -211,125 +321,91 @@ export const PrivacyPolicyModal: React.FC<{ open: boolean; onClose: () => void }
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-          {/* Backdrop */}
+        <div className="fixed inset-0 z-[99] flex items-center justify-center p-3 sm:p-4">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={onClose}
           />
 
-          {/* Modal */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.96, y: 12 }}
+            initial={{ opacity: 0, scale: 0.95, y: 14 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.97, y: 8 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-            className="relative w-full max-w-2xl max-h-[85vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+            className="relative w-full max-w-2xl max-h-[85vh] bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-slate-900 dark:text-slate-100 font-sans"
           >
             {/* Header */}
-            <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100 shrink-0">
-              <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
-                <Shield className="w-4 h-4 text-blue-600" />
+            <div className="flex items-center gap-3 px-5 sm:px-6 py-4 border-b border-slate-200 dark:border-slate-800 shrink-0 bg-slate-50/50 dark:bg-slate-900/50">
+              <div className="w-8 h-8 rounded-xl bg-brandGold-500/10 border border-brandGold-500/25 flex items-center justify-center text-brandGold-500 shrink-0">
+                <Shield className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <h2 className="text-[16px] font-bold text-slate-900">Privacy & Cookie Policy</h2>
-                <p className="text-[11px] text-slate-400 font-medium">Last updated: August 2026</p>
+                <h2 className="text-sm sm:text-base font-black text-slate-900 dark:text-white">
+                  Aravanta CloudOS Privacy & Cookie Architecture
+                </h2>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">SOC 2 Type II Certified • GDPR & DPDP Compliant</p>
               </div>
               <button
                 onClick={onClose}
-                className="p-2 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer text-slate-400 hover:text-slate-600"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                 aria-label="Close"
               >
-                <X className="w-4.5 h-4.5" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Scrollable content */}
-            <div className="flex-1 overflow-y-auto px-6 py-5 text-[13px] text-slate-600 leading-relaxed space-y-5">
-              <Section title="1. Information We Collect">
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-5 text-xs text-slate-600 dark:text-slate-300 leading-relaxed space-y-4 font-sans">
+              <section>
+                <h4 className="font-bold text-slate-900 dark:text-white text-xs mb-1">1. Architectural Data Governance</h4>
                 <p>
-                  When you use Aravanta CloudOS, we collect information you provide directly — such as your name,
-                  email address, and organisation name when creating an account. We also automatically collect
-                  technical data including IP address, browser type, device information, and usage patterns
-                  through cookies and similar technologies.
+                  Aravanta CloudOS processes control-plane telemetry, IAM identity tokens, and infrastructure state across enterprise clusters. Data stored in your workspace remains strictly under customer sovereignty with encryption at rest (AES-256) and TLS 1.3 in transit.
                 </p>
-              </Section>
+              </section>
 
-              <Section title="2. How We Use Your Information">
-                <ul className="list-disc pl-5 space-y-1.5 text-slate-500">
-                  <li>Provide, maintain, and improve Aravanta CloudOS services</li>
-                  <li>Process transactions and send related notifications</li>
-                  <li>Respond to support requests and communicate updates</li>
-                  <li>Monitor infrastructure usage for billing and capacity planning</li>
-                  <li>Detect, prevent, and address security incidents</li>
-                  <li>Comply with legal obligations and enforce our terms</li>
-                </ul>
-              </Section>
-
-              <Section title="3. Cookies & Tracking">
-                <p>We use three categories of cookies:</p>
-                <div className="mt-2 space-y-2">
-                  <CookieRow name="Strictly Necessary" purpose="Authentication, session management, security protections" retention="Session" />
-                  <CookieRow name="Analytics" purpose="Usage patterns, feature adoption, error tracking" retention="12 months" />
-                  <CookieRow name="Marketing" purpose="Campaign attribution, personalised content" retention="6 months" />
+              <section>
+                <h4 className="font-bold text-slate-900 dark:text-white text-xs mb-1">2. First-Party Cookies & Local Storage</h4>
+                <p>We maintain three explicit categories of browser storage:</p>
+                <div className="mt-2 space-y-1.5 font-mono text-[11px]">
+                  <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
+                    <strong className="text-brandGold-600 dark:text-brandGold-400">Strictly Necessary:</strong> aravanta_token, aravanta_user, CSRF tokens. Required for cryptographic session verification and multi-cloud API routing.
+                  </div>
+                  <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
+                    <strong className="text-blue-600 dark:text-blue-400">Telemetry & Analytics:</strong> ArvWatch sub-second latency profiling, Prometheus metrics caching, and aggregate error reporting.
+                  </div>
+                  <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
+                    <strong className="text-emerald-600 dark:text-emerald-400">Preferences:</strong> Active workspace ID, currency selection (INR ₹ / USD $), and user interface theme state.
+                  </div>
                 </div>
-                <p className="mt-2 text-slate-400 text-[12px]">
-                  You can manage your cookie preferences at any time using the cookie settings at the bottom of any page.
-                </p>
-              </Section>
+              </section>
 
-              <Section title="4. Data Storage & Security">
+              <section>
+                <h4 className="font-bold text-slate-900 dark:text-white text-xs mb-1">3. Zero Third-Party Tracker Guarantee</h4>
                 <p>
-                  All data is processed and stored within SOC 2 Type II certified infrastructure located in India.
-                  We employ encryption at rest (AES-256) and in transit (TLS 1.3), role-based access controls,
-                  and continuous audit logging to protect your information.
+                  Aravanta CloudOS does not sell customer information or allow third-party behavioral ad trackers inside the enterprise console. Telemetry is used strictly for platform reliability and FinOps cost analytics.
                 </p>
-              </Section>
+              </section>
 
-              <Section title="5. Data Sharing">
+              <section>
+                <h4 className="font-bold text-slate-900 dark:text-white text-xs mb-1">4. Retention & Deletion Rights</h4>
                 <p>
-                  We do not sell your personal data. We may share information with service providers who assist in
-                  operating our platform (e.g., payment processors, monitoring tools), but only under strict
-                  contractual obligations. We may also disclose data when required by law or to protect our rights.
-                </p>
-              </Section>
-
-              <Section title="6. Your Rights">
-                <ul className="list-disc pl-5 space-y-1.5 text-slate-500">
-                  <li>Access, correct, or delete your personal data</li>
-                  <li>Export your data in a portable format</li>
-                  <li>Withdraw consent for optional data processing</li>
-                  <li>Object to automated decision-making</li>
-                  <li>Lodge a complaint with a supervisory authority</li>
-                </ul>
-              </Section>
-
-              <Section title="7. Data Retention">
-                <p>
-                  We retain account data for as long as your account is active. After account deletion, we remove
-                  personal data within 30 days, except where retention is required for legal, tax, or audit purposes
-                  (up to 7 years for financial records).
-                </p>
-              </Section>
-
-              <Section title="8. Contact">
-                <p>
-                  For privacy-related inquiries, contact us at{' '}
-                  <a href="mailto:privacy@aravanta.cloud" className="text-blue-600 hover:underline font-medium">
+                  You may clear your cookie state at any time via your browser or the Cookie Settings button in the footer. To request complete IAM data erasure, contact our compliance officer at{' '}
+                  <a href="mailto:privacy@aravanta.cloud" className="text-brandGold-500 hover:underline font-bold">
                     privacy@aravanta.cloud
                   </a>.
                 </p>
-              </Section>
+              </section>
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0 bg-slate-50/50">
+            <div className="px-5 sm:px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50 shrink-0">
+              <span className="text-[11px] text-slate-400">Data Center: ap-south-1 Mumbai</span>
               <button
                 onClick={onClose}
-                className="h-9 px-5 bg-slate-900 hover:bg-slate-800 text-white text-[13px] font-semibold rounded-lg transition-colors cursor-pointer"
+                className="px-4 py-1.5 bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-white text-white dark:text-slate-900 font-bold text-xs rounded-xl transition-colors cursor-pointer"
               >
                 Close
               </button>
@@ -340,20 +416,3 @@ export const PrivacyPolicyModal: React.FC<{ open: boolean; onClose: () => void }
     </AnimatePresence>
   );
 };
-
-
-// ─── Helper Components ───
-const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <div>
-    <h3 className="text-[14px] font-semibold text-slate-800 mb-2">{title}</h3>
-    {children}
-  </div>
-);
-
-const CookieRow: React.FC<{ name: string; purpose: string; retention: string }> = ({ name, purpose, retention }) => (
-  <div className="flex items-start gap-3 p-2.5 bg-slate-50 rounded-lg text-[12px]">
-    <span className="font-semibold text-slate-700 whitespace-nowrap w-28 shrink-0">{name}</span>
-    <span className="text-slate-500 flex-1">{purpose}</span>
-    <span className="text-slate-400 whitespace-nowrap shrink-0">{retention}</span>
-  </div>
-);

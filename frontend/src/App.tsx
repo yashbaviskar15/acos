@@ -32,6 +32,7 @@ import { DocumentationPage } from './pages/DocumentationPage';
 import { PricingPage } from './pages/PricingPage';
 import { AboutPage } from './pages/AboutPage';
 import type { LandingView } from './components/ui/Navbar';
+import { CookieConsent } from './components/ui/CookieConsent';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { apiFetch } from './config/api';
 import { canAccessTab } from './utils/rbac';
@@ -261,6 +262,7 @@ export default function App() {
             onClose={() => setIsCommandPaletteOpen(false)}
             onNavigate={handleUniversalNavigate}
           />
+          <CookieConsent />
         </ErrorBoundary>
       );
     }
@@ -304,6 +306,7 @@ export default function App() {
           onClose={() => setIsCommandPaletteOpen(false)}
           onNavigate={handleUniversalNavigate}
         />
+        <CookieConsent />
       </ErrorBoundary>
     );
   }
@@ -435,6 +438,7 @@ export default function App() {
           onClose={() => setIsCommandPaletteOpen(false)}
           onNavigate={handleUniversalNavigate}
         />
+        <CookieConsent />
       </div>
     </div>
   );

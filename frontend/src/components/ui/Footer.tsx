@@ -55,8 +55,11 @@ const footerColumns: Array<{
   },
 ];
 
+import { openCookiePreferences } from './CookieConsent';
+
 const legalLinks = [
-  { label: 'Privacy Policy', href: '#' },
+  { label: 'Privacy Policy', action: 'cookies' },
+  { label: 'Cookie Settings', action: 'cookies' },
   { label: 'Terms of Service', href: '#' },
   { label: 'Security', href: '#' },
   { label: 'DPA', href: '#' },
@@ -160,13 +163,24 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               &copy; {new Date().getFullYear()} Aravanta Systems, Inc. All rights reserved.
             </span>
             {legalLinks.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                className="hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
-              >
-                {link.label}
-              </a>
+              link.action ? (
+                <button
+                  key={link.label}
+                  type="button"
+                  onClick={() => openCookiePreferences()}
+                  className="hover:text-slate-700 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                >
+                  {link.label}
+                </button>
+              ) : (
+                <a
+                  key={link.label}
+                  href={link.href}
+                  className="hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                >
+                  {link.label}
+                </a>
+              )
             ))}
           </div>
 
