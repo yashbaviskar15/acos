@@ -490,7 +490,7 @@ class PaymentMethodRecord(Base):
     user_id = Column(String(36), index=True, nullable=False)
     workspace_id = Column(String(50), index=True, nullable=False)
     brand = Column(String(50), default="visa")
-    last4 = Column(String(4), nullable=False)
+    last4 = Column(String(100), nullable=False)
     exp_month = Column(Integer, nullable=False)
     exp_year = Column(Integer, nullable=False)
     holder_name = Column(String(255), nullable=False)

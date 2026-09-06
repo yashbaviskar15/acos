@@ -7,14 +7,17 @@ import random
 import copy
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, HTTPException, Query, status, Header, Depends
+from fastapi import APIRouter, HTTPException, Query, status, Header, Depends, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+from sqlalchemy import or_, func
+from fpdf import FPDF
+from fpdf.enums import XPos, YPos
 
 import json
 from app.core.database import get_db
 from app.services.arvgate.models import User
-from app.services.arvgate.dependencies import get_current_user, require_roles
+from app.services.arvgate.dependencies import get_current_user, require_roles, get_current_user_optional
 from app.core.cloud_models import (
     Notification, emit_notification, DeploymentRecord, ApplicationRecord, BackupRecord,
     ComputeInstance, KubeCluster, StorageBucket, DatabaseInstance, PaymentMethodRecord, InvoiceRecord
@@ -447,8 +450,8 @@ class IncidentRCA(BaseModel):
 class PaymentMethodAdd(BaseModel):
     brand: str = Field("visa", example="visa")
     last4: str = Field(..., example="4242")
-    exp_month: int = Field(..., ge=1, le=12)
-    exp_year: int = Field(..., ge=2024, le=2040)
+    exp_month: Optional[int] = Field(12, ge=1, le=12)
+    exp_year: Optional[int] = Field(2030, ge=2024, le=2040)
     holder_name: str = Field(..., example="Yash Baviskar")
     set_as_default: bool = False
 
@@ -1571,6 +1574,299 @@ def list_invoices(
 
     return [i.to_dict() for i in invs]
 
+class InvoicePDF(FPDF):
+    def header(self):
+        self.set_fill_color(15, 32, 56)
+        self.rect(0, 0, 210, 38, 'F')
+        self.set_draw_color(201, 168, 76)
+        self.set_line_width(1.5)
+        self.line(0, 38, 210, 38)
+        
+        self.set_text_color(255, 255, 255)
+        self.set_font('Helvetica', 'B', 20)
+        self.set_xy(14, 10)
+        self.cell(100, 10, 'ARAVANTA CLOUDOS', new_x=XPos.RIGHT, new_y=YPos.TOP)
+        
+        self.set_text_color(201, 168, 76)
+        self.set_font('Helvetica', 'B', 18)
+        self.set_xy(110, 10)
+        self.cell(86, 10, 'TAX INVOICE', align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        
+        self.set_text_color(180, 200, 230)
+        self.set_font('Helvetica', '', 8)
+        self.set_xy(14, 22)
+        self.cell(100, 5, 'Enterprise Cloud Infrastructure Platform', new_x=XPos.RIGHT, new_y=YPos.TOP)
+        
+        self.set_xy(110, 22)
+        self.cell(86, 5, 'Original for Recipient (GST Compliant)', align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        self.ln(18)
+
+    def footer(self):
+        self.set_y(-25)
+        self.set_draw_color(226, 232, 240)
+        self.set_line_width(0.5)
+        self.line(14, self.get_y(), 196, self.get_y())
+        
+        self.set_y(-20)
+        self.set_font('Helvetica', '', 7)
+        self.set_text_color(148, 163, 184)
+        self.cell(0, 4, 'This is an authorized computer-generated tax invoice and requires no physical signature.', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        self.cell(0, 4, 'Aravanta CloudOS Inc. - CIN: U72200MH2026PTC000001 - support@aravanta.cloud', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        now_utc = datetime.utcnow().strftime("%d %b %Y %H:%M UTC")
+        self.cell(0, 4, f'Digitally signed & verified by Aravanta FinOps Engine on {now_utc}', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+def generate_invoice_pdf_bytes(inv: InvoiceRecord, user_email: str, user_name: str, ws_id: str) -> bytes:
+    pdf = InvoicePDF('P', 'mm', 'A4')
+    pdf.set_auto_page_break(auto=True, margin=30)
+    pdf.add_page()
+    
+    # Metadata Box
+    pdf.set_fill_color(248, 250, 252)
+    pdf.set_draw_color(226, 232, 240)
+    pdf.rect(14, 45, 182, 32, 'DF')
+    
+    pdf.set_xy(18, 48)
+    pdf.set_font('Helvetica', 'B', 8)
+    pdf.set_text_color(100, 116, 139)
+    pdf.cell(80, 4, 'INVOICE NUMBER', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_x(18)
+    pdf.set_font('Helvetica', 'B', 11)
+    pdf.set_text_color(15, 23, 42)
+    pdf.cell(80, 6, inv.id, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    
+    pdf.set_x(18)
+    pdf.set_font('Helvetica', 'B', 8)
+    pdf.set_text_color(100, 116, 139)
+    pdf.cell(80, 4, 'BILLING PERIOD', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_x(18)
+    pdf.set_font('Helvetica', '', 9)
+    pdf.set_text_color(15, 23, 42)
+    pdf.cell(80, 5, inv.period or 'Cloud Subscription', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    
+    pdf.set_xy(110, 48)
+    pdf.set_font('Helvetica', 'B', 8)
+    pdf.set_text_color(100, 116, 139)
+    pdf.cell(80, 4, 'INVOICE DATE', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_x(110)
+    pdf.set_font('Helvetica', 'B', 9)
+    pdf.set_text_color(15, 23, 42)
+    pdf.cell(80, 6, inv.date or datetime.utcnow().strftime('%Y-%m-%d'), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    
+    pdf.set_x(110)
+    pdf.set_font('Helvetica', 'B', 8)
+    pdf.set_text_color(100, 116, 139)
+    pdf.cell(80, 4, 'GSTIN / SAC CODE', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_x(110)
+    pdf.set_font('Helvetica', '', 9)
+    pdf.set_text_color(15, 23, 42)
+    pdf.cell(80, 5, '27AAAAA0000A1Z5 (SAC 998313)', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    
+    # Bill To Box
+    pdf.ln(12)
+    pdf.set_fill_color(240, 246, 255)
+    pdf.rect(14, 82, 182, 22, 'DF')
+    pdf.set_xy(18, 85)
+    pdf.set_font('Helvetica', 'B', 8)
+    pdf.set_text_color(37, 99, 235)
+    pdf.cell(30, 5, 'BILLED TO:', new_x=XPos.RIGHT, new_y=YPos.TOP)
+    pdf.set_font('Helvetica', 'B', 9)
+    pdf.set_text_color(15, 23, 42)
+    pdf.cell(100, 5, f"{user_name} ({user_email})", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_x(48)
+    pdf.set_font('Helvetica', '', 8)
+    pdf.set_text_color(100, 116, 139)
+    pdf.cell(100, 5, f"Workspace Cluster: {ws_id} - Region: ap-south-1 (Mumbai)", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    
+    # Items Table Header
+    pdf.ln(12)
+    pdf.set_xy(14, 110)
+    pdf.set_fill_color(15, 32, 56)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font('Helvetica', 'B', 8)
+    pdf.cell(15, 8, '#', 0, 0, 'C', True)
+    pdf.cell(97, 8, 'Service Description', 0, 0, 'L', True)
+    pdf.cell(15, 8, 'Qty', 0, 0, 'C', True)
+    pdf.cell(25, 8, 'Unit Price', 0, 0, 'R', True)
+    pdf.cell(30, 8, 'Amount (INR)', 0, 1, 'R', True)
+    
+    # Calculations
+    amount_inr = float(inv.amount_inr or 2499.0)
+    subtotal = round(amount_inr / 1.18, 2)
+    tax = round(amount_inr - subtotal, 2)
+    cgst = round(tax / 2, 2)
+    sgst = round(tax - cgst, 2)
+    
+    pdf.set_fill_color(255, 255, 255)
+    pdf.set_text_color(15, 23, 42)
+    pdf.set_font('Helvetica', '', 8)
+    pdf.cell(15, 8, '1', 'B', 0, 'C', True)
+    pdf.cell(97, 8, f'Aravanta CloudOS Subscription - {inv.period}', 'B', 0, 'L', True)
+    pdf.cell(15, 8, '1', 'B', 0, 'C', True)
+    pdf.cell(25, 8, f'Rs. {subtotal:,.2f}', 'B', 0, 'R', True)
+    pdf.cell(30, 8, f'Rs. {subtotal:,.2f}', 'B', 1, 'R', True)
+    
+    # Totals
+    pdf.ln(4)
+    totals_x = 120
+    pdf.set_x(totals_x)
+    pdf.set_font('Helvetica', '', 8)
+    pdf.set_text_color(100, 116, 139)
+    pdf.cell(40, 5, 'Subtotal:', 0, 0, 'L')
+    pdf.set_text_color(15, 23, 42)
+    pdf.set_font('Helvetica', 'B', 8)
+    pdf.cell(36, 5, f'Rs. {subtotal:,.2f}', 0, 1, 'R')
+    
+    pdf.set_x(totals_x)
+    pdf.set_font('Helvetica', '', 8)
+    pdf.set_text_color(100, 116, 139)
+    pdf.cell(40, 5, 'CGST (9%):', 0, 0, 'L')
+    pdf.set_text_color(15, 23, 42)
+    pdf.cell(36, 5, f'Rs. {cgst:,.2f}', 0, 1, 'R')
+    
+    pdf.set_x(totals_x)
+    pdf.set_font('Helvetica', '', 8)
+    pdf.set_text_color(100, 116, 139)
+    pdf.cell(40, 5, 'SGST (9%):', 0, 0, 'L')
+    pdf.set_text_color(15, 23, 42)
+    pdf.cell(36, 5, f'Rs. {sgst:,.2f}', 0, 1, 'R')
+    
+    # Total Box
+    pdf.ln(2)
+    pdf.set_x(totals_x - 5)
+    pdf.set_fill_color(15, 32, 56)
+    pdf.rect(totals_x - 5, pdf.get_y(), 81, 10, 'F')
+    pdf.set_xy(totals_x, pdf.get_y() + 1.5)
+    pdf.set_font('Helvetica', 'B', 9)
+    pdf.set_text_color(201, 168, 76)
+    pdf.cell(35, 6, 'GRAND TOTAL:', 0, 0, 'L')
+    pdf.set_font('Helvetica', 'B', 11)
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(36, 6, f'Rs. {amount_inr:,.2f}', 0, 1, 'R')
+    
+    # Payment Confirmed Box
+    pdf.ln(12)
+    pdf.set_fill_color(236, 253, 245)
+    pdf.set_draw_color(167, 243, 208)
+    pdf.rect(14, pdf.get_y(), 182, 18, 'DF')
+    pdf.set_xy(18, pdf.get_y() + 3)
+    pdf.set_font('Helvetica', 'B', 9)
+    pdf.set_text_color(5, 150, 105)
+    pdf.cell(100, 4, '[PAID] Payment Verified & Settled via Primary Mandate', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_x(18)
+    pdf.set_font('Helvetica', '', 8)
+    pdf.set_text_color(71, 85, 105)
+    pdf.cell(100, 5, f'Transaction ID: TXN-{inv.id.replace("INV-", "")} - Payment Method: {inv.payment_method or "Primary Mandate"}', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    
+    return bytes(pdf.output())
+
+@router.get("/billing/invoices/{invoice_id}/pdf", summary="Download official tax invoice PDF")
+def download_invoice_pdf(
+    invoice_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    inv = db.query(InvoiceRecord).filter(
+        or_(
+            InvoiceRecord.id == invoice_id,
+            func.lower(InvoiceRecord.id) == invoice_id.lower()
+        )
+    ).first()
+    
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invoice record not found")
+        
+    user_email = current_user.email if current_user else "developer@aravanta.cloud"
+    user_name = current_user.full_name if current_user else "Aravanta Cloud Developer"
+    ws_id = inv.workspace_id or (current_user.workspace_id if current_user else "ws-enterprise-default")
+    
+    try:
+        pdf_content = generate_invoice_pdf_bytes(inv, user_email, user_name, ws_id)
+        return Response(
+            content=pdf_content,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=Aravanta_Invoice_{inv.id}.pdf",
+                "Cache-Control": "no-cache"
+            }
+        )
+    except Exception as e:
+        html = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Invoice {inv.id} - Aravanta CloudOS</title>
+  <style>
+    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 40px; color: #0f172a; }}
+    .header {{ background: #0f2038; color: white; padding: 24px; border-radius: 8px; display: flex; justify-content: space-between; }}
+    .gold {{ color: #c9a84c; }}
+    .box {{ background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0; }}
+    table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
+    th {{ background: #0f2038; color: white; padding: 10px; text-align: left; font-size: 12px; }}
+    td {{ padding: 12px 10px; border-bottom: 1px solid #e2e8f0; font-size: 13px; }}
+    .total-box {{ background: #0f2038; color: white; padding: 12px; border-radius: 6px; float: right; width: 280px; text-align: right; }}
+    @media print {{ .no-print {{ display: none; }} }}
+  </style>
+</head>
+<body>
+  <div class="no-print" style="margin-bottom: 20px;">
+    <button onclick="window.print()" style="background: #2563eb; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer;">Print / Save as PDF</button>
+  </div>
+  <div class="header">
+    <div>
+      <h1 style="margin: 0; font-size: 24px;">ARAVANTA CLOUDOS</h1>
+      <p style="margin: 4px 0 0; font-size: 12px; color: #94a3b8;">Enterprise Cloud Infrastructure Platform</p>
+    </div>
+    <div style="text-align: right;">
+      <h2 class="gold" style="margin: 0; font-size: 22px;">TAX INVOICE</h2>
+      <p style="margin: 4px 0 0; font-size: 11px; color: #94a3b8;">Original for Recipient</p>
+    </div>
+  </div>
+  <div class="box" style="display: flex; justify-content: space-between;">
+    <div>
+      <div style="font-size: 10px; color: #64748b; font-weight: bold;">INVOICE NUMBER</div>
+      <div style="font-size: 16px; font-weight: bold;">{inv.id}</div>
+      <div style="font-size: 10px; color: #64748b; font-weight: bold; margin-top: 8px;">BILLING PERIOD</div>
+      <div style="font-size: 13px;">{inv.period}</div>
+    </div>
+    <div style="text-align: right;">
+      <div style="font-size: 10px; color: #64748b; font-weight: bold;">INVOICE DATE</div>
+      <div style="font-size: 14px; font-weight: bold;">{inv.date}</div>
+      <div style="font-size: 10px; color: #64748b; font-weight: bold; margin-top: 8px;">GSTIN / SAC</div>
+      <div style="font-size: 13px;">27AAAAA0000A1Z5 (SAC 998313)</div>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr><th>#</th><th>Description</th><th>Qty</th><th style="text-align: right;">Amount (INR)</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>1</td><td>Aravanta CloudOS Subscription — {inv.period}</td><td>1</td><td style="text-align: right;">Rs. {inv.amount_inr:,.2f}</td></tr>
+    </tbody>
+  </table>
+  <div class="total-box">
+    <div style="font-size: 11px; color: #c9a84c; font-weight: bold;">GRAND TOTAL (INCL. GST)</div>
+    <div style="font-size: 20px; font-weight: bold; margin-top: 4px;">Rs. {inv.amount_inr:,.2f}</div>
+  </div>
+</body>
+</html>"""
+        return Response(content=html, media_type="text/html")
+
+@router.get("/billing/invoices/{invoice_id}", summary="Get invoice details")
+def get_invoice_details(
+    invoice_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator", "Developer"])),
+):
+    inv = db.query(InvoiceRecord).filter(
+        or_(
+            InvoiceRecord.id == invoice_id,
+            func.lower(InvoiceRecord.id) == invoice_id.lower()
+        )
+    ).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invoice record not found")
+    return inv.to_dict()
+
 @router.get("/billing/payment-methods", summary="List saved payment methods")
 def list_payment_methods(
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
@@ -1740,5 +2036,9 @@ def change_subscription_plan(
         workspace_id=ws_id,
     )
 
-    return {"message": f"Plan updated to {target['name']}", "usage": ws["usage"]}
+    return {
+        "message": f"Plan updated to {target['name']}",
+        "usage": ws["usage"],
+        "invoice": new_inv.to_dict()
+    }
 

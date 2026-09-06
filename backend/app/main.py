@@ -57,6 +57,11 @@ def init_db():
                             conn.commit()
                         except Exception:
                             pass
+        if _is_postgres:
+            try:
+                with engine.connect() as conn:
+                    conn.execute(text("ALTER TABLE payment_methods ALTER COLUMN last4 TYPE VARCHAR(100);"))
+                    conn.commit()
             except Exception:
                 pass
 
