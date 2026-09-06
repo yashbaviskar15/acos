@@ -14,7 +14,6 @@ import {
   Activity,
   Shield,
   CreditCard,
-  Command,
 } from 'lucide-react';
 import { Logo } from '../Logo';
 import { Button } from './Button';
@@ -283,20 +282,29 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3">
+              {/* Desktop & Tablet Search Trigger */}
               <button
                 onClick={onOpenCommandPalette}
-                className="hidden md:flex items-center gap-2 h-10 px-3.5 rounded-xl border border-slate-200 dark:border-brandObsidian-700 bg-slate-50/70 dark:bg-brandObsidian-800/50 text-slate-500 dark:text-slate-400 text-sm hover:border-brandGold-500/50 hover:text-slate-700 dark:hover:text-slate-200 transition-all group"
+                className="hidden md:flex items-center gap-2.5 h-10 px-3.5 rounded-xl border border-slate-200 dark:border-brandObsidian-700 bg-slate-50/80 dark:bg-brandObsidian-800/60 text-slate-500 dark:text-slate-400 text-xs sm:text-sm hover:border-brandGold-500/50 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100/80 dark:hover:bg-brandObsidian-800 transition-all group shadow-sm cursor-pointer shrink-0"
+                title="Search or press ⌘K"
               >
-                <Search className="w-4 h-4 opacity-70" />
-                <span className="hidden lg:inline">Search or jump to...</span>
-                <span className="ml-auto hidden lg:flex items-center gap-0.5">
-                  <kbd className="flex items-center justify-center w-5 h-5 text-[10px] font-mono font-semibold rounded border border-slate-200 dark:border-brandObsidian-600 bg-white dark:bg-brandObsidian-900 shadow-sm">
-                    <Command className="w-3 h-3 -mr-0.5" />
-                  </kbd>
-                  <kbd className="flex items-center justify-center w-5 h-5 text-[10px] font-mono font-semibold rounded border border-slate-200 dark:border-brandObsidian-600 bg-white dark:bg-brandObsidian-900 shadow-sm">
-                    K
+                <Search className="w-4 h-4 text-slate-400 group-hover:text-brandGold-500 transition-colors shrink-0" />
+                <span className="inline font-medium text-slate-600 dark:text-slate-300">Search docs & fleet...</span>
+                <span className="ml-2 flex items-center gap-0.5">
+                  <kbd className="flex items-center justify-center px-1.5 py-0.5 text-[10px] font-mono font-semibold rounded border border-slate-200 dark:border-brandObsidian-600 bg-white dark:bg-brandObsidian-900 shadow-sm text-slate-500 dark:text-slate-400">
+                    ⌘K
                   </kbd>
                 </span>
+              </button>
+
+              {/* Mobile Search Button (< md) */}
+              <button
+                onClick={onOpenCommandPalette}
+                className="md:hidden flex items-center justify-center w-9 h-9 rounded-xl border border-slate-200 dark:border-brandObsidian-700 bg-slate-50/80 dark:bg-brandObsidian-800/60 text-slate-600 dark:text-slate-300 hover:text-brandGold-500 hover:border-brandGold-500/40 transition-colors"
+                aria-label="Search"
+                title="Search or press ⌘K"
+              >
+                <Search className="w-4 h-4" />
               </button>
 
               <div className="hidden sm:flex items-center gap-2">
@@ -348,6 +356,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                       aria-label="Close menu"
                     >
                       <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {/* Mobile Menu Search Bar */}
+                  <div className="p-4 border-b border-slate-200 dark:border-brandObsidian-800">
+                    <button
+                      onClick={() => {
+                        setMobileOpen(false);
+                        onOpenCommandPalette?.();
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-brandObsidian-700 bg-slate-50 dark:bg-brandObsidian-900/80 text-slate-600 dark:text-slate-300 text-sm hover:border-brandGold-500/50 hover:bg-brandGold-500/5 transition-all text-left shadow-sm"
+                    >
+                      <Search className="w-4 h-4 text-brandGold-500 shrink-0" />
+                      <span className="flex-1 font-medium text-xs sm:text-sm">Search docs, commands...</span>
+                      <kbd className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-slate-200 dark:bg-brandObsidian-800 border border-slate-300 dark:border-brandObsidian-700 text-slate-600 dark:text-slate-300">⌘K</kbd>
                     </button>
                   </div>
 

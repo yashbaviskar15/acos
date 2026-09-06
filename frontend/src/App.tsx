@@ -38,6 +38,15 @@ import { canAccessTab } from './utils/rbac';
 import { AccessDenied } from './components/AccessDenied';
 
 export default function App() {
+  const [inviteToken, setInviteToken] = useState<string | null>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('invite_token');
+    } catch {
+      return null;
+    }
+  });
+
   const [token, setToken] = useState<string | null>(() => {
     try {
       return localStorage.getItem('aravanta_token');
@@ -235,13 +244,17 @@ export default function App() {
   };
 
   if (!token) {
-    if (authViewState === 'login' || authViewState === 'register') {
+    if (inviteToken || authViewState === 'login' || authViewState === 'register') {
       return (
         <ErrorBoundary>
           <Login 
             onLoginSuccess={handleLoginSuccess}
-            initialTab={authViewState === 'register' ? 'register' : 'signin'}
-            onGoToLanding={() => setAuthViewState('landing')}
+            initialTab={inviteToken ? 'invite' : (authViewState === 'register' ? 'register' : 'signin')}
+            inviteToken={inviteToken}
+            onGoToLanding={() => {
+              setInviteToken(null);
+              setAuthViewState('landing');
+            }}
           />
           <CommandPalette
             isOpen={isCommandPaletteOpen}
@@ -368,7 +381,7 @@ export default function App() {
               />
             ) : (
               <>
-                {activeTab === 'dashboard' && <Dashboard token={token} onNavigate={(tab) => setActiveTab(tab)} />}
+                {activeTab === 'dashboard' && <Dashboard token={token} onNavigate={(tab) => setActiveTab(tab)} searchTerm={searchTerm} />}
                 {activeTab === 'infrastructure' && <Infrastructure token={token} />}
                 {activeTab === 'applications' && <Applications token={token} />}
                 {activeTab === 'deployments' && <Deployments token={token} />}
@@ -410,7 +423,7 @@ export default function App() {
                   'kubernetes', 'storage', 'database', 'cicd', 'security', 
                   'billing', 'profile', 'guide'
                 ].includes(activeTab) && (
-                  <Dashboard token={token} onNavigate={(tab) => setActiveTab(tab)} />
+                  <Dashboard token={token} onNavigate={(tab) => setActiveTab(tab)} searchTerm={searchTerm} />
                 )}
               </>
             )}

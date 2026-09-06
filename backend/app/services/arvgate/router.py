@@ -16,6 +16,8 @@ from app.services.arvgate.schemas import (
     UserResponse, AuditLogResponse, PasswordResetRequest, PasswordResetConfirm,
     ProfileUpdateRequest, PasswordChangeRequest
 )
+from app.core.config import settings
+from app.core.cloud_models import InvitationRecord, emit_notification
 from app.services.arvgate.dependencies import get_current_user, require_roles
 
 router = APIRouter(prefix="/api/v1/auth", tags=["ArvGate — Identity & Access"])
@@ -32,6 +34,11 @@ class InviteMemberRequest(BaseModel):
     email: str
     full_name: Optional[str] = None
     role: str = "Developer"
+
+class AcceptInviteRequest(BaseModel):
+    token: str
+    password: str
+    full_name: Optional[str] = None
 
 def log_audit(db: Session, email: str, action: str, resource: str, request: Request = None, details: str = None, workspace_id: str = None):
     ip_addr = request.client.host if request and request.client else "127.0.0.1"
@@ -52,25 +59,53 @@ def register_user(user_in: UserRegister, request: Request, db: Session = Depends
     clean_email = str(user_in.email).strip().lower()
     existing = db.query(User).filter(func.lower(User.email) == clean_email).first()
     if existing:
-        if verify_password(user_in.password, existing.hashed_password):
+        is_dummy_invite = verify_password("Aravanta@2026!", existing.hashed_password)
+        if verify_password(user_in.password, existing.hashed_password) or is_dummy_invite:
+            existing.hashed_password = get_password_hash(user_in.password)
             if user_in.full_name and user_in.full_name.strip():
                 existing.full_name = user_in.full_name.strip()
             if user_in.role:
                 existing.role = user_in.role
             if user_in.workspace_name and user_in.workspace_name.strip():
                 existing.workspace_name = user_in.workspace_name.strip()
+            
+            # Check and resolve pending invite if one exists
+            pending_inv = db.query(InvitationRecord).filter(
+                func.lower(InvitationRecord.email) == clean_email,
+                InvitationRecord.status == "PENDING"
+            ).first()
+            if pending_inv:
+                existing.workspace_id = pending_inv.workspace_id
+                existing.workspace_name = pending_inv.workspace_name
+                existing.role = pending_inv.role
+                pending_inv.status = "ACCEPTED"
+
             db.commit()
             db.refresh(existing)
             return existing
         raise HTTPException(status_code=400, detail="An account with this email already exists. Please sign in instead.")
 
+    # Check if there is an active pending invitation for this email
+    pending_invite = db.query(InvitationRecord).filter(
+        func.lower(InvitationRecord.email) == clean_email,
+        InvitationRecord.status == "PENDING"
+    ).first()
+
     user_id = str(uuid.uuid4())
     account_id = f"ARV-ACC-{random.randint(100000, 999999)}"
-    workspace_id = f"ws-{random.randint(10000, 99999)}"
-    workspace_name = user_in.workspace_name.strip() if user_in.workspace_name else f"{user_in.full_name}'s Workspace"
+    
+    if pending_invite:
+        workspace_id = pending_invite.workspace_id
+        workspace_name = pending_invite.workspace_name
+        assigned_role = pending_invite.role
+        pending_invite.status = "ACCEPTED"
+    else:
+        workspace_id = f"ws-{random.randint(10000, 99999)}"
+        workspace_name = user_in.workspace_name.strip() if user_in.workspace_name else f"{user_in.full_name}'s Workspace"
+        assigned_role = user_in.role if user_in.role in ["SuperAdmin", "Admin", "Operator", "Developer", "Viewer"] else "Developer"
+
     hashed_pwd = get_password_hash(user_in.password)
     mfa_secret = generate_mfa_secret()
-    assigned_role = user_in.role if user_in.role in ["SuperAdmin", "Admin", "Operator", "Developer", "Viewer"] else "Developer"
 
     new_user = User(
         id=user_id,
@@ -88,7 +123,7 @@ def register_user(user_in: UserRegister, request: Request, db: Session = Depends
     db.commit()
     db.refresh(new_user)
 
-    log_audit(db, new_user.email, "USER_REGISTER", "ArvGate", request, f"Registered user {new_user.full_name} in workspace '{workspace_name}' ({workspace_id})", workspace_id=workspace_id)
+    log_audit(db, new_user.email, "USER_REGISTER", "ArvGate", request, f"Registered user {new_user.full_name} in workspace '{workspace_name}' ({workspace_id}) as {assigned_role}", workspace_id=workspace_id)
     return new_user
 
 @router.post("/login", response_model=TokenResponse)
@@ -224,16 +259,38 @@ def get_workspace_members(
     if not members:
         members = [current_user]
 
-    return [
+    members_list = [
         {
             "id": m.id,
             "email": m.email,
             "full_name": m.full_name,
             "role": m.role,
             "is_active": m.is_active,
+            "status": "ACTIVE",
             "joined_at": m.created_at.isoformat() if m.created_at else datetime.datetime.utcnow().isoformat()
         } for m in members
     ]
+
+    # Include pending workspace invitations
+    pending_invites = db.query(InvitationRecord).filter(
+        InvitationRecord.workspace_id == current_user.workspace_id,
+        InvitationRecord.status == "PENDING"
+    ).all()
+
+    for inv in pending_invites:
+        if not any(m["email"].lower() == inv.email.lower() for m in members_list):
+            members_list.append({
+                "id": inv.id,
+                "email": inv.email,
+                "full_name": inv.full_name or inv.email.split('@')[0].replace('.', ' ').title(),
+                "role": inv.role,
+                "is_active": False,
+                "status": "PENDING",
+                "invite_token": inv.token,
+                "joined_at": inv.created_at.isoformat() if inv.created_at else datetime.datetime.utcnow().isoformat()
+            })
+
+    return members_list
 
 @router.post("/workspace/members/invite")
 def invite_workspace_member(
@@ -258,58 +315,197 @@ def invite_workspace_member(
         db.commit()
         db.refresh(current_user)
 
-    invite_url = f"https://aravantacos.vercel.app/join?ws={current_user.workspace_id}&email={clean_email}"
+    ws_name = current_user.workspace_name or f"{current_user.full_name}'s Workspace"
 
+    # Check if user is already an existing active user
     existing = db.query(User).filter(func.lower(User.email) == clean_email).first()
     if existing:
         existing.workspace_id = current_user.workspace_id
-        existing.workspace_name = current_user.workspace_name
+        existing.workspace_name = ws_name
         existing.role = assigned_role
         db.commit()
         db.refresh(existing)
         log_audit(db, current_user.email, "MEMBER_INVITE", "Workspace", request, f"Added existing user {existing.full_name} ({existing.email}) to workspace as {assigned_role}", workspace_id=current_user.workspace_id)
         return {
             "message": f"Invitation accepted — {existing.full_name} joined workspace as {assigned_role}",
-            "invite_link": invite_url,
+            "invite_link": f"https://aravantacos.vercel.app/?email={clean_email}&ws={current_user.workspace_id}",
             "member": {
                 "id": existing.id,
                 "email": existing.email,
                 "full_name": existing.full_name,
                 "role": existing.role,
                 "is_active": existing.is_active,
+                "status": "ACTIVE",
                 "joined_at": existing.created_at.isoformat() if existing.created_at else datetime.datetime.utcnow().isoformat()
             }
         }
 
-    new_member = User(
-        id=str(uuid.uuid4()),
-        account_id=f"ARV-ACC-{random.randint(100000, 999999)}",
-        workspace_id=current_user.workspace_id,
-        workspace_name=current_user.workspace_name or "Production Workspace",
-        email=clean_email,
-        full_name=clean_name,
-        hashed_password=get_password_hash("Aravanta@2026!"),
-        role=assigned_role,
-        is_mfa_enabled=False,
-        mfa_secret=generate_mfa_secret()
-    )
-    db.add(new_member)
-    db.commit()
-    db.refresh(new_member)
+    # Generate a cryptographically secure invite token
+    invite_token = secrets.token_urlsafe(32)
+    expires_at = datetime.datetime.utcnow() + datetime.timedelta(days=7)
 
-    log_audit(db, current_user.email, "MEMBER_INVITE", "Workspace", request, f"Invited {new_member.full_name} ({new_member.email}) as {new_member.role}", workspace_id=current_user.workspace_id)
+    # Check if a pending invite already exists for this email
+    invitation = db.query(InvitationRecord).filter(
+        func.lower(InvitationRecord.email) == clean_email,
+        InvitationRecord.workspace_id == current_user.workspace_id,
+        InvitationRecord.status == "PENDING"
+    ).first()
+
+    if invitation:
+        invitation.token = invite_token
+        invitation.role = assigned_role
+        invitation.full_name = clean_name
+        invitation.expires_at = expires_at
+    else:
+        invitation = InvitationRecord(
+            id=f"inv-{uuid.uuid4().hex[:12]}",
+            token=invite_token,
+            workspace_id=current_user.workspace_id,
+            workspace_name=ws_name,
+            email=clean_email,
+            full_name=clean_name,
+            role=assigned_role,
+            invited_by=current_user.email,
+            status="PENDING",
+            created_at=datetime.datetime.utcnow(),
+            expires_at=expires_at
+        )
+        db.add(invitation)
+
+    db.commit()
+    db.refresh(invitation)
+
+    invite_url = f"https://aravantacos.vercel.app/?invite_token={invite_token}&email={clean_email}&ws={current_user.workspace_id}"
+
+    emit_notification(
+        db=db,
+        user_id=current_user.id,
+        workspace_id=current_user.workspace_id,
+        title="Workspace Invitation Sent",
+        message=f"Invited {clean_email} to join {ws_name} as {assigned_role}",
+        notification_type="SYSTEM",
+        severity="INFO"
+    )
+
+    log_audit(db, current_user.email, "MEMBER_INVITE", "Workspace", request, f"Generated invitation token for {clean_name} ({clean_email}) as {assigned_role}", workspace_id=current_user.workspace_id)
+
     return {
-        "message": f"Invitation successfully sent to {clean_email} ({assigned_role})",
+        "message": f"Invitation successfully generated for {clean_email} ({assigned_role})",
         "invite_link": invite_url,
+        "token": invite_token,
         "member": {
-            "id": new_member.id,
-            "email": new_member.email,
-            "full_name": new_member.full_name,
-            "role": new_member.role,
-            "is_active": new_member.is_active,
-            "joined_at": new_member.created_at.isoformat() if new_member.created_at else datetime.datetime.utcnow().isoformat()
+            "id": invitation.id,
+            "email": invitation.email,
+            "full_name": invitation.full_name,
+            "role": invitation.role,
+            "is_active": False,
+            "status": "PENDING",
+            "joined_at": invitation.created_at.isoformat() if invitation.created_at else datetime.datetime.utcnow().isoformat()
         }
     }
+
+@router.get("/workspace/invite/verify")
+def verify_workspace_invite(token: str, db: Session = Depends(get_db)):
+    if not token or not token.strip():
+        raise HTTPException(status_code=400, detail="Invitation token is required")
+
+    invite = db.query(InvitationRecord).filter(InvitationRecord.token == token.strip()).first()
+    if not invite:
+        raise HTTPException(status_code=404, detail="Invitation not found or invalid token")
+
+    if invite.status != "PENDING":
+        raise HTTPException(status_code=400, detail=f"This invitation has already been {invite.status.lower()}")
+
+    if invite.expires_at and invite.expires_at < datetime.datetime.utcnow():
+        invite.status = "EXPIRED"
+        db.commit()
+        raise HTTPException(status_code=400, detail="This invitation link has expired. Please request a new invite.")
+
+    return {
+        "valid": True,
+        "email": invite.email,
+        "full_name": invite.full_name,
+        "workspace_id": invite.workspace_id,
+        "workspace_name": invite.workspace_name,
+        "role": invite.role,
+        "invited_by": invite.invited_by
+    }
+
+@router.post("/workspace/invite/accept", response_model=TokenResponse)
+def accept_workspace_invite(req: AcceptInviteRequest, request: Request, db: Session = Depends(get_db)):
+    token = req.token.strip()
+    invite = db.query(InvitationRecord).filter(InvitationRecord.token == token).first()
+    if not invite:
+        raise HTTPException(status_code=404, detail="Invitation not found or invalid token")
+
+    if invite.status != "PENDING":
+        raise HTTPException(status_code=400, detail=f"This invitation has already been {invite.status.lower()}")
+
+    if invite.expires_at and invite.expires_at < datetime.datetime.utcnow():
+        invite.status = "EXPIRED"
+        db.commit()
+        raise HTTPException(status_code=400, detail="This invitation link has expired. Please request a new invite.")
+
+    if len(req.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long")
+
+    clean_email = invite.email.strip().lower()
+    full_name = (req.full_name or invite.full_name or clean_email.split('@')[0].replace('.', ' ').title()).strip()
+
+    user = db.query(User).filter(func.lower(User.email) == clean_email).first()
+    if user:
+        user.hashed_password = get_password_hash(req.password)
+        user.workspace_id = invite.workspace_id
+        user.workspace_name = invite.workspace_name
+        user.role = invite.role
+        user.full_name = full_name
+        user.is_active = True
+    else:
+        user = User(
+            id=str(uuid.uuid4()),
+            account_id=f"ARV-ACC-{random.randint(100000, 999999)}",
+            workspace_id=invite.workspace_id,
+            workspace_name=invite.workspace_name,
+            email=clean_email,
+            full_name=full_name,
+            hashed_password=get_password_hash(req.password),
+            role=invite.role,
+            is_active=True,
+            is_mfa_enabled=False,
+            mfa_secret=generate_mfa_secret()
+        )
+        db.add(user)
+
+    invite.status = "ACCEPTED"
+    db.commit()
+    db.refresh(user)
+
+    log_audit(
+        db, user.email, "MEMBER_JOIN", "Workspace", request,
+        f"{user.full_name} accepted invite and joined workspace '{user.workspace_name}' ({user.workspace_id}) as {user.role}",
+        workspace_id=user.workspace_id
+    )
+
+    access_token = create_access_token(
+        subject=user.email,
+        roles=[user.role],
+        user_obj=user
+    )
+
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        expires_in=86400,
+        user_id=user.id,
+        account_id=user.account_id,
+        workspace_id=user.workspace_id,
+        workspace_name=user.workspace_name,
+        email=user.email,
+        full_name=user.full_name,
+        role=user.role,
+        is_mfa_required=False,
+        is_mfa_enabled=False
+    )
 
 @router.get("/mfa/setup")
 @router.post("/mfa/setup")

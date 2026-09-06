@@ -309,6 +309,43 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             }}
           />
 
+          {/* ── Ambient Animated Hero Logo Watermark ── */}
+          <div
+            aria-hidden
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -z-10 pointer-events-none flex items-center justify-center select-none overflow-hidden"
+          >
+            <motion.div
+              animate={{
+                scale: [1, 1.06, 1],
+                opacity: [0.04, 0.08, 0.04],
+                rotate: [0, 1.5, 0, -1.5, 0],
+              }}
+              transition={{
+                duration: 14,
+                repeat: Infinity,
+                ease: 'easeInOut',
+              }}
+              className="relative w-[340px] h-[340px] sm:w-[500px] sm:h-[500px] md:w-[650px] md:h-[650px] flex items-center justify-center"
+            >
+              {/* Subtle radial ambient illumination */}
+              <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-brandGold-500/10 via-amber-500/5 to-transparent blur-3xl pointer-events-none" />
+              {/* Logo Watermark: Cloud & Node Mark */}
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                className="w-full h-full text-brandGold-500 stroke-current opacity-60 dark:opacity-80"
+                strokeWidth="1.1"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
+                <path d="M12 13v4" strokeWidth="1.6" />
+                <circle cx="12" cy="13" r="1.5" fill="currentColor" />
+                <circle cx="12" cy="17" r="1.5" fill="currentColor" />
+              </svg>
+            </motion.div>
+          </div>
+
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div
               variants={containerVariants}
@@ -316,14 +353,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               animate={mounted ? 'show' : 'hidden'}
               className="relative z-10 max-w-3xl mx-auto text-center space-y-6"
             >
-              <motion.div variants={fadeUp}>
-                <Badge variant="gold" size="md" dot className="inline-flex">
-                  <span className="opacity-90">Unified Cloud Control Plane</span>
-                  <span className="mx-1.5 opacity-40">•</span>
-                  <span className="opacity-90">v1.0 GA</span>
-                  <span className="mx-1.5 opacity-40">•</span>
-                  <span className="opacity-90">ap-south-1 Mumbai</span>
-                </Badge>
+              <motion.div variants={fadeUp} className="flex justify-center">
+                <div className="inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-1.5 px-3.5 py-1.5 sm:px-4 sm:py-1.5 rounded-full border border-brandGold-500/30 bg-brandGold-500/10 text-brandGold-600 dark:text-brandGold-400 text-xs sm:text-xs font-semibold tracking-wide uppercase shadow-sm max-w-full">
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                    <span className="w-2 h-2 rounded-full bg-brandGold-500 animate-pulse" />
+                    <span>Unified Cloud Control Plane</span>
+                  </span>
+                  <span className="opacity-40 hidden sm:inline">•</span>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-brandGold-500/20 text-brandGold-700 dark:text-brandGold-300 font-bold whitespace-nowrap text-[11px] sm:text-xs">
+                    v1.0 GA
+                  </span>
+                  <span className="opacity-40 hidden sm:inline">•</span>
+                  <span className="inline-flex items-center gap-1.5 opacity-95 whitespace-nowrap">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping inline-block" />
+                    <span>ap-south-1 Mumbai</span>
+                  </span>
+                </div>
               </motion.div>
 
               <motion.h1

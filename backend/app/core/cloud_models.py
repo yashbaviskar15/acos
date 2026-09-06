@@ -452,6 +452,93 @@ class BackupRecord(Base):
         }
 
 
+class InvitationRecord(Base):
+    __tablename__ = "invitations"
+
+    id = Column(String(50), primary_key=True, index=True)
+    token = Column(String(100), unique=True, index=True, nullable=False)
+    workspace_id = Column(String(50), index=True, nullable=False)
+    workspace_name = Column(String(100), nullable=False)
+    email = Column(String(255), index=True, nullable=False)
+    full_name = Column(String(255), nullable=True)
+    role = Column(String(50), default="Developer")
+    invited_by = Column(String(255), nullable=True)
+    status = Column(String(20), default="PENDING")  # PENDING, ACCEPTED, REVOKED
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    expires_at = Column(DateTime, nullable=True)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "token": self.token,
+            "workspace_id": self.workspace_id,
+            "workspace_name": self.workspace_name,
+            "email": self.email,
+            "full_name": self.full_name,
+            "role": self.role,
+            "invited_by": self.invited_by,
+            "status": self.status,
+            "created_at": self.created_at.isoformat() + "Z" if self.created_at else None,
+            "expires_at": self.expires_at.isoformat() + "Z" if self.expires_at else None,
+        }
+
+
+class PaymentMethodRecord(Base):
+    __tablename__ = "payment_methods"
+
+    id = Column(String(50), primary_key=True, index=True)
+    user_id = Column(String(36), index=True, nullable=False)
+    workspace_id = Column(String(50), index=True, nullable=False)
+    brand = Column(String(50), default="visa")
+    last4 = Column(String(4), nullable=False)
+    exp_month = Column(Integer, nullable=False)
+    exp_year = Column(Integer, nullable=False)
+    holder_name = Column(String(255), nullable=False)
+    is_default = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "brand": self.brand,
+            "last4": self.last4,
+            "exp_month": self.exp_month,
+            "exp_year": self.exp_year,
+            "holder_name": self.holder_name,
+            "is_default": self.is_default,
+            "created_at": self.created_at.isoformat() + "Z" if self.created_at else None,
+        }
+
+
+class InvoiceRecord(Base):
+    __tablename__ = "invoices"
+
+    id = Column(String(50), primary_key=True, index=True)
+    user_id = Column(String(36), index=True, nullable=False)
+    workspace_id = Column(String(50), index=True, nullable=False)
+    period = Column(String(100), nullable=False)
+    amount_inr = Column(Float, nullable=False)
+    amount_usd = Column(Float, nullable=False)
+    status = Column(String(20), default="PAID")
+    payment_method = Column(String(100), default="Visa ending in 4242")
+    date = Column(String(20), nullable=False)
+    download_url = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "period": self.period,
+            "amount_inr": self.amount_inr,
+            "amount_usd": self.amount_usd,
+            "status": self.status,
+            "payment_method": self.payment_method,
+            "date": self.date,
+            "download_url": self.download_url or f"/api/v1/operations/billing/invoices/{self.id}/pdf",
+            "created_at": self.created_at.isoformat() + "Z" if self.created_at else None,
+        }
+
+
 def emit_notification(
     db,
     user_id: Optional[str] = None,

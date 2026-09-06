@@ -20,15 +20,17 @@ import { apiFetch } from '../config/api';
 interface LoginProps {
   onLoginSuccess: (user: any, token: string) => void;
   onGoToLanding?: () => void;
-  initialTab?: 'signin' | 'register';
+  initialTab?: 'signin' | 'register' | 'invite';
+  inviteToken?: string | null;
 }
 
 export const Login: React.FC<LoginProps> = ({ 
   onLoginSuccess, 
   onGoToLanding, 
-  initialTab = 'signin' 
+  initialTab = 'signin',
+  inviteToken = null
 }) => {
-  const [activeTab, setActiveTab] = useState<'signin' | 'register' | 'mfa' | 'forgot'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'signin' | 'register' | 'mfa' | 'forgot' | 'invite'>(initialTab);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -56,11 +58,50 @@ export const Login: React.FC<LoginProps> = ({
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
+  // Invitation state
+  const [tokenFromUrl, setTokenFromUrl] = useState<string | null>(() => {
+    if (inviteToken) return inviteToken;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('invite_token');
+    } catch {
+      return null;
+    }
+  });
+  const [inviteDetails, setInviteDetails] = useState<any>(null);
+  const [invitePassword, setInvitePassword] = useState('');
+  const [inviteConfirmPassword, setInviteConfirmPassword] = useState('');
+  const [inviteFullName, setInviteFullName] = useState('');
+  const [showInvitePassword, setShowInvitePassword] = useState(false);
+
   useEffect(() => {
-    setActiveTab(initialTab);
+    if (tokenFromUrl || initialTab === 'invite') {
+      setActiveTab('invite');
+    } else {
+      setActiveTab(initialTab);
+    }
     setError('');
     setSuccess('');
-  }, [initialTab]);
+  }, [initialTab, tokenFromUrl]);
+
+  useEffect(() => {
+    if (tokenFromUrl) {
+      setLoading(true);
+      apiFetch<any>(`/api/v1/auth/workspace/invite/verify?token=${encodeURIComponent(tokenFromUrl)}`)
+        .then((data) => {
+          setInviteDetails(data);
+          if (data.full_name) {
+            setInviteFullName(data.full_name);
+          }
+        })
+        .catch((err: any) => {
+          setError(err.message || 'Invitation is invalid or has expired.');
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }
+  }, [tokenFromUrl]);
 
   // Handle standard login
   const handleSignIn = async (e: React.FormEvent) => {
@@ -267,6 +308,56 @@ export const Login: React.FC<LoginProps> = ({
     }
   };
 
+  // Handle invitation acceptance
+  const handleAcceptInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    if (invitePassword !== inviteConfirmPassword) {
+      setError('Passwords do not match. Please verify.');
+      return;
+    }
+
+    if (invitePassword.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const data = await apiFetch<any>('/api/v1/auth/workspace/invite/accept', {
+        method: 'POST',
+        body: JSON.stringify({
+          token: tokenFromUrl,
+          password: invitePassword,
+          full_name: inviteFullName.trim() || undefined,
+        })
+      });
+
+      const userObj = {
+        id: data.user_id,
+        account_id: data.account_id,
+        workspace_id: data.workspace_id,
+        workspace_name: data.workspace_name,
+        email: data.email,
+        full_name: data.full_name,
+        role: data.role,
+        is_mfa_enabled: Boolean(data.is_mfa_enabled)
+      };
+
+      try {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch {}
+
+      onLoginSuccess(userObj, data.access_token);
+    } catch (err: any) {
+      setError(err.message || 'Failed to accept invitation. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="w-screen h-screen min-h-screen m-0 p-0 overflow-hidden bg-slate-900 flex flex-col md:flex-row font-sans selection:bg-brandGold-500/30 selection:text-brandGold-900 dark:selection:text-brandGold-100">
       
@@ -363,7 +454,7 @@ export const Login: React.FC<LoginProps> = ({
           </div>
 
           {/* Tab Switcher */}
-          {activeTab !== 'mfa' && activeTab !== 'forgot' && (
+          {activeTab !== 'mfa' && activeTab !== 'forgot' && activeTab !== 'invite' && (
             <div className="p-1 bg-slate-200/80 dark:bg-[#111827] rounded-2xl border border-slate-300 dark:border-slate-800 font-mono text-xs font-bold flex items-center">
               <button
                 type="button"
@@ -728,6 +819,98 @@ export const Login: React.FC<LoginProps> = ({
                 </form>
               )}
             </div>
+          )}
+
+          {/* ── 5. ACCEPT WORKSPACE INVITATION STEP ── */}
+          {activeTab === 'invite' && (
+            <form onSubmit={handleAcceptInvite} className="space-y-4 font-mono text-xs">
+              <div className="p-4 bg-blue-50 dark:bg-blue-500/10 rounded-2xl border border-blue-200 dark:border-blue-500/30 text-center space-y-1.5">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <h3 className="font-bold text-slate-900 dark:text-white font-sans text-sm">
+                  Join Workspace: {inviteDetails?.workspace_name || 'Production Workspace'}
+                </h3>
+                <p className="text-[11px] text-slate-500 font-sans">
+                  You were invited by <strong className="text-blue-600 dark:text-blue-400">{inviteDetails?.invited_by || 'Workspace Admin'}</strong> to join as a <span className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-bold">{inviteDetails?.role || 'Developer'}</span>.
+                </p>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Invited Email Address</label>
+                <input
+                  type="email"
+                  value={inviteDetails?.email || ''}
+                  disabled
+                  className="w-full px-3.5 py-2.5 bg-slate-100 dark:bg-[#161f30] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-600 dark:text-slate-400 font-bold cursor-not-allowed"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Your Full Name</label>
+                <input
+                  type="text"
+                  value={inviteFullName}
+                  onChange={(e) => setInviteFullName(e.target.value)}
+                  placeholder="e.g. Alex Kumar"
+                  required
+                  className="w-full px-3.5 py-2.5 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/30 focus:border-[#C6923B]"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Create Your Password</label>
+                <div className="relative">
+                  <input
+                    type={showInvitePassword ? 'text' : 'password'}
+                    value={invitePassword}
+                    onChange={(e) => setInvitePassword(e.target.value)}
+                    placeholder="Min. 8 characters"
+                    required
+                    className="w-full px-3.5 py-2.5 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/30 focus:border-[#C6923B] pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowInvitePassword(!showInvitePassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                  >
+                    {showInvitePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Confirm Password</label>
+                <input
+                  type="password"
+                  value={inviteConfirmPassword}
+                  onChange={(e) => setInviteConfirmPassword(e.target.value)}
+                  placeholder="Repeat your password"
+                  required
+                  className="w-full px-3.5 py-2.5 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/30 focus:border-[#C6923B]"
+                />
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3 bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-md shadow-[#C6923B]/25 transition-all cursor-pointer disabled:opacity-50 font-sans"
+                >
+                  {loading ? 'Joining Workspace...' : 'Accept Invitation & Launch Console'}
+                </button>
+              </div>
+
+              <div className="text-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => { setTokenFromUrl(null); setActiveTab('signin'); }}
+                  className="text-[11px] text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
+                >
+                  Already have another account? Switch to Sign In
+                </button>
+              </div>
+            </form>
           )}
 
         </div>

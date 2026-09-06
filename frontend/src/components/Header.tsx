@@ -32,6 +32,8 @@ export const Header: React.FC<HeaderProps> = ({
   user,
   onUpdateUser,
   onRefresh, 
+  searchTerm = '',
+  onSearchChange,
   onMobileMenuToggle,
   onNavigateToProfile,
   onOpenCommandPalette
@@ -43,6 +45,7 @@ export const Header: React.FC<HeaderProps> = ({
   const [hasNotificationPermission, setHasNotificationPermission] = useState(false);
   const [permissionJustGranted, setPermissionJustGranted] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
 
   const activeRole = user?.role || user?.roles?.[0] || 'Developer';
 
@@ -197,7 +200,55 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="h-16 bg-white dark:bg-[#0F2038] border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 flex items-center justify-between sticky top-0 z-20 transition-colors duration-300 shadow-sm min-w-0 w-full">
+    <header className="h-16 bg-white dark:bg-[#0F2038] border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 flex items-center justify-between sticky top-0 z-20 transition-colors duration-300 shadow-sm min-w-0 w-full relative">
+      {/* Full-width Mobile Search Bar Overlay */}
+      {isMobileSearchOpen && (
+        <div className="absolute inset-0 bg-white dark:bg-[#0F2038] z-30 px-3 flex items-center gap-2 animate-fadeIn">
+          <Search className="w-4 h-4 text-brandGold-500 shrink-0" />
+          <input
+            type="text"
+            autoFocus
+            value={searchTerm}
+            onChange={(e) => onSearchChange?.(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && onOpenCommandPalette) {
+                setIsMobileSearchOpen(false);
+                onOpenCommandPalette();
+              }
+            }}
+            placeholder="Search console, services, logs..."
+            className="flex-1 bg-transparent border-none text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => onSearchChange?.('')}
+              className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              title="Clear"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {onOpenCommandPalette && (
+            <button
+              onClick={() => {
+                setIsMobileSearchOpen(false);
+                onOpenCommandPalette();
+              }}
+              className="px-2 py-1 text-[10px] font-bold font-mono bg-brandGold-500/10 text-brandGold-600 dark:text-brandGold-400 border border-brandGold-500/30 rounded-lg"
+            >
+              Cmds
+            </button>
+          )}
+          <button
+            onClick={() => setIsMobileSearchOpen(false)}
+            className="p-1.5 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+            title="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 mr-2">
         {/* Mobile Hamburger Drawer Trigger */}
         {onMobileMenuToggle && (
@@ -219,17 +270,51 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-        {/* Global Search & Command Palette Trigger */}
-        {onOpenCommandPalette && (
-          <button
-            onClick={onOpenCommandPalette}
-            className="hidden md:flex items-center gap-2 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-500 dark:text-slate-400 font-mono transition-colors cursor-pointer"
-          >
-            <Search className="w-3.5 h-3.5 text-slate-400" />
-            <span className="truncate max-w-[100px]">Cmds...</span>
-            <kbd className="px-1.5 py-0.5 text-[9px] font-bold bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-700">Ctrl K</kbd>
-          </button>
-        )}
+        {/* Interactive Desktop Search Input */}
+        <div className="hidden md:flex items-center relative">
+          <Search className="w-3.5 h-3.5 absolute left-2.5 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => onSearchChange?.(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && onOpenCommandPalette) {
+                onOpenCommandPalette();
+              }
+            }}
+            placeholder="Search services, logs... (Ctrl+K)"
+            className="w-44 lg:w-60 pl-8 pr-14 py-1.5 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200/60 dark:hover:bg-slate-800/80 focus:bg-white dark:focus:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-brandGold-500/50 dark:focus:border-brandGold-500/50 rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-brandGold-500/30 transition-all font-sans"
+          />
+          <div className="absolute right-1.5 flex items-center gap-1">
+            {searchTerm ? (
+              <button
+                onClick={() => onSearchChange?.('')}
+                className="p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                title="Clear search"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            ) : null}
+            {onOpenCommandPalette && (
+              <button
+                onClick={onOpenCommandPalette}
+                title="Command Palette (Ctrl+K)"
+                className="px-1.5 py-0.5 text-[9px] font-mono font-bold bg-slate-200 dark:bg-slate-800 hover:bg-brandGold-500/20 text-slate-500 dark:text-slate-400 hover:text-brandGold-500 rounded border border-slate-300 dark:border-slate-700 transition-colors cursor-pointer"
+              >
+                Ctrl K
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Mobile Search Button (< md) */}
+        <button
+          onClick={() => setIsMobileSearchOpen(true)}
+          className="md:hidden flex items-center justify-center p-2 text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-colors shrink-0"
+          title="Search console"
+        >
+          <Search className="w-4 h-4" />
+        </button>
 
         {/* Desktop System Notification Toggle */}
         <button
