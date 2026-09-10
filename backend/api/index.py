@@ -8,6 +8,11 @@ if str(backend_dir) not in sys.path:
 
 from app.main import app
 
-# Expose handler for all Vercel/AWS Lambda ASGI runtimes
-handler = app
+# Wrap ASGI app with Mangum for AWS Lambda / Vercel Serverless execution.
+# lifespan="off" prevents serverless cold-start timeouts on Lambda.
+try:
+    from mangum import Mangum
+    handler = Mangum(app, lifespan="off")
+except ImportError:
+    handler = app
 

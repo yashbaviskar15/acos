@@ -11,8 +11,17 @@ from fastapi import APIRouter, HTTPException, Query, status, Header, Depends, Re
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
-from fpdf import FPDF
-from fpdf.enums import XPos, YPos
+try:
+    from fpdf import FPDF
+    from fpdf.enums import XPos, YPos
+    _FPDF_BASE = FPDF
+    HAS_FPDF = True
+except Exception:
+    _FPDF_BASE = object
+    HAS_FPDF = False
+    FPDF = None
+    XPos = None
+    YPos = None
 
 import json
 from app.core.database import get_db
@@ -1574,8 +1583,10 @@ def list_invoices(
 
     return [i.to_dict() for i in invs]
 
-class InvoicePDF(FPDF):
+class InvoicePDF(_FPDF_BASE):
     def header(self):
+        if not HAS_FPDF:
+            return
         self.set_fill_color(15, 32, 56)
         self.rect(0, 0, 210, 38, 'F')
         self.set_draw_color(201, 168, 76)
@@ -1602,6 +1613,8 @@ class InvoicePDF(FPDF):
         self.ln(18)
 
     def footer(self):
+        if not HAS_FPDF:
+            return
         self.set_y(-25)
         self.set_draw_color(226, 232, 240)
         self.set_line_width(0.5)
@@ -1616,6 +1629,8 @@ class InvoicePDF(FPDF):
         self.cell(0, 4, f'Digitally signed & verified by Aravanta FinOps Engine on {now_utc}', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
 def generate_invoice_pdf_bytes(inv: InvoiceRecord, user_email: str, user_name: str, ws_id: str) -> bytes:
+    if not HAS_FPDF or FPDF is None:
+        raise RuntimeError("fpdf2 library is not available in the runtime environment")
     pdf = InvoicePDF('P', 'mm', 'A4')
     pdf.set_auto_page_break(auto=True, margin=30)
     pdf.add_page()

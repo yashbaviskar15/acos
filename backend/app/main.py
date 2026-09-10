@@ -1,3 +1,4 @@
+import os
 import logging
 import uuid
 import datetime
@@ -355,13 +356,19 @@ def init_db():
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    """Run heavy startup work AFTER the module loads so Vercel cold starts never
-    fail at import time. DB seed errors are swallowed and logged — health endpoint
-    will report DEGRADED instead of crashing the whole function."""
-    try:
-        init_db()
-    except Exception as exc:
-        logger.exception("startup: init_db failed (continuing without seed): %s", exc)
+    """Run DB setup only in local development or when explicitly requested via AUTO_INIT_DB.
+    On serverless (Vercel / AWS Lambda), the database tables and seed data already persist
+    permanently in PostgreSQL, so skipping synchronous init_db() keeps cold starts sub-second
+    and prevents FUNCTION_INVOCATION_FAILED execution timeouts."""
+    is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+    should_init = (not is_serverless) or (os.environ.get("AUTO_INIT_DB", "").lower() in ("true", "1"))
+    if should_init:
+        try:
+            init_db()
+        except Exception as exc:
+            logger.exception("startup: init_db failed: %s", exc)
+    else:
+        logger.info("Serverless runtime detected (VERCEL/Lambda). Skipping synchronous init_db() to ensure instant cold start.")
     yield
 
 
