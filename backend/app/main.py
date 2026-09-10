@@ -1,6 +1,7 @@
 import logging
 import uuid
 import datetime
+from contextlib import asynccontextmanager
 from sqlalchemy import text
 
 from fastapi import FastAPI
@@ -57,6 +58,9 @@ def init_db():
                             conn.commit()
                         except Exception:
                             pass
+            except Exception:
+                pass
+        # PostgreSQL: expand last4 column for UPI VPAs and NetBanking labels
         if _is_postgres:
             try:
                 with engine.connect() as conn:
@@ -346,16 +350,28 @@ def init_db():
         finally:
             db.close()
     except Exception as exc:
-        logger.error("Database initialization failed: %s.", exc)
+            logger.error("Database initialization failed: %s.", exc)
 
-init_db()
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Run heavy startup work AFTER the module loads so Vercel cold starts never
+    fail at import time. DB seed errors are swallowed and logged — health endpoint
+    will report DEGRADED instead of crashing the whole function."""
+    try:
+        init_db()
+    except Exception as exc:
+        logger.exception("startup: init_db failed (continuing without seed): %s", exc)
+    yield
+
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan
 )
 
 # Configure CORS. Allows specified origins + all *.vercel.app preview deployments.

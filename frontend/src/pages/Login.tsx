@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Eye, 
-  EyeOff, 
-  AlertCircle, 
-  CheckCircle2, 
-  KeyRound, 
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Eye,
+  EyeOff,
+  AlertCircle,
+  CheckCircle2,
+  KeyRound,
   ArrowLeft,
   Activity,
   Lock,
@@ -12,7 +12,9 @@ import {
   Globe,
   Layers,
   Cpu,
-  Boxes
+  Boxes,
+  Loader2,
+  X,
 } from 'lucide-react';
 import { Logo } from '../components/Logo';
 import { apiFetch } from '../config/api';
@@ -24,29 +26,56 @@ interface LoginProps {
   inviteToken?: string | null;
 }
 
-export const Login: React.FC<LoginProps> = ({ 
-  onLoginSuccess, 
-  onGoToLanding, 
+// ---- lightweight inline validators ----
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ACCOUNT_ID_RE = /^ARV-ACC-\d{6,}$/i;
+const isValidLoginIdentifier = (v: string) =>
+  EMAIL_RE.test(v.trim()) || ACCOUNT_ID_RE.test(v.trim());
+const isValidEmail = (v: string) => EMAIL_RE.test(v.trim());
+const pwdStrong = (v: string) => v.length >= 8;
+// -------------------------------------
+
+export const Login: React.FC<LoginProps> = ({
+  onLoginSuccess,
+  onGoToLanding,
   initialTab = 'signin',
-  inviteToken = null
+  inviteToken = null,
 }) => {
   const [activeTab, setActiveTab] = useState<'signin' | 'register' | 'mfa' | 'forgot' | 'invite'>(initialTab);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [errorDismissed, setErrorDismissed] = useState(false);
   const [success, setSuccess] = useState('');
 
   // Sign In form state
   const [email, setEmail] = useState('');
+  const [emailTouched, setEmailTouched] = useState(false);
   const [password, setPassword] = useState('');
+  const [passwordTouched, setPasswordTouched] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
 
   // Register form state
   const [regFullName, setRegFullName] = useState('');
   const [regEmail, setRegEmail] = useState('');
+  const [regEmailTouched, setRegEmailTouched] = useState(false);
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPwd, setRegConfirmPwd] = useState('');
   const [regWorkspaceName, setRegWorkspaceName] = useState('');
+
+  // Derived: sign-in form validity (submit disabled until OK)
+  const signInValid = useMemo(
+    () => isValidLoginIdentifier(email) && pwdStrong(password),
+    [email, password],
+  );
+  const signInEmailHint =
+    emailTouched && email && !isValidLoginIdentifier(email)
+      ? 'Enter a valid work email or Account ID (ARV-ACC-100001).'
+      : '';
+  const signInPwdHint =
+    passwordTouched && password && !pwdStrong(password)
+      ? 'Password must be at least 8 characters.'
+      : '';
 
   // MFA & Password Reset
   const [mfaCode, setMfaCode] = useState('');
@@ -354,10 +383,11 @@ export const Login: React.FC<LoginProps> = ({
   };
 
   return (
-    <div className="w-screen h-screen min-h-screen m-0 p-0 overflow-hidden bg-slate-900 flex flex-col md:flex-row font-sans selection:bg-brandGold-500/30 selection:text-brandGold-900 dark:selection:text-brandGold-100">
-      
+    <div className="w-screen h-screen min-h-screen m-0 p-0 overflow-hidden bg-slate-900 flex flex-col md:flex-row font-sans selection:bg-brandGold-500/30 selection:text-brandGold-900 dark:selection:text-brandGold-100 touch-manipulation select-none [touch-action:manipulation]">
+
       {/* ── LEFT PANE: SRE Platform Console Deck ── */}
-      <div className="hidden md:flex md:w-[46%] lg:w-[42%] h-full bg-[#0B0F17] text-white border-r border-slate-800/80 p-8 lg:p-12 flex-col justify-between overflow-y-auto">
+      {/* Responsive: `hidden md:flex` collapses this panel cleanly on <768px (mobile / small tablet). */}
+      <div className="hidden md:flex md:w-[46%] lg:w-[42%] h-full bg-[#0B0F17] text-white border-r border-slate-800/80 p-8 lg:p-12 flex-col justify-between overflow-y-auto touch-manipulation">
         <div className="space-y-8">
           {/* Logo Brand Header */}
           <div className="flex items-center gap-3">
@@ -450,67 +480,136 @@ export const Login: React.FC<LoginProps> = ({
 
           {/* Tab Switcher */}
           {activeTab !== 'mfa' && activeTab !== 'forgot' && activeTab !== 'invite' && (
-            <div className="p-1 bg-slate-200/80 dark:bg-[#111827] rounded-2xl border border-slate-300 dark:border-slate-800 font-mono text-xs font-bold flex items-center">
+            <div
+              role="tablist"
+              aria-label="Authentication mode"
+              className="p-1 bg-slate-200/80 dark:bg-[#111827] rounded-2xl border border-slate-300 dark:border-slate-800 font-mono text-xs font-bold flex items-center"
+            >
               <button
                 type="button"
+                role="tab"
+                aria-selected={activeTab === 'signin'}
+                tabIndex={activeTab === 'signin' ? 0 : -1}
                 onClick={() => { setActiveTab('signin'); setError(''); setSuccess(''); }}
-                className={`flex-1 py-2.5 rounded-xl transition-all cursor-pointer ${
+                className={`relative flex-1 py-2.5 rounded-xl transition-all cursor-pointer ${
                   activeTab === 'signin'
                     ? 'bg-white dark:bg-[#1E293B] text-slate-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/5'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 Sign In
+                {activeTab === 'signin' && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute left-1/2 -translate-x-1/2 -bottom-1 w-10 h-0.5 rounded-full bg-[#C6923B]"
+                  />
+                )}
               </button>
               <button
                 type="button"
+                role="tab"
+                aria-selected={activeTab === 'register'}
+                tabIndex={activeTab === 'register' ? 0 : -1}
                 onClick={() => { setActiveTab('register'); setError(''); setSuccess(''); }}
-                className={`flex-1 py-2.5 rounded-xl transition-all cursor-pointer ${
+                className={`relative flex-1 py-2.5 rounded-xl transition-all cursor-pointer ${
                   activeTab === 'register'
                     ? 'bg-white dark:bg-[#1E293B] text-slate-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/5'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 Create Workspace
+                {activeTab === 'register' && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute left-1/2 -translate-x-1/2 -bottom-1 w-10 h-0.5 rounded-full bg-[#C6923B]"
+                  />
+                )}
               </button>
             </div>
           )}
 
-          {/* Feedback Messages */}
-          {error && (
-            <div className="p-3.5 bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 rounded-xl text-xs text-rose-700 dark:text-rose-400 flex items-start gap-2.5 font-mono animate-fadeIn">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{error}</span>
+          {/* Feedback Messages — dismissible, inline, user-safe */}
+          {error && !errorDismissed && (
+            <div
+              role="alert"
+              aria-live="polite"
+              className="p-3.5 bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 rounded-xl text-xs text-rose-700 dark:text-rose-400 flex items-start gap-2.5 font-mono animate-fadeIn"
+            >
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+              <div className="flex-1 space-y-2">
+                <div>{error}</div>
+                <div className="flex items-center gap-3 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError('');
+                      setErrorDismissed(false);
+                      window.location.reload();
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-600/10 hover:bg-rose-600/20 text-rose-700 dark:text-rose-300 font-bold transition-colors cursor-pointer"
+                  >
+                    Retry
+                  </button>
+                </div>
+              </div>
+              <button
+                type="button"
+                aria-label="Dismiss error message"
+                onClick={() => {
+                  setErrorDismissed(true);
+                }}
+                className="shrink-0 p-1 rounded hover:bg-rose-200/60 dark:hover:bg-rose-500/20 cursor-pointer transition-colors"
+              >
+                <X className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
             </div>
           )}
 
           {success && (
-            <div className="p-3.5 bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 rounded-xl text-xs text-emerald-700 dark:text-emerald-400 flex items-start gap-2.5 font-mono animate-fadeIn">
-              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+            <div
+              role="status"
+              aria-live="polite"
+              className="p-3.5 bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 rounded-xl text-xs text-emerald-700 dark:text-emerald-400 flex items-start gap-2.5 font-mono animate-fadeIn"
+            >
+              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
               <span>{success}</span>
             </div>
           )}
 
           {/* ── 1. SIGN IN FORM ── */}
           {activeTab === 'signin' && (
-            <form onSubmit={handleSignIn} className="space-y-4 font-mono text-xs">
+            <form onSubmit={handleSignIn} className="space-y-4 font-mono text-xs touch-manipulation">
               <div>
-                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                <label htmlFor="signin-email" className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
                   Work Email or Account ID
                 </label>
                 <input
+                  id="signin-email"
+                  name="email"
                   type="text"
+                  autoComplete="username"
+                  aria-label="Work email or Aravanta account ID"
+                  aria-invalid={!!signInEmailHint}
+                  aria-describedby={signInEmailHint ? 'signin-email-hint' : undefined}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  onBlur={() => setEmailTouched(true)}
                   placeholder="name@company.com or ARV-ACC-100001"
                   required
-                  className="w-full px-3.5 py-2.5 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/30 focus:border-[#C6923B]"
+                  className="w-full px-3.5 py-2.5 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/40 focus:border-[#C6923B]"
                 />
+                {signInEmailHint && (
+                  <p id="signin-email-hint" className="mt-1 text-[10px] text-rose-600 dark:text-rose-400">
+                    {signInEmailHint}
+                  </p>
+                )}
               </div>
 
               <div>
                 <div className="flex justify-between items-center mb-1">
-                  <label className="font-bold text-slate-700 dark:text-slate-300">Password</label>
+                  <label htmlFor="signin-password" className="font-bold text-slate-700 dark:text-slate-300">
+                    Password
+                  </label>
                   <button
                     type="button"
                     onClick={() => { setActiveTab('forgot'); setError(''); setSuccess(''); setResetEmail(email); }}
@@ -521,41 +620,55 @@ export const Login: React.FC<LoginProps> = ({
                 </div>
                 <div className="relative">
                   <input
+                    id="signin-password"
+                    name="password"
                     type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    aria-label="Account password"
+                    aria-invalid={!!signInPwdHint}
+                    aria-describedby={signInPwdHint ? 'signin-password-hint' : undefined}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••••••"
+                    onBlur={() => setPasswordTouched(true)}
+                    placeholder="Minimum 8 characters"
                     required
-                    className="w-full px-3.5 py-2.5 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/30 focus:border-[#C6923B] pr-10"
+                    className="w-full px-3.5 py-2.5 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/40 focus:border-[#C6923B] pr-10"
                   />
                   <button
                     type="button"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showPassword ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
                   </button>
                 </div>
+                <p id="signin-password-hint" className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                  {signInPwdHint || 'At least 8 characters.'}
+                </p>
               </div>
 
               <div className="flex items-center justify-between pt-1">
-                <label className="flex items-center gap-2 cursor-pointer text-slate-600 dark:text-slate-400">
+                <label className="flex items-center gap-2 cursor-pointer text-slate-600 dark:text-slate-400 select-none">
                   <input
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
+                    aria-label="Stay signed in for 30 days on this device"
                     className="rounded text-[#C6923B] accent-[#C6923B] focus:ring-[#C6923B]"
                   />
-                  <span className="text-[11px]">Remember session</span>
+                  <span className="text-[11px]">Stay signed in for 30 days</span>
                 </label>
               </div>
 
               <button
                 type="submit"
-                disabled={loading}
-                className="w-full py-3 bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-md shadow-[#C6923B]/25 transition-all cursor-pointer disabled:opacity-50 mt-2 font-sans"
+                disabled={loading || !signInValid}
+                aria-disabled={loading || !signInValid}
+                className="w-full py-3 bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-md shadow-[#C6923B]/25 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mt-2 font-sans inline-flex items-center justify-center gap-2"
               >
-                {loading ? 'Authenticating...' : 'Sign In to Control Plane'}
+                {loading && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />}
+                {loading ? 'Authenticating…' : 'Sign In to Control Plane'}
               </button>
             </form>
           )}
@@ -564,73 +677,62 @@ export const Login: React.FC<LoginProps> = ({
           {activeTab === 'register' && (
             <form onSubmit={handleRegister} className="space-y-3 font-mono text-xs">
               <div>
-                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Full Name</label>
-                <input
-                  type="text"
-                  value={regFullName}
-                  onChange={(e) => setRegFullName(e.target.value)}
-                  placeholder="Yash Baviskar"
-                  required
-                  className="w-full px-3.5 py-2 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/30 focus:border-[#C6923B]"
-                />
+                <label htmlFor="reg-name" className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Full Name</label>
+                <input id="reg-name" name="name" type="text" autoComplete="name" aria-label="Full name" value={regFullName}
+                  onChange={(e) => setRegFullName(e.target.value)} placeholder="Yash Baviskar" required
+                  className="w-full px-3.5 py-2.5 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/40 focus:border-[#C6923B]" />
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Work Email</label>
-                <input
-                  type="email"
-                  value={regEmail}
-                  onChange={(e) => setRegEmail(e.target.value)}
-                  placeholder="engineer@aravanta.com"
-                  required
-                  className="w-full px-3.5 py-2 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/30 focus:border-[#C6923B]"
-                />
+                <label htmlFor="reg-email" className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Work Email</label>
+                <input id="reg-email" name="email" type="email" autoComplete="email" aria-label="Work email address"
+                  aria-invalid={!!(regEmailTouched && regEmail && !isValidEmail(regEmail))}
+                  value={regEmail} onChange={(e) => setRegEmail(e.target.value)} onBlur={() => setRegEmailTouched(true)}
+                  placeholder="engineer@aravanta.com" required
+                  className="w-full px-3.5 py-2.5 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/40 focus:border-[#C6923B]" />
+                {regEmailTouched && regEmail && !isValidEmail(regEmail) && (
+                  <p className="mt-1 text-[10px] text-rose-600 dark:text-rose-400">Enter a valid work email address.</p>
+                )}
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Workspace Name</label>
-                <input
-                  type="text"
-                  value={regWorkspaceName}
-                  onChange={(e) => setRegWorkspaceName(e.target.value)}
-                  placeholder="Production SRE Cluster"
-                  required
-                  className="w-full px-3.5 py-2 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/30 focus:border-[#C6923B]"
-                />
+                <label htmlFor="reg-workspace" className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Workspace Name</label>
+                <input id="reg-workspace" type="text" aria-label="Workspace name" value={regWorkspaceName}
+                  onChange={(e) => setRegWorkspaceName(e.target.value)} placeholder="Production SRE Cluster" required
+                  className="w-full px-3.5 py-2.5 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/40 focus:border-[#C6923B]" />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Password</label>
-                  <input
-                    type="password"
-                    value={regPassword}
-                    onChange={(e) => setRegPassword(e.target.value)}
-                    placeholder="Min. 8 characters"
-                    required
-                    className="w-full px-3 py-2 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/30 focus:border-[#C6923B]"
-                  />
+                  <label htmlFor="reg-pwd" className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Password</label>
+                  <input id="reg-pwd" name="new-password" type="password" autoComplete="new-password" aria-label="New password"
+                    value={regPassword} onChange={(e) => setRegPassword(e.target.value)} placeholder="Min. 8 characters" required
+                    className="w-full px-3 py-2.5 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/40 focus:border-[#C6923B]" />
                 </div>
-
                 <div>
-                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Confirm Password</label>
-                  <input
-                    type="password"
-                    value={regConfirmPwd}
-                    onChange={(e) => setRegConfirmPwd(e.target.value)}
-                    placeholder="Repeat password"
-                    required
-                    className="w-full px-3 py-2 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/30 focus:border-[#C6923B]"
-                  />
+                  <label htmlFor="reg-pwd2" className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Confirm Password</label>
+                  <input id="reg-pwd2" name="new-password" type="password" autoComplete="new-password" aria-label="Confirm new password"
+                    value={regConfirmPwd} onChange={(e) => setRegConfirmPwd(e.target.value)} placeholder="Repeat password" required
+                    className="w-full px-3 py-2.5 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/40 focus:border-[#C6923B]" />
                 </div>
               </div>
+              {regPassword && (
+                <p className={`text-[10px] ${pwdStrong(regPassword) ? 'text-slate-500 dark:text-slate-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                  {pwdStrong(regPassword) ? 'Password OK.' : 'Password must be at least 8 characters.'}
+                  {regConfirmPwd && regConfirmPwd !== regPassword && (
+                    <span className="block text-rose-600 dark:text-rose-400">Passwords do not match.</span>
+                  )}
+                </p>
+              )}
 
               <button
                 type="submit"
-                disabled={loading}
-                className="w-full py-3 bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-md shadow-[#C6923B]/25 transition-all cursor-pointer disabled:opacity-50 mt-2 font-sans"
+                disabled={loading || !(regFullName.trim() && isValidEmail(regEmail) && regWorkspaceName.trim() && pwdStrong(regPassword) && (!regConfirmPwd || regConfirmPwd === regPassword))}
+                aria-disabled={loading || !(regFullName.trim() && isValidEmail(regEmail) && regWorkspaceName.trim() && pwdStrong(regPassword) && (!regConfirmPwd || regConfirmPwd === regPassword))}
+                className="w-full py-3 bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-md shadow-[#C6923B]/25 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mt-1 font-sans inline-flex items-center justify-center gap-2"
               >
-                {loading ? 'Creating Workspace...' : 'Create Operational Workspace'}
+                {loading && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />}
+                {loading ? 'Creating Workspace…' : 'Create Operational Workspace'}
               </button>
             </form>
           )}
