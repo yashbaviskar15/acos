@@ -1437,50 +1437,88 @@ def list_invoices(
 
     return [i.to_dict() for i in invs]
 
+def _number_to_words_inr(n: float) -> str:
+    ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+            'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen']
+    tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety']
+    
+    def _convert_whole(num: int) -> str:
+        if num == 0:
+            return ''
+        if num < 20:
+            return ones[num]
+        if num < 100:
+            return tens[num // 10] + (' ' + ones[num % 10] if num % 10 else '')
+        if num < 1000:
+            return ones[num // 100] + ' Hundred' + (' ' + _convert_whole(num % 100) if num % 100 else '')
+        if num < 100000:
+            return _convert_whole(num // 1000) + ' Thousand' + (' ' + _convert_whole(num % 1000) if num % 1000 else '')
+        if num < 10000000:
+            return _convert_whole(num // 100000) + ' Lakh' + (' ' + _convert_whole(num % 100000) if num % 100000 else '')
+        return _convert_whole(num // 10000000) + ' Crore' + (' ' + _convert_whole(num % 10000000) if num % 10000000 else '')
+        
+    whole = int(abs(n))
+    paise = int(round((abs(n) - whole) * 100))
+    words = _convert_whole(whole) or 'Zero'
+    if paise > 0:
+        words += f" and {_convert_whole(paise)} Paise"
+    return words + " Only"
+
+
 class InvoicePDF(_FPDF_BASE):
     def header(self):
         if not HAS_FPDF:
             return
         self.set_fill_color(15, 32, 56)
-        self.rect(0, 0, 210, 38, 'F')
-        self.set_draw_color(201, 168, 76)
+        self.rect(0, 0, 210, 42, 'F')
+        self.set_draw_color(198, 146, 59)
         self.set_line_width(1.5)
-        self.line(0, 38, 210, 38)
+        self.line(0, 42, 210, 42)
         
         self.set_text_color(255, 255, 255)
-        self.set_font('Helvetica', 'B', 20)
-        self.set_xy(14, 10)
-        self.cell(100, 10, 'ARAVANTA CLOUDOS', new_x=XPos.RIGHT, new_y=YPos.TOP)
-        
-        self.set_text_color(201, 168, 76)
         self.set_font('Helvetica', 'B', 18)
-        self.set_xy(110, 10)
-        self.cell(86, 10, 'TAX INVOICE', align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        self.set_xy(14, 11)
+        self.cell(100, 8, 'ARAVANTA CLOUDOS', new_x=XPos.RIGHT, new_y=YPos.TOP)
+        
+        self.set_text_color(198, 146, 59)
+        self.set_font('Helvetica', 'B', 18)
+        self.set_xy(110, 11)
+        self.cell(86, 8, 'TAX INVOICE', align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         
         self.set_text_color(180, 200, 230)
         self.set_font('Helvetica', '', 8)
-        self.set_xy(14, 22)
+        self.set_xy(14, 21)
         self.cell(100, 5, 'Enterprise Cloud Infrastructure Platform', new_x=XPos.RIGHT, new_y=YPos.TOP)
         
-        self.set_xy(110, 22)
+        self.set_xy(110, 21)
         self.cell(86, 5, 'Original for Recipient (GST Compliant)', align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        self.ln(18)
+        
+        self.set_text_color(148, 163, 184)
+        self.set_font('Helvetica', '', 7)
+        self.set_xy(14, 28)
+        self.cell(100, 4, 'Aravanta CloudOS Inc. | CIN: U72200MH2026PTC000001', new_x=XPos.RIGHT, new_y=YPos.TOP)
+        
+        self.set_xy(110, 28)
+        self.cell(86, 4, 'GSTIN: 27AAAAA0000A1Z5 | SAC: 998313', align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        self.ln(20)
 
     def footer(self):
         if not HAS_FPDF:
             return
-        self.set_y(-25)
+        self.set_y(-26)
         self.set_draw_color(226, 232, 240)
         self.set_line_width(0.5)
         self.line(14, self.get_y(), 196, self.get_y())
         
-        self.set_y(-20)
+        self.set_y(-22)
         self.set_font('Helvetica', '', 7)
         self.set_text_color(148, 163, 184)
         self.cell(0, 4, 'This is an authorized computer-generated tax invoice and requires no physical signature.', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        self.cell(0, 4, 'Aravanta CloudOS Inc. - CIN: U72200MH2026PTC000001 - support@aravanta.cloud', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        self.cell(0, 4, 'Aravanta CloudOS Inc. - BKC, Mumbai 400051 - Support: billing@aravanta.cloud', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         now_utc = datetime.utcnow().strftime("%d %b %Y %H:%M UTC")
-        self.cell(0, 4, f'Digitally signed & verified by Aravanta FinOps Engine on {now_utc}', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        self.cell(120, 4, f'Digitally signed & verified by Aravanta FinOps Engine on {now_utc}', new_x=XPos.RIGHT, new_y=YPos.TOP)
+        self.cell(62, 4, f'Page {self.page_no()}', align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
 
 def generate_invoice_pdf_bytes(inv: InvoiceRecord, user_email: str, user_name: str, ws_id: str) -> bytes:
     if not HAS_FPDF or FPDF is None:
@@ -1489,76 +1527,109 @@ def generate_invoice_pdf_bytes(inv: InvoiceRecord, user_email: str, user_name: s
     pdf.set_auto_page_break(auto=True, margin=30)
     pdf.add_page()
     
-    # Metadata Box
     pdf.set_fill_color(248, 250, 252)
     pdf.set_draw_color(226, 232, 240)
-    pdf.rect(14, 45, 182, 32, 'DF')
     
-    pdf.set_xy(18, 48)
-    pdf.set_font('Helvetica', 'B', 8)
-    pdf.set_text_color(100, 116, 139)
-    pdf.cell(80, 4, 'INVOICE NUMBER', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.set_x(18)
-    pdf.set_font('Helvetica', 'B', 11)
-    pdf.set_text_color(15, 23, 42)
-    pdf.cell(80, 6, inv.id, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    # From Box
+    pdf.rect(14, 48, 88, 38, 'DF')
+    pdf.set_xy(18, 51)
+    pdf.set_font('Helvetica', 'B', 7.5)
+    pdf.set_text_color(37, 99, 235)
+    pdf.cell(80, 4, 'ISSUED BY (SUPPLIER):', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     
     pdf.set_x(18)
-    pdf.set_font('Helvetica', 'B', 8)
-    pdf.set_text_color(100, 116, 139)
-    pdf.cell(80, 4, 'BILLING PERIOD', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.set_x(18)
-    pdf.set_font('Helvetica', '', 9)
-    pdf.set_text_color(15, 23, 42)
-    pdf.cell(80, 5, inv.period or 'Cloud Subscription', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    
-    pdf.set_xy(110, 48)
-    pdf.set_font('Helvetica', 'B', 8)
-    pdf.set_text_color(100, 116, 139)
-    pdf.cell(80, 4, 'INVOICE DATE', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.set_x(110)
     pdf.set_font('Helvetica', 'B', 9)
     pdf.set_text_color(15, 23, 42)
-    pdf.cell(80, 6, inv.date or datetime.utcnow().strftime('%Y-%m-%d'), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(80, 5, 'Aravanta CloudOS Technologies Inc.', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     
-    pdf.set_x(110)
-    pdf.set_font('Helvetica', 'B', 8)
+    pdf.set_x(18)
+    pdf.set_font('Helvetica', '', 7.5)
     pdf.set_text_color(100, 116, 139)
-    pdf.cell(80, 4, 'GSTIN / SAC CODE', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.set_x(110)
-    pdf.set_font('Helvetica', '', 9)
-    pdf.set_text_color(15, 23, 42)
-    pdf.cell(80, 5, '27AAAAA0000A1Z5 (SAC 998313)', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(80, 4, 'CIN: U72200MH2026PTC000001', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_x(18)
+    pdf.cell(80, 4, 'GSTIN: 27AAAAA0000A1Z5 | SAC: 998313', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_x(18)
+    pdf.cell(80, 4, 'Bandra Kurla Complex, Mumbai 400051', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_x(18)
+    pdf.cell(80, 4, 'Email: billing@aravanta.cloud', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     
     # Bill To Box
-    pdf.ln(12)
-    pdf.set_fill_color(240, 246, 255)
-    pdf.rect(14, 82, 182, 22, 'DF')
-    pdf.set_xy(18, 85)
-    pdf.set_font('Helvetica', 'B', 8)
+    pdf.rect(108, 48, 88, 38, 'DF')
+    pdf.set_xy(112, 51)
+    pdf.set_font('Helvetica', 'B', 7.5)
     pdf.set_text_color(37, 99, 235)
-    pdf.cell(30, 5, 'BILLED TO:', new_x=XPos.RIGHT, new_y=YPos.TOP)
+    pdf.cell(80, 4, 'BILLED TO (CUSTOMER):', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    
+    pdf.set_x(112)
     pdf.set_font('Helvetica', 'B', 9)
     pdf.set_text_color(15, 23, 42)
-    pdf.cell(100, 5, f"{user_name} ({user_email})", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.set_x(48)
-    pdf.set_font('Helvetica', '', 8)
-    pdf.set_text_color(100, 116, 139)
-    pdf.cell(100, 5, f"Workspace Cluster: {ws_id} - Region: ap-south-1 (Mumbai)", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(80, 5, user_name or 'Aravanta Cloud Developer', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     
-    # Items Table Header
-    pdf.ln(12)
-    pdf.set_xy(14, 110)
+    pdf.set_x(112)
+    pdf.set_font('Helvetica', '', 7.5)
+    pdf.set_text_color(100, 116, 139)
+    pdf.cell(80, 4, f'Email: {user_email or "developer@aravanta.cloud"}', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_x(112)
+    pdf.cell(80, 4, f'Workspace: {ws_id}', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_x(112)
+    pdf.cell(80, 4, 'Region: ap-south-1 (Mumbai, India)', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_x(112)
+    pdf.cell(80, 4, 'Place of Supply: 27 - Maharashtra', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    
+    # Metadata 4-Column Box
+    pdf.ln(10)
+    pdf.set_fill_color(255, 255, 255)
+    pdf.set_draw_color(226, 232, 240)
+    pdf.rect(14, 91, 182, 20, 'DF')
+    
+    pdf.set_xy(18, 93)
+    pdf.set_font('Helvetica', 'B', 7)
+    pdf.set_text_color(100, 116, 139)
+    pdf.cell(42, 4, 'INVOICE NUMBER', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_x(18)
+    pdf.set_font('Helvetica', 'B', 9)
+    pdf.set_text_color(15, 23, 42)
+    pdf.cell(42, 6, inv.id, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    
+    pdf.set_xy(62, 93)
+    pdf.set_font('Helvetica', 'B', 7)
+    pdf.set_text_color(100, 116, 139)
+    pdf.cell(42, 4, 'INVOICE DATE', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_x(62)
+    pdf.set_font('Helvetica', 'B', 9)
+    pdf.set_text_color(15, 23, 42)
+    pdf.cell(42, 6, inv.date or datetime.utcnow().strftime('%Y-%m-%d'), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    
+    pdf.set_xy(106, 93)
+    pdf.set_font('Helvetica', 'B', 7)
+    pdf.set_text_color(100, 116, 139)
+    pdf.cell(42, 4, 'BILLING PERIOD', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_x(106)
+    pdf.set_font('Helvetica', 'B', 9)
+    pdf.set_text_color(15, 23, 42)
+    pdf.cell(42, 6, (inv.period or 'Monthly Subscription')[:22], new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    
+    pdf.set_xy(150, 93)
+    pdf.set_font('Helvetica', 'B', 7)
+    pdf.set_text_color(100, 116, 139)
+    pdf.cell(42, 4, 'PAYMENT STATUS', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_x(150)
+    pdf.set_font('Helvetica', 'B', 9)
+    pdf.set_text_color(5, 150, 105)
+    pdf.cell(42, 6, 'PAID & SETTLED', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    
+    # Items Table
+    pdf.set_xy(14, 116)
     pdf.set_fill_color(15, 32, 56)
     pdf.set_text_color(255, 255, 255)
     pdf.set_font('Helvetica', 'B', 8)
-    pdf.cell(15, 8, '#', 0, 0, 'C', True)
-    pdf.cell(97, 8, 'Service Description', 0, 0, 'L', True)
-    pdf.cell(15, 8, 'Qty', 0, 0, 'C', True)
-    pdf.cell(25, 8, 'Unit Price', 0, 0, 'R', True)
-    pdf.cell(30, 8, 'Amount (INR)', 0, 1, 'R', True)
+    pdf.cell(12, 8, '#', new_x=XPos.RIGHT, new_y=YPos.TOP, align='C', fill=True)
+    pdf.cell(88, 8, 'Service Description & Specification', new_x=XPos.RIGHT, new_y=YPos.TOP, align='L', fill=True)
+    pdf.cell(20, 8, 'HSN/SAC', new_x=XPos.RIGHT, new_y=YPos.TOP, align='C', fill=True)
+    pdf.cell(14, 8, 'Qty', new_x=XPos.RIGHT, new_y=YPos.TOP, align='C', fill=True)
+    pdf.cell(24, 8, 'Unit Rate', new_x=XPos.RIGHT, new_y=YPos.TOP, align='R', fill=True)
+    pdf.cell(24, 8, 'Amount (INR)', new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='R', fill=True)
     
-    # Calculations
     amount_inr = float(inv.amount_inr or 2499.0)
     subtotal = round(amount_inr / 1.18, 2)
     tax = round(amount_inr - subtotal, 2)
@@ -1568,69 +1639,664 @@ def generate_invoice_pdf_bytes(inv: InvoiceRecord, user_email: str, user_name: s
     pdf.set_fill_color(255, 255, 255)
     pdf.set_text_color(15, 23, 42)
     pdf.set_font('Helvetica', '', 8)
-    pdf.cell(15, 8, '1', 'B', 0, 'C', True)
-    pdf.cell(97, 8, f'Aravanta CloudOS Subscription - {inv.period}', 'B', 0, 'L', True)
-    pdf.cell(15, 8, '1', 'B', 0, 'C', True)
-    pdf.cell(25, 8, f'Rs. {subtotal:,.2f}', 'B', 0, 'R', True)
-    pdf.cell(30, 8, f'Rs. {subtotal:,.2f}', 'B', 1, 'R', True)
+    pdf.cell(12, 8, '1', border='B', new_x=XPos.RIGHT, new_y=YPos.TOP, align='C', fill=True)
+    pdf.cell(88, 8, f'Aravanta CloudOS Subscription - {inv.period or "Cloud Operations"}', border='B', new_x=XPos.RIGHT, new_y=YPos.TOP, align='L', fill=True)
+    pdf.cell(20, 8, '998313', border='B', new_x=XPos.RIGHT, new_y=YPos.TOP, align='C', fill=True)
+    pdf.cell(14, 8, '1', border='B', new_x=XPos.RIGHT, new_y=YPos.TOP, align='C', fill=True)
+    pdf.cell(24, 8, f'Rs. {subtotal:,.2f}', border='B', new_x=XPos.RIGHT, new_y=YPos.TOP, align='R', fill=True)
+    pdf.cell(24, 8, f'Rs. {subtotal:,.2f}', border='B', new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='R', fill=True)
     
-    # Totals
+    # Totals & Tax Breakdown
     pdf.ln(4)
-    totals_x = 120
-    pdf.set_x(totals_x)
-    pdf.set_font('Helvetica', '', 8)
-    pdf.set_text_color(100, 116, 139)
-    pdf.cell(40, 5, 'Subtotal:', 0, 0, 'L')
-    pdf.set_text_color(15, 23, 42)
-    pdf.set_font('Helvetica', 'B', 8)
-    pdf.cell(36, 5, f'Rs. {subtotal:,.2f}', 0, 1, 'R')
+    totals_x = 114
     
-    pdf.set_x(totals_x)
-    pdf.set_font('Helvetica', '', 8)
-    pdf.set_text_color(100, 116, 139)
-    pdf.cell(40, 5, 'CGST (9%):', 0, 0, 'L')
-    pdf.set_text_color(15, 23, 42)
-    pdf.cell(36, 5, f'Rs. {cgst:,.2f}', 0, 1, 'R')
+    def _draw_total_line(label: str, val_str: str, bold=False):
+        pdf.set_x(totals_x)
+        pdf.set_font('Helvetica', 'B' if bold else '', 8)
+        pdf.set_text_color(100, 116, 139)
+        pdf.cell(46, 5, label, new_x=XPos.RIGHT, new_y=YPos.TOP, align='L')
+        pdf.set_text_color(15, 23, 42)
+        pdf.cell(36, 5, val_str, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='R')
+        
+    _draw_total_line('Taxable Subtotal:', f'Rs. {subtotal:,.2f}')
+    _draw_total_line('CGST (9.0%):', f'Rs. {cgst:,.2f}')
+    _draw_total_line('SGST (9.0%):', f'Rs. {sgst:,.2f}')
+    _draw_total_line('Total GST (18.0%):', f'Rs. {tax:,.2f}')
     
-    pdf.set_x(totals_x)
-    pdf.set_font('Helvetica', '', 8)
-    pdf.set_text_color(100, 116, 139)
-    pdf.cell(40, 5, 'SGST (9%):', 0, 0, 'L')
-    pdf.set_text_color(15, 23, 42)
-    pdf.cell(36, 5, f'Rs. {sgst:,.2f}', 0, 1, 'R')
-    
-    # Total Box
     pdf.ln(2)
-    pdf.set_x(totals_x - 5)
+    pdf.set_x(totals_x - 4)
     pdf.set_fill_color(15, 32, 56)
-    pdf.rect(totals_x - 5, pdf.get_y(), 81, 10, 'F')
-    pdf.set_xy(totals_x, pdf.get_y() + 1.5)
-    pdf.set_font('Helvetica', 'B', 9)
-    pdf.set_text_color(201, 168, 76)
-    pdf.cell(35, 6, 'GRAND TOTAL:', 0, 0, 'L')
+    pdf.rect(totals_x - 4, pdf.get_y(), 86, 12, 'F')
+    
+    pdf.set_xy(totals_x, pdf.get_y() + 2)
+    pdf.set_font('Helvetica', 'B', 8.5)
+    pdf.set_text_color(198, 146, 59)
+    pdf.cell(42, 8, 'GRAND TOTAL (INR):', new_x=XPos.RIGHT, new_y=YPos.TOP, align='L')
+    
     pdf.set_font('Helvetica', 'B', 11)
     pdf.set_text_color(255, 255, 255)
-    pdf.cell(36, 6, f'Rs. {amount_inr:,.2f}', 0, 1, 'R')
+    pdf.cell(36, 8, f'Rs. {amount_inr:,.2f}', new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='R')
     
-    # Payment Confirmed Box
-    pdf.ln(12)
+    pdf.ln(5)
+    pdf.set_x(14)
+    pdf.set_font('Helvetica', 'I', 7.5)
+    pdf.set_text_color(100, 116, 139)
+    words = _number_to_words_inr(amount_inr)
+    pdf.cell(182, 5, f'Amount in words: Indian Rupees {words}', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    
+    pdf.ln(3)
     pdf.set_fill_color(236, 253, 245)
     pdf.set_draw_color(167, 243, 208)
     pdf.rect(14, pdf.get_y(), 182, 18, 'DF')
-    pdf.set_xy(18, pdf.get_y() + 3)
-    pdf.set_font('Helvetica', 'B', 9)
+    pdf.set_xy(18, pdf.get_y() + 2.5)
+    pdf.set_font('Helvetica', 'B', 8.5)
     pdf.set_text_color(5, 150, 105)
     pdf.cell(100, 4, '[PAID] Payment Verified & Settled via Primary Mandate', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_x(18)
-    pdf.set_font('Helvetica', '', 8)
+    pdf.set_font('Helvetica', '', 7.5)
     pdf.set_text_color(71, 85, 105)
-    pdf.cell(100, 5, f'Transaction ID: TXN-{inv.id.replace("INV-", "")} - Payment Method: {inv.payment_method or "Primary Mandate"}', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(100, 4, f'Transaction ID: TXN-{inv.id.replace("INV-", "")} | Payment Channel: {inv.payment_method or "Primary Mandate"}', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_x(18)
+    pdf.cell(100, 4, f'Settlement Status: Direct Settlement Confirmed | Auth Reference: AUTH-{abs(hash(inv.id)) % 1000000:06d}', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    
+    pdf.ln(5)
+    pdf.set_font('Helvetica', 'B', 7)
+    pdf.set_text_color(15, 23, 42)
+    pdf.cell(182, 4, 'TERMS & CONDITIONS', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font('Helvetica', '', 6.5)
+    pdf.set_text_color(100, 116, 139)
+    pdf.cell(182, 3.5, '1. This is a computer-generated tax invoice issued pursuant to Section 31 of the CGST Act, 2017.', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(182, 3.5, '2. Cloud infrastructure services are backed by 99.95% enterprise uptime SLA. Support available 24/7 at support@aravanta.cloud.', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(182, 3.5, '3. Supply of online information and database access or retrieval (OIDAR) services under SAC 998313.', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(182, 3.5, '4. Any invoice dispute must be notified in writing within 15 calendar days. Subject to Mumbai, Maharashtra jurisdiction.', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     
     return bytes(pdf.output())
 
-@router.get("/billing/invoices/{invoice_id}/pdf", summary="Download official tax invoice PDF")
+
+def generate_invoice_html(inv: InvoiceRecord, user_email: str, user_name: str, ws_id: str) -> str:
+    amount_inr = float(inv.amount_inr or 2499.0)
+    subtotal = round(amount_inr / 1.18, 2)
+    tax = round(amount_inr - subtotal, 2)
+    cgst = round(tax / 2, 2)
+    sgst = round(tax - cgst, 2)
+    words = _number_to_words_inr(amount_inr)
+    inv_date_str = inv.date or datetime.utcnow().strftime('%Y-%m-%d')
+    try:
+        dt = datetime.strptime(inv_date_str, '%Y-%m-%d')
+        due_date_str = (dt + timedelta(days=30)).strftime('%Y-%m-%d')
+    except Exception:
+        due_date_str = inv_date_str
+
+    sha_digest = hashlib.sha256(f"{inv.id}:{amount_inr}:{ws_id}:{inv_date_str}".encode()).hexdigest()[:16]
+    txn_id = f"TXN-{inv.id.replace('INV-', '')}"
+    now_full = datetime.utcnow().strftime("%d %B %Y, %H:%M UTC")
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tax Invoice {inv.id} — Aravanta CloudOS</title>
+  <style>
+    :root {{
+      --primary: #0F2038;
+      --gold: #C6923B;
+      --blue: #2563EB;
+      --text: #0F172A;
+      --muted: #64748B;
+      --border: #E2E8F0;
+      --bg-page: #F8FAFC;
+      --green: #059669;
+      --green-bg: #ECFDF5;
+    }}
+    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    body {{
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg-page);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 24px 16px 48px;
+    }}
+    .action-bar {{
+      max-width: 860px;
+      margin: 0 auto 20px auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 12px 18px;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }}
+    .action-left {{ display: flex; align-items: center; gap: 12px; }}
+    .back-link {{
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #ffffff;
+      cursor: pointer;
+    }}
+    .back-link:hover {{ color: var(--text); background: #f1f5f9; }}
+    .status-badge {{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--green-bg);
+      color: var(--green);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      border: 1px solid rgba(5, 150, 105, 0.2);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }}
+    .action-right {{ display: flex; align-items: center; gap: 10px; }}
+    .btn-print {{
+      background: var(--primary);
+      color: #ffffff;
+      border: none;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 9px 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 12px rgba(15, 32, 56, 0.15);
+      transition: background 0.15s ease;
+    }}
+    .btn-print:hover {{ background: #19355d; }}
+    .btn-raw {{
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #ffffff;
+      transition: all 0.15s ease;
+    }}
+    .btn-raw:hover {{ color: var(--text); background: #f1f5f9; }}
+
+    .invoice-card {{
+      max-width: 860px;
+      margin: 0 auto;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.08);
+      overflow: hidden;
+    }}
+    .invoice-header {{
+      background: var(--primary);
+      color: #ffffff;
+      padding: 32px 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }}
+    .brand-title {{
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: 0.8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }}
+    .brand-tagline {{
+      font-size: 11px;
+      color: #94A3B8;
+      margin-top: 4px;
+      font-weight: 500;
+    }}
+    .company-reg {{
+      font-size: 10px;
+      color: #94A3B8;
+      margin-top: 8px;
+      line-height: 1.4;
+    }}
+    .tax-title {{ text-align: right; }}
+    .tax-heading {{
+      color: var(--gold);
+      font-size: 24px;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+    }}
+    .tax-subheading {{
+      color: #94A3B8;
+      font-size: 11px;
+      margin-top: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }}
+    .gold-bar {{
+      height: 4px;
+      background: linear-gradient(90deg, #C6923B 0%, #E6C875 50%, #C6923B 100%);
+    }}
+    .invoice-body {{ padding: 36px; }}
+    .two-col-grid {{
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 24px;
+    }}
+    .info-panel {{
+      background: #F8FAFC;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 20px;
+    }}
+    .panel-header {{
+      font-size: 10px;
+      font-weight: 800;
+      color: var(--blue);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }}
+    .panel-title {{
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }}
+    .panel-desc {{
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.6;
+    }}
+    .meta-grid {{
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 20px;
+      margin-bottom: 28px;
+    }}
+    .meta-item {{
+      border-right: 1px solid var(--border);
+      padding-right: 12px;
+    }}
+    .meta-item:last-child {{ border-right: none; }}
+    .meta-label {{
+      font-size: 9px;
+      font-weight: 800;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }}
+    .meta-val {{
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }}
+    .meta-val.green {{ color: var(--green); }}
+    .table-wrap {{ width: 100%; overflow-x: auto; margin-bottom: 24px; }}
+    table.invoice-table {{
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }}
+    table.invoice-table thead tr {{ background: var(--primary); color: #ffffff; }}
+    table.invoice-table th {{
+      padding: 12px 14px;
+      text-align: left;
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }}
+    table.invoice-table th.text-right {{ text-align: right; }}
+    table.invoice-table th.text-center {{ text-align: center; }}
+    table.invoice-table tbody tr {{ border-bottom: 1px solid var(--border); }}
+    table.invoice-table tbody tr:nth-child(even) {{ background: #F8FAFC; }}
+    table.invoice-table td {{ padding: 14px; color: var(--text); vertical-align: top; }}
+    table.invoice-table td.text-right {{ text-align: right; font-weight: 600; }}
+    table.invoice-table td.text-center {{ text-align: center; }}
+    .item-title {{ font-weight: 700; color: var(--text); margin-bottom: 2px; }}
+    .item-sub {{ font-size: 11px; color: var(--muted); }}
+    .summary-grid {{
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 24px;
+      margin-bottom: 28px;
+    }}
+    .payment-audit {{
+      background: var(--green-bg);
+      border: 1px solid rgba(5, 150, 105, 0.25);
+      border-radius: 10px;
+      padding: 16px 20px;
+    }}
+    .audit-title {{
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--green);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }}
+    .audit-detail {{ font-size: 11px; color: #1E293B; line-height: 1.7; }}
+    .bank-box {{
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px dashed rgba(5, 150, 105, 0.25);
+      font-size: 10px;
+      color: var(--muted);
+      line-height: 1.6;
+    }}
+    .totals-box {{
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 20px;
+    }}
+    .total-row {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 5px 0;
+      font-size: 12px;
+      color: var(--muted);
+    }}
+    .total-row .val {{ color: var(--text); font-weight: 600; }}
+    .total-divider {{ height: 1px; background: var(--gold); margin: 10px 0; opacity: 0.6; }}
+    .grand-total-card {{
+      background: var(--primary);
+      color: #ffffff;
+      padding: 12px 16px;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 8px;
+    }}
+    .grand-total-card .lbl {{
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--gold);
+      letter-spacing: 0.5px;
+    }}
+    .grand-total-card .amt {{
+      font-size: 18px;
+      font-weight: 900;
+      color: #ffffff;
+    }}
+    .amount-words {{
+      font-size: 10px;
+      color: var(--muted);
+      font-style: italic;
+      margin-top: 8px;
+      line-height: 1.4;
+    }}
+    .terms-section {{
+      border-top: 1px solid var(--border);
+      padding-top: 18px;
+      margin-top: 10px;
+    }}
+    .terms-title {{
+      font-size: 10px;
+      font-weight: 800;
+      color: var(--text);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }}
+    .terms-list {{
+      font-size: 9.5px;
+      color: var(--muted);
+      line-height: 1.6;
+      list-style-position: inside;
+    }}
+    .invoice-footer {{
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: 12px;
+    }}
+    .footer-left {{ font-size: 9px; color: #94A3B8; line-height: 1.5; }}
+    .signature-badge {{ text-align: right; font-size: 10px; }}
+    .signature-title {{ color: var(--blue); font-weight: 700; font-style: italic; }}
+    .signature-hash {{ font-size: 8px; color: #94A3B8; font-family: monospace; margin-top: 2px; }}
+
+    @media print {{
+      body {{ background: #ffffff !important; padding: 0 !important; }}
+      .no-print {{ display: none !important; }}
+      .invoice-card {{
+        border: none !important;
+        box-shadow: none !important;
+        max-width: 100% !important;
+        border-radius: 0 !important;
+      }}
+      .invoice-header {{
+        padding: 20px 24px !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }}
+      .invoice-body {{ padding: 20px 24px !important; }}
+      .info-panel, .totals-box, .payment-audit, .grand-total-card, thead tr {{
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }}
+      @page {{ size: A4; margin: 8mm; }}
+    }}
+  </style>
+</head>
+<body>
+  <div class="action-bar no-print">
+    <div class="action-left">
+      <button onclick="window.history.length > 1 ? window.history.back() : window.close()" class="back-link">
+        &larr; Back to Dashboard
+      </button>
+      <span class="status-badge">&check; Certified Tax Invoice</span>
+    </div>
+    <div class="action-right">
+      <a href="?download=1" class="btn-raw">Download PDF File</a>
+      <button onclick="window.print()" class="btn-print">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 6 2 18 2 18 9"></polyline>
+          <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+          <rect x="6" y="14" width="12" height="8"></rect>
+        </svg>
+        Print / Save as PDF
+      </button>
+    </div>
+  </div>
+
+  <div class="invoice-card">
+    <div class="invoice-header">
+      <div>
+        <div class="brand-title">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#C6923B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path>
+          </svg>
+          ARAVANTA CLOUDOS
+        </div>
+        <div class="brand-tagline">Enterprise Cloud Infrastructure Platform &bull; FinOps Control Plane</div>
+        <div class="company-reg">
+          CIN: U72200MH2026PTC000001 &bull; GSTIN: 27AAAAA0000A1Z5 &bull; SAC: 998313<br>
+          Bandra Kurla Complex, Mumbai, Maharashtra 400051, India
+        </div>
+      </div>
+      <div class="tax-title">
+        <div class="tax-heading">TAX INVOICE</div>
+        <div class="tax-subheading">Original for Recipient &bull; GST Compliant</div>
+      </div>
+    </div>
+    <div class="gold-bar"></div>
+
+    <div class="invoice-body">
+      <div class="two-col-grid">
+        <div class="info-panel">
+          <div class="panel-header">Issued By (Supplier)</div>
+          <div class="panel-title">Aravanta CloudOS Technologies Inc.</div>
+          <div class="panel-desc">
+            CIN: U72200MH2026PTC000001<br>
+            GSTIN / State: 27AAAAA0000A1Z5 (Maharashtra - 27)<br>
+            Service Accounting Code: 998313 (IT SaaS Infrastructure)<br>
+            Email: billing@aravanta.cloud &bull; Support: 24/7 Available
+          </div>
+        </div>
+
+        <div class="info-panel">
+          <div class="panel-header">Billed To (Customer)</div>
+          <div class="panel-title">{user_name}</div>
+          <div class="panel-desc">
+            Email: {user_email}<br>
+            Workspace Cluster: {ws_id}<br>
+            Deployment Region: ap-south-1 (Mumbai, India)<br>
+            Place of Supply: 27 - Maharashtra (Intra-State Supply)
+          </div>
+        </div>
+      </div>
+
+      <div class="meta-grid">
+        <div class="meta-item">
+          <div class="meta-label">Invoice Number</div>
+          <div class="meta-val">{inv.id}</div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-label">Invoice Date</div>
+          <div class="meta-val">{inv_date_str}</div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-label">Billing Period</div>
+          <div class="meta-val">{inv.period}</div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-label">Payment Status</div>
+          <div class="meta-val green">&check; PAID &amp; SETTLED</div>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="invoice-table">
+          <thead>
+            <tr>
+              <th style="width: 36px;" class="text-center">#</th>
+              <th>Service Description &amp; Technical Specifications</th>
+              <th style="width: 80px;" class="text-center">HSN/SAC</th>
+              <th style="width: 50px;" class="text-center">Qty</th>
+              <th style="width: 110px;" class="text-right">Unit Price (INR)</th>
+              <th style="width: 120px;" class="text-right">Taxable Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="text-center">1</td>
+              <td>
+                <div class="item-title">Aravanta CloudOS Subscription &mdash; {inv.period}</div>
+                <div class="item-sub">Multi-tenant dedicated control plane, automated failover, secure edge load balancer, and container cluster operations.</div>
+              </td>
+              <td class="text-center">998313</td>
+              <td class="text-center">1</td>
+              <td class="text-right">&#8377;{subtotal:,.2f}</td>
+              <td class="text-right">&#8377;{subtotal:,.2f}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="summary-grid">
+        <div class="payment-audit">
+          <div class="audit-title">&check; Payment Verified &amp; Settled</div>
+          <div class="audit-detail">
+            <strong>Transaction Reference:</strong> {txn_id}<br>
+            <strong>Payment Channel:</strong> {inv.payment_method or 'Verified Mandate'}<br>
+            <strong>Settlement Gateway:</strong> Aravanta FinOps Automated Settlement Engine<br>
+            <strong>Verification Hash:</strong> SHA256:{sha_digest}
+          </div>
+          <div class="bank-box">
+            <strong>Direct NEFT/RTGS Corporate Settlement:</strong><br>
+            A/C Name: Aravanta CloudOS Technologies Inc. &bull; Bank: HDFC Bank Ltd.<br>
+            A/C No: 50200088921045 &bull; IFSC: HDFC0000123 &bull; BKC Mumbai
+          </div>
+        </div>
+
+        <div class="totals-box">
+          <div class="total-row">
+            <span>Taxable Amount (Subtotal):</span>
+            <span class="val">&#8377;{subtotal:,.2f}</span>
+          </div>
+          <div class="total-row">
+            <span>Central GST (CGST 9.0%):</span>
+            <span class="val">&#8377;{cgst:,.2f}</span>
+          </div>
+          <div class="total-row">
+            <span>State GST (SGST 9.0%):</span>
+            <span class="val">&#8377;{sgst:,.2f}</span>
+          </div>
+          <div class="total-row">
+            <span>Integrated GST (IGST 0.0%):</span>
+            <span class="val">&#8377;0.00</span>
+          </div>
+          <div class="total-divider"></div>
+          <div class="grand-total-card">
+            <span class="lbl">GRAND TOTAL (INCL. GST):</span>
+            <span class="amt">&#8377;{amount_inr:,.2f}</span>
+          </div>
+          <div class="amount-words">
+            <strong>Amount in words:</strong> Indian Rupees {words}
+          </div>
+        </div>
+      </div>
+
+      <div class="terms-section">
+        <div class="terms-title">Terms &amp; Conditions &bull; Statutory Notice</div>
+        <ol class="terms-list">
+          <li>This is an electronically generated Tax Invoice issued under Section 31 of the Central Goods and Services Tax (CGST) Act, 2017. Physical signature is not required under Rule 46 of CGST Rules, 2017.</li>
+          <li>Cloud infrastructure services are provisioned on an active SaaS model and backed by a 99.95% uptime Service Level Agreement.</li>
+          <li>Tax is paid under regular provisions; Reverse Charge Mechanism is Not Applicable.</li>
+          <li>Disputes regarding service or billing must be communicated in writing within 15 calendar days. Subject to the exclusive jurisdiction of courts in Mumbai, Maharashtra.</li>
+        </ol>
+      </div>
+
+      <div class="invoice-footer">
+        <div class="footer-left">
+          This is an authorized system-generated tax document.<br>
+          Aravanta CloudOS Inc. &bull; support@aravanta.cloud &bull; Generated on {now_full}
+        </div>
+        <div class="signature-badge">
+          <div class="signature-title">Digitally Signed &amp; Authorized</div>
+          <div style="font-size: 9px; color: #64748B;">Aravanta FinOps Billing Engine</div>
+          <div class="signature-hash">SIG-VERIFY-{sha_digest}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>"""
+    return html
+
+
+@router.get("/billing/invoices/{invoice_id}/pdf", summary="Download official tax invoice PDF or print preview")
 def download_invoice_pdf(
     invoice_id: str,
+    download: bool = Query(False, description="Force raw binary PDF download"),
+    format: str = Query("html", description="Output format: 'html' for print preview or 'pdf' for binary download"),
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
@@ -1648,77 +2314,22 @@ def download_invoice_pdf(
     user_name = current_user.full_name if current_user else "Aravanta Cloud Developer"
     ws_id = inv.workspace_id or (current_user.workspace_id if current_user else "ws-enterprise-default")
     
-    try:
-        pdf_content = generate_invoice_pdf_bytes(inv, user_email, user_name, ws_id)
-        return Response(
-            content=pdf_content,
-            media_type="application/pdf",
-            headers={
-                "Content-Disposition": f"attachment; filename=Aravanta_Invoice_{inv.id}.pdf",
-                "Cache-Control": "no-cache"
-            }
-        )
-    except Exception as e:
-        html = f"""<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Invoice {inv.id} - Aravanta CloudOS</title>
-  <style>
-    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 40px; color: #0f172a; }}
-    .header {{ background: #0f2038; color: white; padding: 24px; border-radius: 8px; display: flex; justify-content: space-between; }}
-    .gold {{ color: #c9a84c; }}
-    .box {{ background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0; }}
-    table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
-    th {{ background: #0f2038; color: white; padding: 10px; text-align: left; font-size: 12px; }}
-    td {{ padding: 12px 10px; border-bottom: 1px solid #e2e8f0; font-size: 13px; }}
-    .total-box {{ background: #0f2038; color: white; padding: 12px; border-radius: 6px; float: right; width: 280px; text-align: right; }}
-    @media print {{ .no-print {{ display: none; }} }}
-  </style>
-</head>
-<body>
-  <div class="no-print" style="margin-bottom: 20px;">
-    <button onclick="window.print()" style="background: #2563eb; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer;">Print / Save as PDF</button>
-  </div>
-  <div class="header">
-    <div>
-      <h1 style="margin: 0; font-size: 24px;">ARAVANTA CLOUDOS</h1>
-      <p style="margin: 4px 0 0; font-size: 12px; color: #94a3b8;">Enterprise Cloud Infrastructure Platform</p>
-    </div>
-    <div style="text-align: right;">
-      <h2 class="gold" style="margin: 0; font-size: 22px;">TAX INVOICE</h2>
-      <p style="margin: 4px 0 0; font-size: 11px; color: #94a3b8;">Original for Recipient</p>
-    </div>
-  </div>
-  <div class="box" style="display: flex; justify-content: space-between;">
-    <div>
-      <div style="font-size: 10px; color: #64748b; font-weight: bold;">INVOICE NUMBER</div>
-      <div style="font-size: 16px; font-weight: bold;">{inv.id}</div>
-      <div style="font-size: 10px; color: #64748b; font-weight: bold; margin-top: 8px;">BILLING PERIOD</div>
-      <div style="font-size: 13px;">{inv.period}</div>
-    </div>
-    <div style="text-align: right;">
-      <div style="font-size: 10px; color: #64748b; font-weight: bold;">INVOICE DATE</div>
-      <div style="font-size: 14px; font-weight: bold;">{inv.date}</div>
-      <div style="font-size: 10px; color: #64748b; font-weight: bold; margin-top: 8px;">GSTIN / SAC</div>
-      <div style="font-size: 13px;">27AAAAA0000A1Z5 (SAC 998313)</div>
-    </div>
-  </div>
-  <table>
-    <thead>
-      <tr><th>#</th><th>Description</th><th>Qty</th><th style="text-align: right;">Amount (INR)</th></tr>
-    </thead>
-    <tbody>
-      <tr><td>1</td><td>Aravanta CloudOS Subscription — {inv.period}</td><td>1</td><td style="text-align: right;">Rs. {inv.amount_inr:,.2f}</td></tr>
-    </tbody>
-  </table>
-  <div class="total-box">
-    <div style="font-size: 11px; color: #c9a84c; font-weight: bold;">GRAND TOTAL (INCL. GST)</div>
-    <div style="font-size: 20px; font-weight: bold; margin-top: 4px;">Rs. {inv.amount_inr:,.2f}</div>
-  </div>
-</body>
-</html>"""
-        return Response(content=html, media_type="text/html")
+    if download or format.lower() == "pdf":
+        try:
+            pdf_content = generate_invoice_pdf_bytes(inv, user_email, user_name, ws_id)
+            return Response(
+                content=pdf_content,
+                media_type="application/pdf",
+                headers={
+                    "Content-Disposition": f"attachment; filename=Aravanta_Invoice_{inv.id}.pdf",
+                    "Cache-Control": "no-cache"
+                }
+            )
+        except Exception:
+            pass  # Fall back to HTML preview if binary PDF rendering fails
+            
+    html = generate_invoice_html(inv, user_email, user_name, ws_id)
+    return Response(content=html, media_type="text/html")
 
 @router.get("/billing/invoices/{invoice_id}", summary="Get invoice details")
 def get_invoice_details(

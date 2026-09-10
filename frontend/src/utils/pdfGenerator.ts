@@ -27,104 +27,192 @@ export interface InvoiceData {
   total: number;
 }
 
-const formatINR = (amount: number): string => {
-  return '₹' + amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-};
+// ─── Color palette ────────────────────────────────────────────
+const NAVY   = [15, 32, 56]   as const;
+const GOLD   = [198, 146, 59] as const;
+const WHITE  = [255, 255, 255] as const;
+const BODY   = [15, 23, 42]   as const;
+const MUTED  = [100, 116, 139] as const;
+const LIGHT  = [241, 245, 249] as const;
+const BORDER = [226, 232, 240] as const;
+const GREEN  = [5, 150, 105]  as const;
+const GREEN_BG = [236, 253, 245] as const;
+const BLUE   = [37, 99, 235]  as const;
 
+// ─── Helpers ──────────────────────────────────────────────────
+const formatINR = (amount: number): string =>
+  '\u20B9' + amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+  'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+function numberToWords(n: number): string {
+  if (n === 0) return 'Zero';
+  const whole = Math.floor(Math.abs(n));
+  const paise = Math.round((Math.abs(n) - whole) * 100);
+  let result = convertWholeToWords(whole);
+  if (paise > 0) result += ` and ${convertWholeToWords(paise)} Paise`;
+  return result + ' Only';
+}
+
+function convertWholeToWords(n: number): string {
+  if (n === 0) return '';
+  if (n < 20) return ones[n];
+  if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? ' ' + ones[n % 10] : '');
+  if (n < 1000) return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ' ' + convertWholeToWords(n % 100) : '');
+  if (n < 100000) return convertWholeToWords(Math.floor(n / 1000)) + ' Thousand' + (n % 1000 ? ' ' + convertWholeToWords(n % 1000) : '');
+  if (n < 10000000) return convertWholeToWords(Math.floor(n / 100000)) + ' Lakh' + (n % 100000 ? ' ' + convertWholeToWords(n % 100000) : '');
+  return convertWholeToWords(Math.floor(n / 10000000)) + ' Crore' + (n % 10000000 ? ' ' + convertWholeToWords(n % 10000000) : '');
+}
+
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+}
+
+// ─── Main Generator ───────────────────────────────────────────
 export const generateInvoicePDF = (data: InvoiceData): void => {
   const doc = new jsPDF('p', 'mm', 'a4');
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 20;
-  let y = margin;
+  const W = doc.internal.pageSize.getWidth();   // 210
+  const H = doc.internal.pageSize.getHeight();   // 297
+  const M = 15;   // margin
+  const contentW = W - M * 2;
+  let y = 0;
 
-  // ─── HEADER BACKGROUND ───
-  doc.setFillColor(15, 32, 56); // Dark navy
-  doc.rect(0, 0, pageWidth, 50, 'F');
+  // ═══════════════════════════════════════════════════════════
+  // 1. HEADER BANNER
+  // ═══════════════════════════════════════════════════════════
+  doc.setFillColor(...NAVY);
+  doc.rect(0, 0, W, 42, 'F');
 
-  // Company Name
-  doc.setTextColor(255, 255, 255);
+  // Gold accent line
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(1.2);
+  doc.line(0, 42, W, 42);
+
+  // Company name
+  doc.setTextColor(...WHITE);
+  doc.setFontSize(20);
+  doc.setFont('helvetica', 'bold');
+  doc.text('ARAVANTA CLOUDOS', M, 17);
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(180, 200, 230);
+  doc.text('Enterprise Cloud Infrastructure Platform', M, 24);
+
+  // TAX INVOICE
   doc.setFontSize(22);
   doc.setFont('helvetica', 'bold');
-  doc.text('ARAVANTA CLOUDOS', margin, 22);
+  doc.setTextColor(...GOLD);
+  doc.text('TAX INVOICE', W - M, 18, { align: 'right' });
 
-  // Subtitle
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Enterprise Cloud Infrastructure Platform', margin, 30);
-
-  // TAX INVOICE label (right-aligned)
-  doc.setFontSize(24);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(201, 168, 76); // Gold accent
-  doc.text('TAX INVOICE', pageWidth - margin, 25, { align: 'right' });
-
-  doc.setFontSize(9);
+  doc.setFontSize(8);
   doc.setTextColor(180, 200, 230);
-  doc.text('Original for Recipient', pageWidth - margin, 33, { align: 'right' });
-
-  y = 60;
-
-  // ─── INVOICE DETAILS BOX ───
-  doc.setFillColor(245, 247, 250);
-  doc.roundedRect(margin, y, pageWidth - margin * 2, 40, 3, 3, 'F');
-
-  doc.setTextColor(100, 116, 139);
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'bold');
-
-  // Left column
-  doc.text('INVOICE NUMBER', margin + 5, y + 8);
-  doc.setTextColor(15, 23, 42);
-  doc.setFontSize(11);
-  doc.text(data.invoice_id, margin + 5, y + 15);
-
-  doc.setTextColor(100, 116, 139);
-  doc.setFontSize(8);
-  doc.text('BILLING PERIOD', margin + 5, y + 24);
-  doc.setTextColor(15, 23, 42);
-  doc.setFontSize(10);
-  doc.text(data.period, margin + 5, y + 31);
-
-  // Right column
-  doc.setTextColor(100, 116, 139);
-  doc.setFontSize(8);
-  doc.text('INVOICE DATE', pageWidth - margin - 55, y + 8);
-  doc.setTextColor(15, 23, 42);
-  doc.setFontSize(10);
-  doc.text(data.date, pageWidth - margin - 55, y + 15);
-
-  doc.setTextColor(100, 116, 139);
-  doc.setFontSize(8);
-  doc.text('GSTIN / SAC', pageWidth - margin - 55, y + 24);
-  doc.setTextColor(15, 23, 42);
-  doc.setFontSize(10);
-  doc.text('27AAAAA0000A1Z5 (SAC 998313)', pageWidth - margin - 55, y + 31);
-
-  y += 48;
-
-  // ─── CUSTOMER DETAILS ───
-  doc.setFillColor(239, 246, 255);
-  doc.roundedRect(margin, y, pageWidth - margin * 2, 20, 3, 3, 'F');
-
-  doc.setTextColor(37, 99, 235);
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'bold');
-  doc.text('BILL TO:', margin + 5, y + 8);
-
-  doc.setTextColor(15, 23, 42);
-  doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text(data.customer_name || 'Aravanta Cloud User', margin + 30, y + 8);
-  doc.setFontSize(9);
-  doc.setTextColor(100, 116, 139);
-  doc.text(data.customer_email || 'admin@aravanta.cloud', margin + 30, y + 14);
+  doc.text('Original for Recipient', W - M, 26, { align: 'right' });
 
-  y += 28;
+  // ═══════════════════════════════════════════════════════════
+  // 2. FROM / BILL TO  (two columns)
+  // ═══════════════════════════════════════════════════════════
+  y = 50;
+  const colW = (contentW - 8) / 2;
 
-  // ─── SERVICE LINE ITEMS TABLE ───
+  // FROM box
+  doc.setFillColor(...LIGHT);
+  doc.setDrawColor(...BORDER);
+  doc.roundedRect(M, y, colW, 40, 2, 2, 'FD');
+
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...BLUE);
+  doc.text('FROM:', M + 4, y + 6);
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...BODY);
+  doc.text('Aravanta CloudOS Inc.', M + 4, y + 12);
+
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...MUTED);
+  const fromLines = [
+    'CIN: U72200MH2026PTC000001',
+    'GSTIN: 27AAAAA0000A1Z5 | SAC: 998313',
+    'billing@aravanta.cloud',
+    'Mumbai, Maharashtra, India 400001'
+  ];
+  fromLines.forEach((line, i) => {
+    doc.text(line, M + 4, y + 18 + i * 5);
+  });
+
+  // BILL TO box
+  const rightX = M + colW + 8;
+  doc.setFillColor(...LIGHT);
+  doc.roundedRect(rightX, y, colW, 40, 2, 2, 'FD');
+
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...BLUE);
+  doc.text('BILL TO:', rightX + 4, y + 6);
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...BODY);
+  doc.text(data.customer_name || 'Aravanta Cloud User', rightX + 4, y + 12);
+
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...MUTED);
+  doc.text(data.customer_email || 'developer@aravanta.cloud', rightX + 4, y + 18);
+  doc.text('Region: ap-south-1 (Mumbai)', rightX + 4, y + 23);
+
+  // ═══════════════════════════════════════════════════════════
+  // 3. INVOICE METADATA GRID
+  // ═══════════════════════════════════════════════════════════
+  y = 96;
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(...BORDER);
+  doc.roundedRect(M, y, contentW, 22, 2, 2, 'FD');
+
+  const metaW = contentW / 4;
+  const metaItems = [
+    { label: 'INVOICE NUMBER', value: data.invoice_id },
+    { label: 'INVOICE DATE', value: data.date },
+    { label: 'BILLING PERIOD', value: data.period },
+    { label: 'DUE DATE', value: addDays(data.date, 30) },
+  ];
+
+  metaItems.forEach((item, i) => {
+    const x = M + i * metaW + 4;
+    // Vertical dividers
+    if (i > 0) {
+      doc.setDrawColor(...BORDER);
+      doc.setLineWidth(0.3);
+      doc.line(M + i * metaW, y + 3, M + i * metaW, y + 19);
+    }
+    doc.setFontSize(6.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...MUTED);
+    doc.text(item.label, x, y + 7);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...BODY);
+    doc.text(item.value || '-', x, y + 14);
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // 4. LINE ITEMS TABLE
+  // ═══════════════════════════════════════════════════════════
+  y = 124;
+
   const tableData = data.services.map((svc, idx) => [
     (idx + 1).toString(),
     svc.name,
+    '998313',
     '1',
     formatINR(svc.amount),
     formatINR(svc.amount)
@@ -132,126 +220,177 @@ export const generateInvoicePDF = (data: InvoiceData): void => {
 
   doc.autoTable({
     startY: y,
-    head: [['#', 'Service Description', 'Qty', 'Unit Price (₹)', 'Amount (₹)']],
+    head: [['#', 'Service Description', 'HSN/SAC', 'Qty', 'Unit Price (\u20B9)', 'Amount (\u20B9)']],
     body: tableData,
-    margin: { left: margin, right: margin },
+    margin: { left: M, right: M },
     styles: {
-      fontSize: 9,
-      cellPadding: 5,
-      lineColor: [226, 232, 240],
+      fontSize: 8.5,
+      cellPadding: { top: 4, bottom: 4, left: 3, right: 3 },
+      lineColor: [...BORDER],
       lineWidth: 0.3,
+      textColor: [...BODY],
     },
     headStyles: {
-      fillColor: [15, 32, 56],
-      textColor: [255, 255, 255],
-      fontSize: 8,
+      fillColor: [...NAVY],
+      textColor: [...WHITE],
+      fontSize: 7.5,
       fontStyle: 'bold',
       halign: 'left',
     },
     columnStyles: {
-      0: { cellWidth: 12, halign: 'center' },
+      0: { cellWidth: 10, halign: 'center' },
       1: { cellWidth: 'auto' },
-      2: { cellWidth: 15, halign: 'center' },
-      3: { cellWidth: 35, halign: 'right' },
-      4: { cellWidth: 35, halign: 'right', fontStyle: 'bold' },
+      2: { cellWidth: 20, halign: 'center', fontSize: 7.5 },
+      3: { cellWidth: 12, halign: 'center' },
+      4: { cellWidth: 28, halign: 'right' },
+      5: { cellWidth: 30, halign: 'right', fontStyle: 'bold' },
     },
     alternateRowStyles: {
       fillColor: [248, 250, 252],
     },
   });
 
-  y = doc.lastAutoTable.finalY + 8;
+  y = doc.lastAutoTable.finalY + 6;
 
-  // ─── TOTALS SECTION ───
-  const totalsX = pageWidth - margin - 85;
+  // ═══════════════════════════════════════════════════════════
+  // 5. TAX BREAKDOWN & TOTALS (right-aligned)
+  // ═══════════════════════════════════════════════════════════
+  const totalsX = W - M - 80;
 
-  // Subtotal
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(100, 116, 139);
-  doc.text('Subtotal:', totalsX, y);
-  doc.setTextColor(15, 23, 42);
+  const drawRow = (label: string, value: string, bold = false) => {
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', bold ? 'bold' : 'normal');
+    doc.setTextColor(...MUTED);
+    doc.text(label, totalsX, y);
+    doc.setTextColor(...BODY);
+    doc.setFont('helvetica', bold ? 'bold' : 'normal');
+    doc.text(value, W - M, y, { align: 'right' });
+    y += 6;
+  };
+
+  drawRow('Subtotal:', formatINR(data.subtotal));
+  drawRow('CGST (9%):', formatINR(data.cgst));
+  drawRow('SGST (9%):', formatINR(data.sgst));
+
+  // Gold divider
+  y += 1;
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(0.8);
+  doc.line(totalsX - 2, y, W - M, y);
+  y += 6;
+
+  // Grand Total box
+  const boxH = 14;
+  doc.setFillColor(...NAVY);
+  doc.roundedRect(totalsX - 4, y - 4, W - M - totalsX + 4, boxH, 2, 2, 'F');
+
+  doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
-  doc.text(formatINR(data.subtotal), pageWidth - margin, y, { align: 'right' });
-  y += 7;
+  doc.setTextColor(...GOLD);
+  doc.text('GRAND TOTAL (INCL. GST):', totalsX, y + 3);
 
-  // CGST
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(100, 116, 139);
-  doc.text('CGST (9%):', totalsX, y);
-  doc.setTextColor(15, 23, 42);
-  doc.text(formatINR(data.cgst), pageWidth - margin, y, { align: 'right' });
-  y += 7;
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...WHITE);
+  doc.text(formatINR(data.total), W - M - 3, y + 4, { align: 'right' });
 
-  // SGST
-  doc.setTextColor(100, 116, 139);
-  doc.text('SGST (9%):', totalsX, y);
-  doc.setTextColor(15, 23, 42);
-  doc.text(formatINR(data.sgst), pageWidth - margin, y, { align: 'right' });
-  y += 4;
+  y += boxH + 3;
 
-  // Divider
-  doc.setDrawColor(201, 168, 76);
-  doc.setLineWidth(1);
-  doc.line(totalsX, y, pageWidth - margin, y);
+  // Amount in words
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'italic');
+  doc.setTextColor(...MUTED);
+  doc.text(`Amount in words: Indian Rupees ${numberToWords(data.total)}`, M, y);
   y += 8;
 
-  // Grand Total
-  doc.setFillColor(15, 32, 56);
-  doc.roundedRect(totalsX - 5, y - 6, pageWidth - margin - totalsX + 5, 14, 2, 2, 'F');
-
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(201, 168, 76);
-  doc.text('GRAND TOTAL:', totalsX, y + 2);
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(13);
-  doc.text(formatINR(data.total), pageWidth - margin - 3, y + 3, { align: 'right' });
-
-  y += 22;
-
-  // ─── PAYMENT CONFIRMATION ───
+  // ═══════════════════════════════════════════════════════════
+  // 6. PAYMENT CONFIRMATION
+  // ═══════════════════════════════════════════════════════════
   if (data.payment_id) {
-    doc.setFillColor(236, 253, 245);
-    doc.roundedRect(margin, y, pageWidth - margin * 2, 24, 3, 3, 'F');
+    doc.setFillColor(...GREEN_BG);
+    doc.setDrawColor(167, 243, 208);
+    doc.roundedRect(M, y, contentW, 20, 2, 2, 'FD');
 
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(5, 150, 105);
-    doc.text(' PAYMENT CONFIRMED', margin + 5, y + 8);
+    doc.setTextColor(...GREEN);
+    doc.text('\u2713  PAYMENT CONFIRMED', M + 5, y + 7);
 
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(71, 85, 105);
-    doc.text(`Transaction ID: ${data.payment_id}`, margin + 5, y + 15);
+    doc.text(`Transaction ID: ${data.payment_id}`, M + 5, y + 12.5);
     if (data.order_id) {
-      doc.text(`Order ID: ${data.order_id}`, margin + 5, y + 20);
+      doc.text(`Order ID: ${data.order_id}`, M + 80, y + 12.5);
     }
+    doc.text('Status: PAID & SETTLED', W - M - 5, y + 7, { align: 'right' });
 
-    y += 30;
+    y += 26;
   }
 
-  // ─── FOOTER ───
-  y = doc.internal.pageSize.getHeight() - 35;
+  // ═══════════════════════════════════════════════════════════
+  // 7. TERMS & CONDITIONS
+  // ═══════════════════════════════════════════════════════════
+  if (y < H - 70) {
+    doc.setDrawColor(...BORDER);
+    doc.setLineWidth(0.3);
+    doc.line(M, y, W - M, y);
+    y += 5;
 
-  doc.setDrawColor(226, 232, 240);
-  doc.setLineWidth(0.5);
-  doc.line(margin, y, pageWidth - margin, y);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...BODY);
+    doc.text('TERMS & CONDITIONS', M, y);
+    y += 5;
 
-  y += 8;
-  doc.setFontSize(7);
+    doc.setFontSize(6.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...MUTED);
+
+    const terms = [
+      '1. Payment is due within 30 days from the date of invoice unless otherwise agreed in writing.',
+      '2. Late payments are subject to interest at 1.5% per month on the outstanding balance.',
+      '3. Cloud subscriptions auto-renew at the end of each billing cycle unless cancelled 7 days prior.',
+      '4. Technical support is available 24/7 via support@aravanta.cloud for all active subscriptions.',
+      '5. Any disputes must be raised within 15 days of the invoice date. Subject to Mumbai jurisdiction.',
+    ];
+    terms.forEach((t) => {
+      doc.text(t, M, y);
+      y += 4;
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 8. FOOTER
+  // ═══════════════════════════════════════════════════════════
+  y = H - 28;
+  doc.setDrawColor(...BORDER);
+  doc.setLineWidth(0.4);
+  doc.line(M, y, W - M, y);
+  y += 5;
+
+  doc.setFontSize(6.5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(148, 163, 184);
-  doc.text('This is a computer-generated invoice and does not require a physical signature.', margin, y);
-  doc.text('Aravanta CloudOS Inc. • CIN: U72200MH2026PTC000001 • support@aravanta.cloud', margin, y + 5);
-  doc.text(`Generated on: ${new Date().toLocaleString('en-IN', { dateStyle: 'full', timeStyle: 'short' })}`, margin, y + 10);
+  doc.text('This is a computer-generated invoice and does not require a physical signature.', M, y);
+  y += 4;
+  doc.text('Aravanta CloudOS Inc. \u2022 CIN: U72200MH2026PTC000001 \u2022 GSTIN: 27AAAAA0000A1Z5 \u2022 support@aravanta.cloud', M, y);
+  y += 4;
+  const genTs = new Date().toLocaleString('en-IN', { dateStyle: 'full', timeStyle: 'short' });
+  doc.text(`Generated on: ${genTs}`, M, y);
 
-  // Digital Signature
-  doc.setFontSize(8);
+  // Digital signature (right-aligned)
+  doc.setFontSize(7);
   doc.setFont('helvetica', 'italic');
-  doc.setTextColor(37, 99, 235);
-  doc.text('Digitally Signed by Aravanta CloudOS Billing Engine', pageWidth - margin, y + 5, { align: 'right' });
+  doc.setTextColor(...BLUE);
+  doc.text('Digitally Signed by Aravanta CloudOS Billing Engine', W - M, y - 4, { align: 'right' });
 
-  // Save & Download
+  // Page number
+  doc.setFontSize(6.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(148, 163, 184);
+  doc.text('Page 1 of 1', W - M, y, { align: 'right' });
+
+  // ─── Save & Download ─────────────────────────────────────
   doc.save(`Aravanta_Invoice_${data.invoice_id}.pdf`);
 };

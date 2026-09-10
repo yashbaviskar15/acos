@@ -13,7 +13,8 @@ import {
   Smartphone,
   Building2,
   Lock,
-  Sparkles
+  Sparkles,
+  Printer
 } from 'lucide-react';
 import { apiFetch } from '../config/api';
 import { StatusBadge } from '../components/StatusBadge';
@@ -658,8 +659,8 @@ export const Billing: React.FC = () => {
                     <div className="flex items-center justify-end gap-2">
                       <button
                         onClick={() => handleDownloadInvoice(inv)}
-                        className="px-3 py-1 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700/50 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
-                        title="Download official PDF to computer"
+                        className="px-2.5 py-1 bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-colors text-[11px]"
+                        title="Download official tax invoice PDF"
                       >
                         <Download className="w-3.5 h-3.5" /> PDF
                       </button>
@@ -668,10 +669,12 @@ export const Billing: React.FC = () => {
                         href={`/api/v1/operations/billing/invoices/${inv.id}/pdf`}
                         target="_blank"
                         rel="noreferrer"
-                        className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors"
-                        title="Open direct print preview"
+                        className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg font-bold flex items-center gap-1.5 transition-colors text-[11px]"
+                        title="Open official GST Tax Invoice print view"
                       >
-                        <ExternalLink className="w-3 h-3" />
+                        <Printer className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Print</span>
+                        <ExternalLink className="w-2.5 h-2.5 opacity-60" />
                       </a>
                     </div>
                   </td>
