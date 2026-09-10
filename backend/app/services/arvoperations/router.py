@@ -29,7 +29,8 @@ from app.services.arvgate.models import User
 from app.services.arvgate.dependencies import get_current_user, require_roles, get_current_user_optional
 from app.core.cloud_models import (
     Notification, emit_notification, DeploymentRecord, ApplicationRecord, BackupRecord,
-    ComputeInstance, KubeCluster, StorageBucket, DatabaseInstance, PaymentMethodRecord, InvoiceRecord
+    ComputeInstance, KubeCluster, StorageBucket, DatabaseInstance, PaymentMethodRecord, InvoiceRecord,
+    IncidentRecord, AlertRecord, WorkflowRecord
 )
 
 router = APIRouter(prefix="/api/v1/operations", tags=["ArvOperations — Cloud Platform Operations"])
@@ -42,369 +43,11 @@ STRATEGIES = ["RollingUpdate", "Canary", "BlueGreen"]
 # Multi-Tenant Workspace Data Storage
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _create_seed_workspace_data(workspace_name: str = "Enterprise Production Cloud", is_demo: bool = True) -> dict:
-    now = datetime.utcnow()
-
-    apps = [
-        {
-            "id": "app-api-gateway",
-            "name": "api-gateway",
-            "environment": "production",
-            "version": "v2.4.1",
-            "previous_version": "v2.4.0",
-            "replicas": 4,
-            "target_replicas": 4,
-            "status": "HEALTHY",
-            "health_percent": 100.0,
-            "error_rate_percent": 0.02,
-            "cpu_usage_m": 420,
-            "memory_usage_mb": 680,
-            "p95_latency_ms": 38.5,
-            "requests_per_sec": 4200,
-            "strategy": "RollingUpdate",
-            "image": "aravanta/api-gateway:v2.4.1",
-            "repository": "github.com/yashbaviskar15/acos-gateway",
-            "endpoints": ["https://api.aravanta.cloud", "https://arv-backend.vercel.app"],
-            "ports": [8000, 443],
-            "created_at": (now - timedelta(days=120)).isoformat() + "Z",
-            "last_deployed_at": (now - timedelta(hours=6)).isoformat() + "Z",
-            "env_vars": {"NODE_ENV": "production", "LOG_LEVEL": "info", "CACHE_TTL": "300"},
-        },
-        {
-            "id": "app-auth-service",
-            "name": "auth-service",
-            "environment": "production",
-            "version": "v1.9.0",
-            "previous_version": "v1.8.4",
-            "replicas": 3,
-            "target_replicas": 3,
-            "status": "HEALTHY",
-            "health_percent": 99.98,
-            "error_rate_percent": 0.01,
-            "cpu_usage_m": 280,
-            "memory_usage_mb": 420,
-            "p95_latency_ms": 24.1,
-            "requests_per_sec": 1850,
-            "strategy": "RollingUpdate",
-            "image": "aravanta/auth-service:v1.9.0",
-            "repository": "github.com/yashbaviskar15/acos-auth",
-            "endpoints": ["https://auth.aravanta.cloud/v1"],
-            "ports": [8080],
-            "created_at": (now - timedelta(days=90)).isoformat() + "Z",
-            "last_deployed_at": (now - timedelta(days=2)).isoformat() + "Z",
-            "env_vars": {"JWT_ALGORITHM": "HS256", "MFA_ENABLED": "true", "SESSION_TIMEOUT": "3600"},
-        },
-        {
-            "id": "app-web-console",
-            "name": "web-console",
-            "environment": "production",
-            "version": "v1.5.2",
-            "previous_version": "v1.5.1",
-            "replicas": 3,
-            "target_replicas": 3,
-            "status": "HEALTHY",
-            "health_percent": 100.0,
-            "error_rate_percent": 0.00,
-            "cpu_usage_m": 190,
-            "memory_usage_mb": 310,
-            "p95_latency_ms": 18.2,
-            "requests_per_sec": 3100,
-            "strategy": "Canary",
-            "image": "aravanta/web-console:v1.5.2",
-            "repository": "github.com/yashbaviskar15/acos-frontend",
-            "endpoints": ["https://aravantacos.vercel.app", "https://console.aravanta.cloud"],
-            "ports": [3000, 80],
-            "created_at": (now - timedelta(days=100)).isoformat() + "Z",
-            "last_deployed_at": (now - timedelta(hours=14)).isoformat() + "Z",
-            "env_vars": {"VITE_API_URL": "https://arv-backend.vercel.app", "ENV": "production"},
-        },
-        {
-            "id": "app-telemetry-engine",
-            "name": "telemetry-engine",
-            "environment": "production",
-            "version": "v3.1.0",
-            "previous_version": "v3.0.2",
-            "replicas": 2,
-            "target_replicas": 2,
-            "status": "WARNING",
-            "health_percent": 96.4,
-            "error_rate_percent": 1.45,
-            "cpu_usage_m": 890,
-            "memory_usage_mb": 1420,
-            "p95_latency_ms": 145.0,
-            "requests_per_sec": 8900,
-            "strategy": "RollingUpdate",
-            "image": "aravanta/telemetry-engine:v3.1.0",
-            "repository": "github.com/yashbaviskar15/acos-telemetry",
-            "endpoints": ["https://metrics.aravanta.cloud/ingest"],
-            "ports": [9090, 4317],
-            "created_at": (now - timedelta(days=60)).isoformat() + "Z",
-            "last_deployed_at": (now - timedelta(hours=3)).isoformat() + "Z",
-            "env_vars": {"BUFFER_SIZE": "100000", "OTEL_EXPORTER": "prometheus"},
-        },
-        {
-            "id": "app-payment-worker",
-            "name": "payment-worker",
-            "environment": "staging",
-            "version": "v1.2.0-rc2",
-            "previous_version": "v1.1.9",
-            "replicas": 2,
-            "target_replicas": 2,
-            "status": "HEALTHY",
-            "health_percent": 100.0,
-            "error_rate_percent": 0.05,
-            "cpu_usage_m": 150,
-            "memory_usage_mb": 290,
-            "p95_latency_ms": 85.0,
-            "requests_per_sec": 450,
-            "strategy": "BlueGreen",
-            "image": "aravanta/payment-worker:v1.2.0-rc2",
-            "repository": "github.com/yashbaviskar15/acos-billing",
-            "endpoints": ["https://staging-billing.aravanta.cloud"],
-            "ports": [8085],
-            "created_at": (now - timedelta(days=45)).isoformat() + "Z",
-            "last_deployed_at": (now - timedelta(hours=1)).isoformat() + "Z",
-            "env_vars": {"STRIPE_SANDBOX": "true", "CURRENCY": "INR"},
-        }
-    ]
-
-    deployments = [
-        {
-            "id": "dep-8842",
-            "application_id": "app-api-gateway",
-            "application_name": "api-gateway",
-            "environment": "production",
-            "version": "v2.4.1",
-            "previous_version": "v2.4.0",
-            "image": "aravanta/api-gateway:v2.4.1",
-            "strategy": "RollingUpdate",
-            "replicas": 4,
-            "status": "SUCCESSFUL",
-            "trigger": "git push (main)",
-            "commit_hash": "a4d13d8",
-            "commit_message": "feat(gateway): add circuit breaker timeout configuration",
-            "author": "yashbaviskar15",
-            "started_at": (now - timedelta(hours=6)).isoformat() + "Z",
-            "finished_at": (now - timedelta(hours=5, minutes=57)).isoformat() + "Z",
-            "duration_seconds": 180,
-            "steps": [
-                {"name": "Build Container Image", "status": "COMPLETED", "duration": "45s"},
-                {"name": "Vulnerability Security Scan (Trivy)", "status": "COMPLETED", "duration": "18s"},
-                {"name": "Deploy Canary Pods (25%)", "status": "COMPLETED", "duration": "35s"},
-                {"name": "Health Check & Metric Verification", "status": "COMPLETED", "duration": "30s"},
-                {"name": "Promote Full Rollout", "status": "COMPLETED", "duration": "52s"},
-            ]
-        },
-        {
-            "id": "dep-8841",
-            "application_id": "app-telemetry-engine",
-            "application_name": "telemetry-engine",
-            "environment": "production",
-            "version": "v3.1.0",
-            "previous_version": "v3.0.2",
-            "image": "aravanta/telemetry-engine:v3.1.0",
-            "strategy": "RollingUpdate",
-            "replicas": 2,
-            "status": "FAILED",
-            "trigger": "git push (main)",
-            "commit_hash": "e9b21f0",
-            "commit_message": "perf: increase telemetry batch queue to 50k items",
-            "author": "yashbaviskar15",
-            "started_at": (now - timedelta(hours=3, minutes=15)).isoformat() + "Z",
-            "finished_at": (now - timedelta(hours=3, minutes=11)).isoformat() + "Z",
-            "duration_seconds": 240,
-            "error_reason": "Health check failed: OOMKilled on pod telemetry-engine-79bf2a (RAM limit 1500MB exceeded)",
-            "steps": [
-                {"name": "Build Container Image", "status": "COMPLETED", "duration": "50s"},
-                {"name": "Deploy Canary Pods", "status": "COMPLETED", "duration": "40s"},
-                {"name": "Health Check Verification", "status": "FAILED", "duration": "150s"},
-                {"name": "Automatic Safe Rollback", "status": "COMPLETED", "duration": "25s"},
-            ]
-        },
-        {
-            "id": "dep-8840",
-            "application_id": "app-web-console",
-            "application_name": "web-console",
-            "environment": "production",
-            "version": "v1.5.2",
-            "previous_version": "v1.5.1",
-            "image": "aravanta/web-console:v1.5.2",
-            "strategy": "Canary",
-            "replicas": 3,
-            "status": "SUCCESSFUL",
-            "trigger": "manual release",
-            "commit_hash": "7f8b186",
-            "commit_message": "feat(console): redesign operations dashboard with human UX",
-            "author": "yashbaviskar15",
-            "started_at": (now - timedelta(hours=14)).isoformat() + "Z",
-            "finished_at": (now - timedelta(hours=13, minutes=58)).isoformat() + "Z",
-            "duration_seconds": 120,
-            "steps": [
-                {"name": "Build Vite SPA Bundle", "status": "COMPLETED", "duration": "38s"},
-                {"name": "CDN Asset Cache Purge", "status": "COMPLETED", "duration": "12s"},
-                {"name": "Canary Verification (25%)", "status": "COMPLETED", "duration": "40s"},
-                {"name": "Global CDN Ingress Cutover", "status": "COMPLETED", "duration": "30s"},
-            ]
-        }
-    ]
-
-    containers = [
-        {"id": "pod-api-gw-7b94", "name": "api-gateway-7b94a8f9-x2k9l", "app_name": "api-gateway", "environment": "production", "node": "worker-pool-01.arv-prod", "status": "RUNNING", "cpu_percent": 18.4, "memory_mb": 172, "restarts": 0, "uptime": "14d 6h"},
-        {"id": "pod-api-gw-7b95", "name": "api-gateway-7b94a8f9-m8q1w", "app_name": "api-gateway", "environment": "production", "node": "worker-pool-02.arv-prod", "status": "RUNNING", "cpu_percent": 21.0, "memory_mb": 180, "restarts": 0, "uptime": "14d 6h"},
-        {"id": "pod-auth-8f12", "name": "auth-service-5d6b4c-9p4z1", "app_name": "auth-service", "environment": "production", "node": "worker-pool-01.arv-prod", "status": "RUNNING", "cpu_percent": 12.5, "memory_mb": 140, "restarts": 0, "uptime": "28d 12h"},
-        {"id": "pod-telemetry-01", "name": "telemetry-engine-79bf-k91la", "app_name": "telemetry-engine", "environment": "production", "node": "worker-pool-03.arv-prod", "status": "RUNNING", "cpu_percent": 74.2, "memory_mb": 710, "restarts": 2, "uptime": "3h 15m"},
-        {"id": "pod-web-01", "name": "web-console-6c8a2b-w9z1a", "app_name": "web-console", "environment": "production", "node": "worker-pool-02.arv-prod", "status": "RUNNING", "cpu_percent": 8.1, "memory_mb": 105, "restarts": 0, "uptime": "14h 2m"},
-    ]
-
-    logs = [
-        {"id": "log-01", "timestamp": (now - timedelta(seconds=12)).isoformat() + "Z", "level": "INFO", "service": "api-gateway", "container": "api-gateway-7b94", "message": "HTTP 200 GET /api/v1/operations/inventory duration=14ms client_ip=203.0.113.19", "environment": "production"},
-        {"id": "log-02", "timestamp": (now - timedelta(seconds=28)).isoformat() + "Z", "level": "INFO", "service": "auth-service", "container": "auth-service-5d6b", "message": "JWT access token successfully issued for subject=yashbaviskar67@gmail.com role=SuperAdmin", "environment": "production"},
-        {"id": "log-03", "timestamp": (now - timedelta(seconds=45)).isoformat() + "Z", "level": "WARN", "service": "telemetry-engine", "container": "telemetry-engine-79bf", "message": "Timeseries ingestion queue buffer at 78% capacity (78,400/100,000 metrics)", "environment": "production"},
-        {"id": "log-04", "timestamp": (now - timedelta(seconds=70)).isoformat() + "Z", "level": "INFO", "service": "web-console", "container": "web-console-6c8a", "message": "SSR page hydration complete for path /dashboard in 28ms", "environment": "production"},
-        {"id": "log-05", "timestamp": (now - timedelta(seconds=110)).isoformat() + "Z", "level": "ERROR", "service": "postgres-primary", "container": "db-cluster-node-01", "message": "Slow query detected (2450ms): SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 5000", "environment": "production"},
-    ]
-
-    incidents = [
-        {
-            "id": "inc-2026-001",
-            "title": "High Memory Pressure & OOM Throttling on Telemetry Ingestion Node",
-            "severity": "P2",
-            "status": "Investigating",
-            "affected_service": "telemetry-engine",
-            "commander": "Yash Baviskar",
-            "detected_at": (now - timedelta(hours=1, minutes=45)).isoformat() + "Z",
-            "resolved_at": None,
-            "timeline": [
-                {"timestamp": (now - timedelta(hours=1, minutes=45)).isoformat() + "Z", "event": "Prometheus alert rule MemoryThresholdExceeded fired (>85%)"},
-                {"timestamp": (now - timedelta(hours=1, minutes=30)).isoformat() + "Z", "event": "On-call engineer acknowledged incident and engaged war-room"},
-                {"timestamp": (now - timedelta(hours=1, minutes=15)).isoformat() + "Z", "event": "HPA horizontal autoscaling triggered. Provisioning 2 additional pod replicas"},
-            ],
-            "rca_notes": "Queue buffer exceeded target threshold during traffic spike. Investigating memory leak in Protobuf deserializer."
-        }
-    ]
-
-    workflows = [
-        {
-            "id": "wf-auto-scale-cpu",
-            "name": "Auto-Scale Replicas on CPU Spikes",
-            "description": "Monitors container CPU threshold across production pods. If sustained load exceeds 80% for 3m, scales replica count +2 and dispatches Slack notification.",
-            "trigger": "Prometheus Metric Trigger (CPU > 80%)",
-            "target": "Production Pod Fleet",
-            "status": "ACTIVE",
-            "last_run": (now - timedelta(hours=4)).isoformat() + "Z",
-            "last_status": "SUCCESSFUL",
-            "duration": "42s",
-            "run_count": 28,
-            "actions": ["Evaluate CPU Load", "Scale Horizontal Replicas", "Verify Health Probes", "Send Slack Notification"]
-        },
-        {
-            "id": "wf-db-nightly-backup",
-            "name": "Postgres Managed Cluster Snapshot & WAL Archival",
-            "description": "Executes daily point-in-time snapshot of production databases, validates checksum against S3 storage, and purges logs older than 30 days.",
-            "trigger": "Cron Schedule (0 2 * * *)",
-            "target": "Managed DB (Postgres Primary)",
-            "status": "ACTIVE",
-            "last_run": (now - timedelta(hours=18)).isoformat() + "Z",
-            "last_status": "SUCCESSFUL",
-            "duration": "3m 12s",
-            "run_count": 142,
-            "actions": ["Lock Writes (5s)", "Generate EBS Snapshot", "Upload to ArvStore S3", "Verify SHA-256 Checksum", "Unlock Database"]
-        }
-    ]
-
-    backups = [
-        {
-            "id": "bkp-pg-prod-20260901",
-            "resource_name": "postgres-primary-prod",
-            "resource_type": "Managed Database (Postgres 16.2)",
-            "size_gb": 48.5,
-            "region": "arv-ap-south-1 (Mumbai)",
-            "created_at": (now - timedelta(hours=18)).isoformat() + "Z",
-            "status": "COMPLETED",
-            "retention_days": 30,
-            "storage_tier": "ArvStore Hot Storage (AES-256)",
-            "checksum": "sha256:7f8b1864e29c01f4",
-        },
-        {
-            "id": "bkp-k8s-state-20260901",
-            "resource_name": "k8s-cluster-prod-state",
-            "resource_type": "Kubernetes Cluster Etcd & Manifests",
-            "size_gb": 4.2,
-            "region": "arv-ap-south-1 (Mumbai)",
-            "created_at": (now - timedelta(hours=22)).isoformat() + "Z",
-            "status": "COMPLETED",
-            "retention_days": 14,
-            "storage_tier": "ArvStore Hot Storage (AES-256)",
-            "checksum": "sha256:a4d13d87b5c19e02",
-        }
-    ]
-
-    infrastructure = [
-        {"id": "vm-prod-node-01", "name": "prod-node-01.mumbai", "type": "Compute VM", "provider": "AWS / EC2 (c6i.2xlarge)", "region": "ap-south-1 (Mumbai)", "env": "production", "status": "RUNNING", "specs": "8 vCPU, 16GB RAM, 200GB NVMe", "uptime": "99.98% (42d 18h)", "tags": {"team": "infrastructure", "tier": "backend"}},
-        {"id": "vm-prod-node-02", "name": "prod-node-02.mumbai", "type": "Compute VM", "provider": "AWS / EC2 (c6i.2xlarge)", "region": "ap-south-1 (Mumbai)", "env": "production", "status": "RUNNING", "specs": "8 vCPU, 16GB RAM, 200GB NVMe", "uptime": "99.98% (42d 18h)", "tags": {"team": "infrastructure", "tier": "backend"}},
-        {"id": "k8s-prod-cluster", "name": "arv-k8s-prod-cluster", "type": "Kubernetes Cluster", "provider": "AWS / EKS (v1.29)", "region": "ap-south-1 (Mumbai)", "env": "production", "status": "RUNNING", "specs": "3 Node Pools (12 Worker Nodes)", "uptime": "99.99% (89d)", "tags": {"env": "production", "orchestrator": "kubernetes"}},
-        {"id": "db-pg-primary", "name": "arv-db-postgres-primary", "type": "Managed Database", "provider": "GCP / Cloud SQL (Postgres 16)", "region": "asia-south1 (Mumbai)", "env": "production", "status": "RUNNING", "specs": "4 vCPU, 16GB RAM, 500GB SSD (Multi-AZ)", "uptime": "99.99% (120d)", "tags": {"tier": "data-layer", "ha": "active-standby"}},
-        {"id": "s3-bucket-assets", "name": "arv-production-assets", "type": "Object Storage", "provider": "AWS / S3 (Standard)", "region": "ap-south-1 (Mumbai)", "env": "production", "status": "RUNNING", "specs": "14.2 TB Stored / 4.8M Objects", "uptime": "100.0%", "tags": {"security": "encrypted-kms", "lifecycle": "active"}},
-    ]
-
-    notifications = [
-        {"id": "notif-01", "title": "Deployment Successful", "message": "api-gateway v2.4.1 rollout completed successfully across 4 pods.", "type": "deployment", "read": False, "created_at": (now - timedelta(hours=6)).isoformat() + "Z"},
-        {"id": "notif-02", "title": "High Memory Warning", "message": "telemetry-engine RAM utilization reached 78% of capacity threshold.", "type": "alert", "read": False, "created_at": (now - timedelta(hours=1, minutes=45)).isoformat() + "Z"},
-        {"id": "notif-03", "title": "Nightly Backup Completed", "message": "Snapshot bkp-pg-prod-20260901 verified with SHA-256 checksum.", "type": "backup", "read": True, "created_at": (now - timedelta(hours=18)).isoformat() + "Z"},
-    ]
-
-    payment_methods = [
-        {"id": "pm_card_01", "brand": "visa", "last4": "4242", "exp_month": 12, "exp_year": 2028, "is_default": True, "holder_name": "Yash Baviskar"},
-        {"id": "pm_card_02", "brand": "mastercard", "last4": "8894", "exp_month": 8, "exp_year": 2027, "is_default": False, "holder_name": "Yash Baviskar"},
-    ]
-
-    invoices = [
-        {"id": "INV-2026-0901", "date": "2026-09-01", "period": "Aug 01, 2026 - Aug 31, 2026", "amount_inr": 2499, "status": "PAID", "payment_method": "Visa ending in 4242", "download_url": "/api/v1/operations/billing/invoices/INV-2026-0901/pdf"},
-        {"id": "INV-2026-0801", "date": "2026-08-01", "period": "Jul 01, 2026 - Jul 31, 2026", "amount_inr": 2499, "status": "PAID", "payment_method": "Visa ending in 4242", "download_url": "/api/v1/operations/billing/invoices/INV-2026-0801/pdf"},
-        {"id": "INV-2026-0701", "date": "2026-07-01", "period": "Jun 01, 2026 - Jun 30, 2026", "amount_inr": 2499, "status": "PAID", "payment_method": "Visa ending in 4242", "download_url": "/api/v1/operations/billing/invoices/INV-2026-0701/pdf"},
-    ]
-
-    usage = {
-        "plan_name": "Team Cloud Operations",
-        "plan_code": "team",
-        "billing_cycle": "monthly",
-        "price_inr": 2499,
-        "renewal_date": (now + timedelta(days=29)).strftime("%B %d, %Y"),
-        "metrics": {
-            "vcpu_used": 24, "vcpu_limit": 64,
-            "ram_gb_used": 48, "ram_gb_limit": 128,
-            "storage_gb_used": 1420, "storage_gb_limit": 5000,
-            "deployments_month": 48, "deployments_limit": 200,
-            "bandwidth_gb_used": 340, "bandwidth_gb_limit": 1000
-        }
-    }
-
-    return {
-        "workspace_name": workspace_name,
-        "applications": {app["id"]: app for app in apps},
-        "deployments": deployments,
-        "containers": containers,
-        "logs": logs,
-        "incidents": incidents,
-        "workflows": workflows,
-        "backups": backups,
-        "infrastructure": infrastructure,
-        "notifications": notifications,
-        "payment_methods": payment_methods,
-        "invoices": invoices,
-        "usage": usage,
-    }
-
-# Master multi-tenant store dictionary
-_workspaces: Dict[str, dict] = {
-    "default": _create_seed_workspace_data("Production Cloud Ops"),
-}
+# In-memory prototype workspace store deprecated and replaced by PostgreSQL persistence
+_workspaces: Dict[str, dict] = {}
 
 def _get_workspace_store(workspace_id: Optional[str] = None) -> dict:
-    key = workspace_id.strip() if workspace_id and workspace_id.strip() else "default"
-    if key not in _workspaces:
-        _workspaces[key] = _create_seed_workspace_data(workspace_name=f"Workspace {key}", is_demo=False)
-    return _workspaces[key]
+    return {"applications": {}, "deployments": [], "containers": [], "logs": [], "incidents": [], "workflows": [], "backups": [], "notifications": [], "usage": {}}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Request Models
@@ -495,31 +138,23 @@ def list_applications(
     status_filter: Optional[str] = Query(None, alias="status"),
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     query = db.query(ApplicationRecord)
-    if current_user and (current_user.role or "").strip().lower() not in ["superadmin", "admin"]:
+    if (current_user.role or "").strip().lower() not in ["superadmin", "admin"]:
         query = query.filter(
             (ApplicationRecord.user_id == current_user.id) |
             (ApplicationRecord.workspace_id == current_user.workspace_id)
         )
+    elif workspace_id:
+        query = query.filter(ApplicationRecord.workspace_id == workspace_id)
     if environment:
         query = query.filter(ApplicationRecord.environment.ilike(environment))
     if status_filter:
         query = query.filter(ApplicationRecord.status.ilike(status_filter))
     
     db_apps = query.order_by(ApplicationRecord.created_at.desc()).all()
-    if db_apps:
-        return [a.to_dict() for a in db_apps]
-
-    # Fallback to workspace store if database has no records for this workspace
-    ws = _get_workspace_store(workspace_id)
-    apps = list(ws["applications"].values())
-    if environment:
-        apps = [a for a in apps if a["environment"].lower() == environment.lower()]
-    if status_filter:
-        apps = [a for a in apps if a["status"].lower() == status_filter.lower()]
-    return apps
+    return [a.to_dict() for a in db_apps]
 
 @router.post("/applications", status_code=status.HTTP_201_CREATED, summary="Create microservice")
 def create_application(
@@ -528,10 +163,8 @@ def create_application(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator", "Developer"])),
 ):
-    ws = _get_workspace_store(workspace_id)
     app_id = f"app-{body.name.lower().replace(' ', '-')}"
     now_dt = datetime.utcnow()
-    now_iso = now_dt.isoformat() + "Z"
 
     # Persist directly into PostgreSQL database
     existing = db.query(ApplicationRecord).filter(ApplicationRecord.id == app_id).first()
@@ -577,7 +210,6 @@ def create_application(
     db.refresh(db_app)
 
     new_app = db_app.to_dict()
-    ws["applications"][app_id] = new_app
 
     emit_notification(
         db,
@@ -596,16 +228,18 @@ def get_application(
     app_id: str, 
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     db_app = db.query(ApplicationRecord).filter(ApplicationRecord.id == app_id).first()
-    if db_app:
-        return db_app.to_dict()
-
-    ws = _get_workspace_store(workspace_id)
-    if app_id not in ws["applications"]:
+    if not db_app:
         raise HTTPException(status_code=404, detail=f"Application {app_id} not found")
-    return ws["applications"][app_id]
+    
+    # Strict IDOR check
+    if (current_user.role or "").strip().lower() not in ["superadmin", "admin"]:
+        if db_app.workspace_id != current_user.workspace_id and db_app.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied: application belongs to another workspace")
+
+    return db_app.to_dict()
 
 @router.post("/applications/{app_id}/scale", summary="Scale application replicas")
 def scale_application(
@@ -616,27 +250,25 @@ def scale_application(
     current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator", "Developer"])),
 ):
     db_app = db.query(ApplicationRecord).filter(ApplicationRecord.id == app_id).first()
-    if db_app:
-        db_app.target_replicas = body.replicas
-        db_app.replicas = body.replicas
-        if body.replicas == 0:
-            db_app.status = "STOPPED"
-            db_app.health_percent = 0.0
-        else:
-            db_app.status = "HEALTHY"
-            db_app.health_percent = 100.0
-        db.commit()
-        db.refresh(db_app)
-        app_dict = db_app.to_dict()
+    if not db_app:
+        raise HTTPException(status_code=404, detail=f"Application {app_id} not found")
+        
+    # IDOR check
+    if (current_user.role or "").strip().lower() not in ["superadmin", "admin"]:
+        if db_app.workspace_id != current_user.workspace_id and db_app.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied: application belongs to another workspace")
+
+    db_app.target_replicas = body.replicas
+    db_app.replicas = body.replicas
+    if body.replicas == 0:
+        db_app.status = "STOPPED"
+        db_app.health_percent = 0.0
     else:
-        ws = _get_workspace_store(workspace_id)
-        if app_id not in ws["applications"]:
-            raise HTTPException(status_code=404, detail=f"Application {app_id} not found")
-        app = ws["applications"][app_id]
-        app["target_replicas"] = body.replicas
-        app["replicas"] = body.replicas
-        app["status"] = "STOPPED" if body.replicas == 0 else "HEALTHY"
-        app_dict = app
+        db_app.status = "HEALTHY"
+        db_app.health_percent = 100.0
+    db.commit()
+    db.refresh(db_app)
+    app_dict = db_app.to_dict()
 
     emit_notification(
         db,
@@ -645,7 +277,7 @@ def scale_application(
         severity="INFO",
         source="ArvOperations",
         user_id=current_user.id,
-        workspace_id=workspace_id or "default",
+        workspace_id=workspace_id or current_user.workspace_id or "default",
     )
 
     return {"message": f"Scaled {app_dict['name']} to {body.replicas} replicas", "application": app_dict}
@@ -658,12 +290,19 @@ def restart_application(
     current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator", "Developer"])),
 ):
     db_app = db.query(ApplicationRecord).filter(ApplicationRecord.id == app_id).first()
-    name = db_app.name if db_app else app_id
-    replicas = db_app.replicas if db_app else 1
-    if db_app:
-        db_app.status = "HEALTHY"
-        db_app.health_percent = 100.0
-        db.commit()
+    if not db_app:
+        raise HTTPException(status_code=404, detail=f"Application {app_id} not found")
+
+    # IDOR check
+    if (current_user.role or "").strip().lower() not in ["superadmin", "admin"]:
+        if db_app.workspace_id != current_user.workspace_id and db_app.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied: application belongs to another workspace")
+
+    name = db_app.name
+    replicas = db_app.replicas
+    db_app.status = "HEALTHY"
+    db_app.health_percent = 100.0
+    db.commit()
 
     emit_notification(
         db,
@@ -672,7 +311,7 @@ def restart_application(
         severity="INFO",
         source="ArvOperations",
         user_id=current_user.id,
-        workspace_id=workspace_id or "default",
+        workspace_id=workspace_id or current_user.workspace_id or "default",
     )
 
     return {"message": f"Rolling restart completed for {name} across {replicas} pods"}
@@ -686,25 +325,22 @@ def rollback_application(
     current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator", "Developer"])),
 ):
     db_app = db.query(ApplicationRecord).filter(ApplicationRecord.id == app_id).first()
-    if db_app:
-        current = db_app.version
-        db_app.version = body.target_version
-        db_app.previous_version = current
-        db_app.status = "HEALTHY"
-        db_app.health_percent = 100.0
-        db.commit()
-        db.refresh(db_app)
-        app_dict = db_app.to_dict()
-    else:
-        ws = _get_workspace_store(workspace_id)
-        if app_id not in ws["applications"]:
-            raise HTTPException(status_code=404, detail=f"Application {app_id} not found")
-        app = ws["applications"][app_id]
-        current = app["version"]
-        app["version"] = body.target_version
-        app["previous_version"] = current
-        app["status"] = "HEALTHY"
-        app_dict = app
+    if not db_app:
+        raise HTTPException(status_code=404, detail=f"Application {app_id} not found")
+
+    # IDOR check
+    if (current_user.role or "").strip().lower() not in ["superadmin", "admin"]:
+        if db_app.workspace_id != current_user.workspace_id and db_app.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied: application belongs to another workspace")
+
+    current = db_app.version
+    db_app.version = body.target_version
+    db_app.previous_version = current
+    db_app.status = "HEALTHY"
+    db_app.health_percent = 100.0
+    db.commit()
+    db.refresh(db_app)
+    app_dict = db_app.to_dict()
 
     emit_notification(
         db,
@@ -713,7 +349,7 @@ def rollback_application(
         severity="WARNING",
         source="ArvOperations",
         user_id=current_user.id,
-        workspace_id=workspace_id or "default",
+        workspace_id=workspace_id or current_user.workspace_id or "default",
     )
 
     return {"message": f"Successfully rolled back {app_dict['name']} to {body.target_version}", "application": app_dict}
@@ -726,14 +362,17 @@ def delete_application(
     current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator"])),
 ):
     db_app = db.query(ApplicationRecord).filter(ApplicationRecord.id == app_id).first()
-    name = db_app.name if db_app else app_id
-    if db_app:
-        db.delete(db_app)
-        db.commit()
+    if not db_app:
+        raise HTTPException(status_code=404, detail=f"Application {app_id} not found")
 
-    ws = _get_workspace_store(workspace_id)
-    if app_id in ws["applications"]:
-        del ws["applications"][app_id]
+    # IDOR check
+    if (current_user.role or "").strip().lower() not in ["superadmin", "admin"]:
+        if db_app.workspace_id != current_user.workspace_id and db_app.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied: application belongs to another workspace")
+
+    name = db_app.name
+    db.delete(db_app)
+    db.commit()
 
     emit_notification(
         db,
@@ -742,7 +381,7 @@ def delete_application(
         severity="WARNING",
         source="ArvOperations",
         user_id=current_user.id,
-        workspace_id=workspace_id or "default",
+        workspace_id=workspace_id or current_user.workspace_id or "default",
     )
 
     return {"message": f"Application {app_id} deleted successfully"}
@@ -755,15 +394,24 @@ def delete_application(
 def list_deployments(
     application_id: Optional[str] = None,
     environment: Optional[str] = None,
-    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    ws = _get_workspace_store(workspace_id)
-    deps = ws["deployments"]
+    query = db.query(DeploymentRecord)
+    if (current_user.role or "").strip().lower() not in ["superadmin", "admin"]:
+        query = query.filter(
+            (DeploymentRecord.user_id == current_user.id) |
+            (DeploymentRecord.workspace_id == current_user.workspace_id)
+        )
+    elif workspace_id:
+        query = query.filter(DeploymentRecord.workspace_id == workspace_id)
     if application_id:
-        deps = [d for d in deps if d.get("application_id") == application_id]
+        query = query.filter(DeploymentRecord.application_id == application_id)
     if environment:
-        deps = [d for d in deps if d.get("environment") == environment]
-    return deps
+        query = query.filter(DeploymentRecord.environment.ilike(environment))
+    deps = query.order_by(DeploymentRecord.started_at.desc()).all()
+    return [d.to_dict() for d in deps]
 
 @router.post("/deployments", status_code=status.HTTP_201_CREATED, summary="Trigger deployment")
 def trigger_deployment(
@@ -772,46 +420,56 @@ def trigger_deployment(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator", "Developer"])),
 ):
-    ws = _get_workspace_store(workspace_id)
-    dep_id = f"dep-{random.randint(8850, 9999)}"
-    now = datetime.utcnow().isoformat() + "Z"
-    new_dep = {
-        "id": dep_id,
-        "application_id": "app-api-gateway",
-        "application_name": body.image.split(":")[0].split("/")[-1],
-        "environment": body.environment,
-        "version": body.version,
-        "previous_version": "v2.4.0",
-        "image": body.image,
-        "strategy": body.strategy,
-        "replicas": body.replicas,
-        "status": "SUCCESSFUL",
-        "trigger": "manual release",
-        "commit_hash": f"{uuid.uuid4().hex[:7]}",
-        "commit_message": body.change_summary or "Release update",
-        "author": "Operator",
-        "started_at": now,
-        "finished_at": (datetime.utcnow() + timedelta(seconds=45)).isoformat() + "Z",
-        "duration_seconds": 45,
-        "steps": [
-            {"name": "Build Container Image", "status": "COMPLETED", "duration": "20s"},
-            {"name": "Pre-flight Security Scan", "status": "COMPLETED", "duration": "10s"},
-            {"name": "Deploy Pods", "status": "COMPLETED", "duration": "15s"},
-        ]
-    }
-    ws["deployments"].insert(0, new_dep)
+    dep_id = f"dep-{uuid.uuid4().hex[:8]}"
+    now_dt = datetime.utcnow()
+    app_name = body.image.split(":")[0].split("/")[-1]
+    ws_id = current_user.workspace_id or workspace_id or "default"
+    
+    app = db.query(ApplicationRecord).filter(
+        (ApplicationRecord.name == app_name) &
+        ((ApplicationRecord.workspace_id == ws_id) | (ApplicationRecord.user_id == current_user.id))
+    ).first()
+    app_id = app.id if app else f"app-{app_name}"
+
+    new_dep = DeploymentRecord(
+        id=dep_id,
+        user_id=current_user.id,
+        workspace_id=ws_id,
+        application_id=app_id,
+        application_name=app_name,
+        environment=body.environment,
+        version=body.version,
+        image=body.image,
+        strategy=body.strategy,
+        replicas=body.replicas,
+        status="SUCCESSFUL",
+        trigger="manual release",
+        commit_hash=uuid.uuid4().hex[:7],
+        commit_message=body.change_summary or "Release update",
+        author=current_user.full_name or "Operator",
+        duration_seconds=45,
+        started_at=now_dt,
+        finished_at=now_dt + timedelta(seconds=45),
+    )
+    db.add(new_dep)
+    if app:
+        app.version = body.version
+        app.image = body.image
+        app.last_deployed_at = now_dt
+    db.commit()
+    db.refresh(new_dep)
 
     emit_notification(
         db,
         title="Deployment Initiated",
-        message=f"Deployment for '{new_dep['application_name']}' ({body.version}) triggered to {body.environment}.",
+        message=f"Deployment for '{app_name}' ({body.version}) triggered to {body.environment}.",
         severity="INFO",
         source="ArvOperations",
         user_id=current_user.id,
-        workspace_id=workspace_id or "default",
+        workspace_id=ws_id,
     )
 
-    return new_dep
+    return new_dep.to_dict()
 
 
 @router.post("/deployments/{deployment_id}/rollback", summary="Rollback specific deployment")
@@ -821,38 +479,36 @@ def rollback_deployment(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator", "Developer"])),
 ):
-    ws = _get_workspace_store(workspace_id)
-    target_dep = None
-    for d in ws["deployments"]:
-        if d["id"] == deployment_id:
-            target_dep = d
-            break
-
     db_dep = db.query(DeploymentRecord).filter(DeploymentRecord.id == deployment_id).first()
-    app_name = target_dep["application_name"] if target_dep else (db_dep.service_name if db_dep else "service")
-    target_version = (target_dep.get("previous_version") if target_dep else None) or "v1.0.0"
+    if not db_dep:
+        raise HTTPException(status_code=404, detail="Deployment not found")
 
-    if target_dep:
-        target_dep["status"] = "SUCCESSFUL"
-        target_dep["commit_message"] = f"Emergency rollback to {target_version}"
+    # IDOR check
+    if (current_user.role or "").strip().lower() not in ["superadmin", "admin"]:
+        if db_dep.workspace_id != current_user.workspace_id and db_dep.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied: deployment belongs to another workspace")
 
-    if db_dep:
-        db_dep.status = "SUCCESSFUL"
-        db.commit()
+    app_name = db_dep.application_name
+    target_version = "v1.0.0"
+    prev_dep = db.query(DeploymentRecord).filter(
+        DeploymentRecord.application_id == db_dep.application_id,
+        DeploymentRecord.id != db_dep.id
+    ).order_by(DeploymentRecord.started_at.desc()).first()
+    if prev_dep:
+        target_version = prev_dep.version
 
-    for app in ws["applications"].values():
-        if app.get("name") == app_name:
-            app["version"] = target_version
-            app["status"] = "HEALTHY"
-            app["health_percent"] = 100.0
-            app["error_rate_percent"] = 0.01
+    db_dep.status = "SUCCESSFUL"
+    db_dep.commit_message = f"Emergency rollback to {target_version}"
 
-    db_app = db.query(ApplicationRecord).filter(ApplicationRecord.name == app_name).first()
+    db_app = db.query(ApplicationRecord).filter(ApplicationRecord.id == db_dep.application_id).first()
+    if not db_app:
+        db_app = db.query(ApplicationRecord).filter(ApplicationRecord.name == app_name).first()
     if db_app:
         db_app.version = target_version
         db_app.status = "HEALTHY"
         db_app.health_percent = 100.0
-        db.commit()
+
+    db.commit()
 
     emit_notification(
         db,
@@ -861,7 +517,7 @@ def rollback_deployment(
         severity="WARNING",
         source="ArvOperations",
         user_id=current_user.id,
-        workspace_id=workspace_id or "default",
+        workspace_id=db_dep.workspace_id or "default",
     )
 
     return {
@@ -878,24 +534,77 @@ def rollback_deployment(
 @router.get("/containers", summary="List live Kubernetes pod fleet")
 def list_containers(
     app_name: Optional[str] = None,
-    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    ws = _get_workspace_store(workspace_id)
-    containers = ws["containers"]
+    query = db.query(ApplicationRecord)
+    if (current_user.role or "").strip().lower() not in ["superadmin", "admin"]:
+        query = query.filter(
+            (ApplicationRecord.user_id == current_user.id) |
+            (ApplicationRecord.workspace_id == current_user.workspace_id)
+        )
+    elif workspace_id:
+        query = query.filter(ApplicationRecord.workspace_id == workspace_id)
+
     if app_name:
-        containers = [c for c in containers if c.get("app_name") == app_name]
+        query = query.filter(ApplicationRecord.name == app_name)
+
+    apps = query.all()
+    containers = []
+    now = datetime.utcnow()
+    for a in apps:
+        rep_count = a.replicas if a.status != "STOPPED" else 0
+        for i in range(rep_count):
+            pod_id = f"pod-{a.name}-{i+1}"
+            containers.append({
+                "id": pod_id,
+                "name": f"{a.name}-pod-{i+1}",
+                "app_name": a.name,
+                "image": a.image,
+                "status": "RUNNING" if a.status == "HEALTHY" else a.status,
+                "restarts": 0,
+                "cpu_usage": f"{max(15, a.cpu_usage_m // max(1, rep_count))}m",
+                "memory_usage": f"{max(50, a.memory_usage_mb // max(1, rep_count))}MB",
+                "node": "node-us-east-1a",
+                "created_at": a.created_at.isoformat() + "Z" if a.created_at else now.isoformat() + "Z"
+            })
     return containers
 
 @router.post("/containers/{container_id}/restart", summary="Restart individual pod")
-def restart_container(container_id: str, workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
+def restart_container(
+    container_id: str,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator", "Developer"])),
+):
+    emit_notification(
+        db,
+        title="Pod Restarted",
+        message=f"Kubernetes pod '{container_id}' restart signal sent. Health probe passing.",
+        severity="INFO",
+        source="ArvOperations",
+        user_id=current_user.id,
+        workspace_id=current_user.workspace_id or "default",
+    )
     return {"message": f"Pod {container_id} restart signal sent. Health probe passing."}
 
 @router.post("/containers/{container_id}/stop", summary="Stop individual pod")
-def stop_container(container_id: str, workspace_id: Optional[str] = Header(None, alias="x-workspace-id")):
-    ws = _get_workspace_store(workspace_id)
-    for c in ws["containers"]:
-        if c["id"] == container_id:
-            c["status"] = "STOPPED"
+def stop_container(
+    container_id: str,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator", "Developer"])),
+):
+    emit_notification(
+        db,
+        title="Pod Stopped",
+        message=f"Kubernetes pod '{container_id}' received termination signal.",
+        severity="WARNING",
+        source="ArvOperations",
+        user_id=current_user.id,
+        workspace_id=current_user.workspace_id or "default",
+    )
     return {"message": f"Pod {container_id} terminated."}
 
 @router.post("/containers/{container_id}/action", summary="Perform container action (start/stop/restart)")
@@ -906,49 +615,35 @@ def container_action(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator", "Developer"])),
 ):
-    ws = _get_workspace_store(workspace_id)
-    target = None
-    for c in ws["containers"]:
-        if c["id"] == container_id:
-            target = c
-            if body.action == "stop":
-                c["status"] = "STOPPED"
-            elif body.action in ["start", "restart"]:
-                c["status"] = "RUNNING"
-                if body.action == "restart":
-                    c["restarts"] = (c.get("restarts") or 0) + 1
-            break
-
-    name = target["name"] if target else container_id
     emit_notification(
         db,
         title=f"Container {body.action.capitalize()}ed",
-        message=f"Container '{name}' action '{body.action}' completed successfully.",
+        message=f"Container '{container_id}' action '{body.action}' completed successfully.",
         severity="INFO",
         source="ArvOperations",
         user_id=current_user.id,
-        workspace_id=workspace_id or "default",
+        workspace_id=workspace_id or current_user.workspace_id or "default",
     )
-
-    return {"message": f"Container {name} {body.action} executed successfully."}
+    return {"message": f"Container {container_id} {body.action} executed successfully."}
 
 @router.get("/containers/{container_id}/logs", summary="Get logs for a specific pod")
 def get_container_logs(
     container_id: str,
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
     limit: int = 50,
+    current_user: User = Depends(get_current_user),
 ):
-    ws = _get_workspace_store(workspace_id)
-    logs = ws.get("logs", [])
-    pod_logs = [l for l in logs if container_id in l.get("message", "") or container_id in l.get("service", "")]
-    if not pod_logs:
-        now = datetime.utcnow()
-        pod_logs = [
-            {"timestamp": (now - timedelta(seconds=i * 10)).isoformat() + "Z", "level": "INFO", "service": container_id, "message": f"Container {container_id} stdout: Worker loop tick {i} - status OK"}
-            for i in range(10)
-        ]
-    return pod_logs[:limit]
-
+    now = datetime.utcnow()
+    pod_logs = [
+        {
+            "timestamp": (now - timedelta(seconds=i * 12)).isoformat() + "Z",
+            "level": "INFO",
+            "service": container_id,
+            "message": f"[{container_id}] Worker loop heartbeat tick #{100 - i} — health probe 200 OK, memory nominal"
+        }
+        for i in range(min(limit, 20))
+    ]
+    return pod_logs
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 4. Log Explorer Stream
@@ -960,14 +655,32 @@ def get_logs(
     level: Optional[str] = None,
     query: Optional[str] = None,
     limit: int = 100,
-    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    ws = _get_workspace_store(workspace_id)
-    logs = ws["logs"]
+    from app.services.arvgate.models import AuditLog
+    ws_id = current_user.workspace_id or workspace_id or "default"
+    
+    audit_query = db.query(AuditLog)
+    if (current_user.role or "").strip().lower() not in ["superadmin", "admin"]:
+        audit_query = audit_query.filter(AuditLog.workspace_id == ws_id)
+    audit_records = audit_query.order_by(AuditLog.timestamp.desc()).limit(limit).all()
+
+    logs = []
+    for a in audit_records:
+        logs.append({
+            "id": f"log-{a.id[:8]}",
+            "timestamp": a.timestamp.isoformat() + "Z" if a.timestamp else datetime.utcnow().isoformat() + "Z",
+            "level": "INFO" if "FAIL" not in a.action else "ERROR",
+            "service": a.resource or "ArvPlatform",
+            "message": f"{a.action}: {a.details or a.user_email} (IP: {a.ip_address})"
+        })
+
     if service and service != "all":
         logs = [l for l in logs if l.get("service") == service]
     if level and level != "all":
-        logs = [l for l in logs if l.get("level").upper() == level.upper()]
+        logs = [l for l in logs if l.get("level", "").upper() == level.upper()]
     if query:
         q = query.lower()
         logs = [l for l in logs if q in l.get("message", "").lower() or q in l.get("service", "").lower()]
@@ -980,13 +693,24 @@ def get_logs(
 @router.get("/incidents", summary="List active and past incidents")
 def list_incidents(
     status_filter: Optional[str] = Query(None, alias="status"),
-    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    ws = _get_workspace_store(workspace_id)
-    incidents = ws["incidents"]
+    query = db.query(IncidentRecord)
+    if (current_user.role or "").strip().lower() not in ["superadmin", "admin"]:
+        query = query.filter(
+            (IncidentRecord.user_id == current_user.id) |
+            (IncidentRecord.workspace_id == current_user.workspace_id)
+        )
+    elif workspace_id:
+        query = query.filter(IncidentRecord.workspace_id == workspace_id)
+
     if status_filter and status_filter != "all":
-        incidents = [i for i in incidents if i["status"].lower() == status_filter.lower()]
-    return incidents
+        query = query.filter(IncidentRecord.status.ilike(status_filter))
+
+    incidents = query.order_by(IncidentRecord.detected_at.desc()).all()
+    return [i.to_dict() for i in incidents]
 
 @router.post("/incidents", status_code=status.HTTP_201_CREATED, summary="Declare new incident")
 def declare_incident(
@@ -995,24 +719,35 @@ def declare_incident(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator"])),
 ):
-    ws = _get_workspace_store(workspace_id)
-    inc_id = f"inc-2026-{random.randint(100, 999)}"
-    now = datetime.utcnow().isoformat() + "Z"
-    new_inc = {
-        "id": inc_id,
-        "title": body.title,
-        "severity": body.severity,
-        "status": "Detected",
-        "affected_service": body.affected_service,
-        "commander": body.commander,
-        "detected_at": now,
-        "resolved_at": None,
-        "timeline": [
-            {"timestamp": now, "event": f"Incident declared: {body.initial_note or body.title}"}
-        ],
-        "rca_notes": ""
+    inc_id = f"inc-2026-{uuid.uuid4().hex[:4]}"
+    now_dt = datetime.utcnow()
+    ws_id = current_user.workspace_id or workspace_id or "default"
+    
+    initial_event = {
+        "timestamp": now_dt.isoformat() + "Z",
+        "event": f"Incident declared: {body.initial_note or body.title}",
+        "note": body.initial_note or body.title,
+        "author": body.commander or current_user.full_name or "Commander",
+        "type": "INITIAL"
     }
-    ws["incidents"].insert(0, new_inc)
+    
+    new_inc = IncidentRecord(
+        id=inc_id,
+        user_id=current_user.id,
+        workspace_id=ws_id,
+        title=body.title,
+        severity=body.severity,
+        status="Detected",
+        affected_service=body.affected_service,
+        commander=body.commander or current_user.full_name or "Platform Commander",
+        detected_at=now_dt,
+        resolved_at=None,
+        timeline=json.dumps([initial_event]),
+        rca_notes=""
+    )
+    db.add(new_inc)
+    db.commit()
+    db.refresh(new_inc)
 
     emit_notification(
         db,
@@ -1021,10 +756,10 @@ def declare_incident(
         severity="CRITICAL" if body.severity in ["P1", "critical"] else "WARNING",
         source="ArvOperations",
         user_id=current_user.id,
-        workspace_id=workspace_id or "default",
+        workspace_id=ws_id,
     )
 
-    return new_inc
+    return new_inc.to_dict()
 
 @router.post("/incidents/{incident_id}/transition", summary="Transition incident lifecycle state")
 def transition_incident(
@@ -1034,62 +769,103 @@ def transition_incident(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator"])),
 ):
-    ws = _get_workspace_store(workspace_id)
-    for inc in ws["incidents"]:
-        if inc["id"] == incident_id:
-            inc["status"] = body.status
-            now = datetime.utcnow().isoformat() + "Z"
-            note = body.note or f"Status transitioned to {body.status}"
-            inc["timeline"].append({"timestamp": now, "event": note})
-            if body.status == "Resolved":
-                inc["resolved_at"] = now
+    inc = db.query(IncidentRecord).filter(IncidentRecord.id == incident_id).first()
+    if not inc:
+        raise HTTPException(status_code=404, detail="Incident not found")
 
-            emit_notification(
-                db,
-                title=f"Incident {body.status}",
-                message=f"Incident '{inc['title']}' moved to status '{body.status}'.",
-                severity="INFO" if body.status == "Resolved" else "WARNING",
-                source="ArvOperations",
-                user_id=current_user.id,
-                workspace_id=workspace_id or "default",
-            )
+    # IDOR check
+    if (current_user.role or "").strip().lower() not in ["superadmin", "admin"]:
+        if inc.workspace_id != current_user.workspace_id and inc.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied: incident belongs to another workspace")
 
-            return inc
-    raise HTTPException(status_code=404, detail="Incident not found")
+    inc.status = body.status
+    now_dt = datetime.utcnow()
+    now_iso = now_dt.isoformat() + "Z"
+    note = body.note or f"Status transitioned to {body.status}"
+    
+    try:
+        tl = json.loads(inc.timeline) if inc.timeline else []
+    except Exception:
+        tl = []
+        
+    tl.append({"timestamp": now_iso, "event": note, "note": note, "author": current_user.full_name or "Commander", "type": "TRANSITION"})
+    inc.timeline = json.dumps(tl)
+    if body.status == "Resolved":
+        inc.resolved_at = now_dt
+
+    db.commit()
+    db.refresh(inc)
+
+    emit_notification(
+        db,
+        title=f"Incident {body.status}",
+        message=f"Incident '{inc.title}' moved to status '{body.status}'.",
+        severity="INFO" if body.status == "Resolved" else "WARNING",
+        source="ArvOperations",
+        user_id=current_user.id,
+        workspace_id=inc.workspace_id or "default",
+    )
+
+    return inc.to_dict()
 
 @router.post("/incidents/{incident_id}/timeline", summary="Post event to incident war-room timeline")
 def post_incident_timeline(
     incident_id: str, 
     body: IncidentTimelineEvent,
-    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator"])),
 ):
-    ws = _get_workspace_store(workspace_id)
+    inc = db.query(IncidentRecord).filter(IncidentRecord.id == incident_id).first()
+    if not inc:
+        raise HTTPException(status_code=404, detail="Incident not found")
+
+    # IDOR check
+    if (current_user.role or "").strip().lower() not in ["superadmin", "admin"]:
+        if inc.workspace_id != current_user.workspace_id and inc.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied: incident belongs to another workspace")
+
     ev_text = body.event or body.note or "Timeline note logged"
-    for inc in ws["incidents"]:
-        if inc["id"] == incident_id:
-            now = datetime.utcnow().isoformat() + "Z"
-            inc["timeline"].append({
-                "timestamp": now,
-                "event": ev_text,
-                "note": ev_text,
-                "author": body.author or "Incident Commander",
-                "type": body.type or "UPDATE"
-            })
-            return inc
-    raise HTTPException(status_code=404, detail="Incident not found")
+    now_iso = datetime.utcnow().isoformat() + "Z"
+    
+    try:
+        tl = json.loads(inc.timeline) if inc.timeline else []
+    except Exception:
+        tl = []
+        
+    tl.append({
+        "timestamp": now_iso,
+        "event": ev_text,
+        "note": ev_text,
+        "author": body.author or current_user.full_name or "Incident Commander",
+        "type": body.type or "UPDATE"
+    })
+    inc.timeline = json.dumps(tl)
+    db.commit()
+    db.refresh(inc)
+    return inc.to_dict()
 
 @router.post("/incidents/{incident_id}/rca", summary="Update Root Cause Analysis notes")
 def update_incident_rca(
     incident_id: str, 
     body: IncidentRCA,
-    workspace_id: Optional[str] = Header(None, alias="x-workspace-id")
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator"])),
 ):
-    ws = _get_workspace_store(workspace_id)
-    for inc in ws["incidents"]:
-        if inc["id"] == incident_id:
-            inc["rca_notes"] = body.rca_notes
-            return inc
-    raise HTTPException(status_code=404, detail="Incident not found")
+    inc = db.query(IncidentRecord).filter(IncidentRecord.id == incident_id).first()
+    if not inc:
+        raise HTTPException(status_code=404, detail="Incident not found")
+
+    # IDOR check
+    if (current_user.role or "").strip().lower() not in ["superadmin", "admin"]:
+        if inc.workspace_id != current_user.workspace_id and inc.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied: incident belongs to another workspace")
+
+    inc.rca_notes = body.rca_notes
+    db.commit()
+    db.refresh(inc)
+    return inc.to_dict()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 6. Automation Runbooks & Playbooks
@@ -1098,24 +874,40 @@ def update_incident_rca(
 @router.get("/automation/workflows", summary="List automation playbooks")
 def list_workflows(
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    ws = _get_workspace_store(workspace_id)
-    return ws["workflows"]
+    query = db.query(WorkflowRecord)
+    if (current_user.role or "").strip().lower() not in ["superadmin", "admin"]:
+        query = query.filter(
+            (WorkflowRecord.user_id == current_user.id) |
+            (WorkflowRecord.workspace_id == current_user.workspace_id)
+        )
+    elif workspace_id:
+        query = query.filter(WorkflowRecord.workspace_id == workspace_id)
+    workflows = query.order_by(WorkflowRecord.last_run.desc()).all()
+    return [w.to_dict() for w in workflows]
 
 @router.post("/automation/workflows/{workflow_id}/run", summary="Trigger runbook execution")
 def run_workflow(
     workflow_id: str, 
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator", "Developer"])),
 ):
-    ws = _get_workspace_store(workspace_id)
-    for wf in ws["workflows"]:
-        if wf["id"] == workflow_id:
-            wf["last_run"] = datetime.utcnow().isoformat() + "Z"
-            wf["run_count"] = (wf.get("run_count") or 0) + 1
-            return {"message": f"Runbook '{wf['name']}' executed successfully.", "duration": wf["duration"]}
-    raise HTTPException(status_code=404, detail="Workflow not found")
+    wf = db.query(WorkflowRecord).filter(WorkflowRecord.id == workflow_id).first()
+    if not wf:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    # IDOR check
+    if (current_user.role or "").strip().lower() not in ["superadmin", "admin"]:
+        if wf.workspace_id != current_user.workspace_id and wf.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied: workflow belongs to another workspace")
+
+    wf.last_run = datetime.utcnow()
+    wf.run_count = (wf.run_count or 0) + 1
+    db.commit()
+    return {"message": f"Runbook '{wf.name}' executed successfully.", "duration": wf.duration}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 7. Backups & Disaster Recovery
@@ -1124,10 +916,19 @@ def run_workflow(
 @router.get("/backups", summary="List backup snapshots")
 def list_backups(
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator"])),
 ):
-    ws = _get_workspace_store(workspace_id)
-    return ws["backups"]
+    query = db.query(BackupRecord)
+    if (current_user.role or "").strip().lower() not in ["superadmin", "admin"]:
+        query = query.filter(
+            (BackupRecord.user_id == current_user.id) |
+            (BackupRecord.workspace_id == current_user.workspace_id)
+        )
+    elif workspace_id:
+        query = query.filter(BackupRecord.workspace_id == workspace_id)
+    backups = query.order_by(BackupRecord.created_at.desc()).all()
+    return [b.to_dict() for b in backups]
 
 @router.post("/backups", status_code=status.HTTP_201_CREATED, summary="Create backup snapshot")
 def create_backup(
@@ -1136,36 +937,39 @@ def create_backup(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator"])),
 ):
-    ws = _get_workspace_store(workspace_id)
-    bkp_id = f"snap-{random.randint(1000, 9999)}"
-    now = datetime.utcnow()
-    new_bkp = {
-        "id": bkp_id,
-        "name": f"{body.resource_name.split(' ')[0]}-snap-{now.strftime('%Y%m%d%H%M')}",
-        "resource_type": body.resource_type,
-        "resource_name": body.resource_name,
-        "size_mb": random.randint(1200, 8500),
-        "status": "COMPLETED",
-        "created_at": now.isoformat() + "Z",
-        "retention_days": body.retention_days,
-        "restore_point": (now - timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M:%S UTC"),
-        "region": "arv-us-east-1",
-        "encryption": "AES-256",
-    }
-    ws = _get_workspace_store(workspace_id)
-    ws["backups"].insert(0, new_bkp)
+    bkp_id = f"snap-{uuid.uuid4().hex[:8]}"
+    now_dt = datetime.utcnow()
+    ws_id = current_user.workspace_id or workspace_id or "default"
+
+    new_bkp = BackupRecord(
+        id=bkp_id,
+        user_id=current_user.id,
+        workspace_id=ws_id,
+        resource_name=body.resource_name,
+        resource_type=body.resource_type,
+        size_gb=round(random.uniform(1.2, 8.5), 2),
+        region="arv-us-east-1",
+        status="COMPLETED",
+        retention_days=body.retention_days,
+        storage_tier="ArvStore Hot Storage (AES-256)",
+        checksum=f"sha256:{uuid.uuid4().hex[:16]}",
+        created_at=now_dt,
+    )
+    db.add(new_bkp)
+    db.commit()
+    db.refresh(new_bkp)
 
     emit_notification(
         db,
         title="Backup Snapshot Created",
-        message=f"Disaster recovery snapshot '{new_bkp['name']}' created for {body.resource_name}.",
+        message=f"Disaster recovery snapshot '{bkp_id}' created for {body.resource_name}.",
         severity="INFO",
         source="ArvOperations",
         user_id=current_user.id,
-        workspace_id=workspace_id or "default",
+        workspace_id=ws_id,
     )
 
-    return new_bkp
+    return new_bkp.to_dict()
 
 @router.post("/backups/{backup_id}/restore", summary="Restore from backup snapshot")
 def restore_backup(
@@ -1174,20 +978,25 @@ def restore_backup(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator"])),
 ):
-    ws = _get_workspace_store(workspace_id)
-    for bkp in ws["backups"]:
-        if bkp["id"] == backup_id:
-            emit_notification(
-                db,
-                title="Backup Restore Initiated",
-                message=f"Restoration from snapshot '{bkp['name']}' completed successfully.",
-                severity="INFO",
-                source="ArvOperations",
-                user_id=current_user.id,
-                workspace_id=workspace_id or "default",
-            )
-            return {"message": f"Restore completed successfully from snapshot {backup_id}."}
-    raise HTTPException(status_code=404, detail="Backup snapshot not found")
+    bkp = db.query(BackupRecord).filter(BackupRecord.id == backup_id).first()
+    if not bkp:
+        raise HTTPException(status_code=404, detail="Backup snapshot not found")
+
+    # IDOR check
+    if (current_user.role or "").strip().lower() not in ["superadmin", "admin"]:
+        if bkp.workspace_id != current_user.workspace_id and bkp.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied: backup belongs to another workspace")
+
+    emit_notification(
+        db,
+        title="Backup Restore Initiated",
+        message=f"Restoration from snapshot '{bkp.resource_name}' completed successfully.",
+        severity="INFO",
+        source="ArvOperations",
+        user_id=current_user.id,
+        workspace_id=bkp.workspace_id or "default",
+    )
+    return {"message": f"Restore completed successfully from snapshot {backup_id}."}
 
 @router.delete("/backups/{backup_id}", summary="Delete backup snapshot")
 def delete_backup(
@@ -1196,17 +1005,27 @@ def delete_backup(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(["SuperAdmin", "Admin"])),
 ):
-    ws = _get_workspace_store(workspace_id)
-    ws["backups"] = [b for b in ws["backups"] if b["id"] != backup_id]
+    bkp = db.query(BackupRecord).filter(BackupRecord.id == backup_id).first()
+    if not bkp:
+        raise HTTPException(status_code=404, detail="Backup snapshot not found")
+
+    # IDOR check
+    if (current_user.role or "").strip().lower() not in ["superadmin", "admin"]:
+        if bkp.workspace_id != current_user.workspace_id and bkp.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied: backup belongs to another workspace")
+
+    res_name = bkp.resource_name
+    db.delete(bkp)
+    db.commit()
 
     emit_notification(
         db,
         title="Backup Snapshot Deleted",
-        message=f"Backup snapshot '{backup_id}' removed from disaster recovery storage.",
+        message=f"Backup snapshot '{backup_id}' ({res_name}) removed from disaster recovery storage.",
         severity="INFO",
         source="ArvOperations",
         user_id=current_user.id,
-        workspace_id=workspace_id or "default",
+        workspace_id=current_user.workspace_id or "default",
     )
 
     return {"message": f"Backup snapshot {backup_id} deleted"}
@@ -1315,11 +1134,6 @@ def get_infrastructure_inventory(
             "uptime": "99.99%",
             "tags": {"environment": a.environment}
         })
-
-    # If empty, fallback to seed workspace data
-    if not resources:
-        ws = _get_workspace_store(workspace_id)
-        resources = ws["infrastructure"]
 
     return {
         "workspace": current_user.workspace_name or "Production Cloud Ops",
@@ -1473,11 +1287,10 @@ def list_notifications(
     query = db.query(Notification)
     user_role = (current_user.role or "").strip().lower()
     if user_role not in ["superadmin", "admin"]:
-        query = query.filter((Notification.user_id == current_user.id) | (Notification.user_id == "system"))
+        query = query.filter((Notification.user_id == current_user.id) | (Notification.user_id == "usr-system"))
+    elif workspace_id:
+        query = query.filter(Notification.workspace_id == workspace_id)
     notifs = query.order_by(Notification.created_at.desc()).limit(50).all()
-    if not notifs:
-        ws = _get_workspace_store(workspace_id)
-        return ws.get("notifications", [])
     return [n.to_dict() for n in notifs]
 
 
@@ -1489,16 +1302,15 @@ def mark_notification_read(
     current_user: User = Depends(get_current_user),
 ):
     notif = db.query(Notification).filter(Notification.id == notif_id).first()
-    if notif:
-        notif.read = True
-        db.commit()
-        return notif.to_dict()
-    ws = _get_workspace_store(workspace_id)
-    for n in ws.get("notifications", []):
-        if n["id"] == notif_id:
-            n["read"] = True
-            return n
-    return {"message": "Notification updated"}
+    if not notif:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    # IDOR check
+    if (current_user.role or "").strip().lower() not in ["superadmin", "admin"]:
+        if notif.user_id != current_user.id and notif.workspace_id != current_user.workspace_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+    notif.read = True
+    db.commit()
+    return notif.to_dict()
 
 
 @router.post("/notifications/read-all", summary="Mark all notifications as read")
@@ -1513,9 +1325,6 @@ def mark_all_notifications_read(
         query = query.filter(Notification.user_id == current_user.id)
     query.update({Notification.read: True})
     db.commit()
-    ws = _get_workspace_store(workspace_id)
-    for n in ws.get("notifications", []):
-        n["read"] = True
     return {"message": "All notifications marked as read"}
 
 
@@ -1537,10 +1346,55 @@ def get_billing_summary(
         (InvoiceRecord.user_id == current_user.id) | (InvoiceRecord.workspace_id == ws_id)
     ).count()
 
-    ws = _get_workspace_store(workspace_id)
+    vm_count = db.query(ComputeInstance).filter((ComputeInstance.workspace_id == ws_id) | (ComputeInstance.user_id == current_user.id)).count()
+    app_count = db.query(ApplicationRecord).filter((ApplicationRecord.workspace_id == ws_id) | (ApplicationRecord.user_id == current_user.id)).count()
+    db_count = db.query(DatabaseInstance).filter((DatabaseInstance.workspace_id == ws_id) | (DatabaseInstance.user_id == current_user.id)).count()
+    s3_count = db.query(StorageBucket).filter((StorageBucket.workspace_id == ws_id) | (StorageBucket.user_id == current_user.id)).count()
+
+    vcpus_used = max(2, vm_count * 2 + app_count * 1)
+    ram_gb_used = max(4, vm_count * 4 + app_count * 2)
+    storage_gb_used = max(10, vm_count * 20 + db_count * 50 + s3_count * 10)
+
+    latest_inv = db.query(InvoiceRecord).filter(
+        (InvoiceRecord.user_id == current_user.id) | (InvoiceRecord.workspace_id == ws_id)
+    ).order_by(InvoiceRecord.created_at.desc()).first()
+
+    plan_name = "Team Cloud Operations"
+    plan_code = "team"
+    price_inr = 2499
+    if latest_inv:
+        if "Starter" in latest_inv.period:
+            plan_name = "Developer Cloud Starter"
+            plan_code = "developer"
+            price_inr = 499
+        elif "Enterprise" in latest_inv.period:
+            plan_name = "Dedicated Enterprise Control Plane"
+            plan_code = "enterprise"
+            price_inr = 14999
+
     return {
-        "workspace_name": current_user.workspace_name or ws["workspace_name"],
-        "usage": ws["usage"],
+        "workspace_name": current_user.workspace_name or f"{current_user.full_name}'s Workspace",
+        "usage": {
+            "plan_name": plan_name,
+            "plan_code": plan_code,
+            "billing_cycle": "Monthly",
+            "renewal_date": (datetime.utcnow() + timedelta(days=24)).strftime("%B %d, %Y"),
+            "price_inr": price_inr,
+            "price_usd": round(price_inr / 83.0, 2),
+            "currency": "INR",
+            "metrics": {
+                "vcpu_used": vcpus_used,
+                "vcpu_limit": 64 if plan_code == "team" else (8 if plan_code == "developer" else 256),
+                "ram_gb_used": ram_gb_used,
+                "ram_gb_limit": 128 if plan_code == "team" else (16 if plan_code == "developer" else 512),
+                "storage_gb_used": storage_gb_used,
+                "storage_gb_limit": 5000 if plan_code == "team" else (500 if plan_code == "developer" else 25000),
+                "bandwidth_gb_used": 142,
+                "bandwidth_gb_limit": 2000,
+                "api_calls_current": 184520,
+                "api_calls_limit": 5000000,
+            }
+        },
         "payment_methods_count": max(1, pm_count),
         "invoices_count": max(1, inv_count)
     }
@@ -2015,15 +1869,6 @@ def change_subscription_plan(
     }
     target = plan_map.get(body.plan_code.lower(), plan_map["team"])
 
-    # Update in-memory workspace store
-    ws = _get_workspace_store(workspace_id)
-    ws["usage"]["plan_name"] = target["name"]
-    ws["usage"]["plan_code"] = body.plan_code.lower()
-    ws["usage"]["price_inr"] = target["price"]
-    ws["usage"]["metrics"]["vcpu_limit"] = target["vcpu"]
-    ws["usage"]["metrics"]["ram_gb_limit"] = target["ram"]
-    ws["usage"]["metrics"]["storage_gb_limit"] = target["storage"]
-
     # Generate persistent invoice in PostgreSQL
     inv_id = f"INV-{now.strftime('%Y%m%d')}-{uuid.uuid4().hex[:4].upper()}"
     new_inv = InvoiceRecord(
@@ -2051,9 +1896,31 @@ def change_subscription_plan(
         workspace_id=ws_id,
     )
 
+    usage_data = {
+        "plan_name": target["name"],
+        "plan_code": body.plan_code.lower(),
+        "billing_cycle": "Monthly",
+        "renewal_date": (now + timedelta(days=30)).strftime("%B %d, %Y"),
+        "price_inr": target["price"],
+        "price_usd": round(target["price"] / 83.0, 2),
+        "currency": "INR",
+        "metrics": {
+            "vcpu_used": 4,
+            "vcpu_limit": target["vcpu"],
+            "ram_gb_used": 8,
+            "ram_gb_limit": target["ram"],
+            "storage_gb_used": 25,
+            "storage_gb_limit": target["storage"],
+            "bandwidth_gb_used": 150,
+            "bandwidth_gb_limit": 2000,
+            "api_calls_current": 190000,
+            "api_calls_limit": 5000000,
+        }
+    }
+
     return {
         "message": f"Plan updated to {target['name']}",
-        "usage": ws["usage"],
+        "usage": usage_data,
         "invoice": new_inv.to_dict()
     }
 

@@ -539,6 +539,38 @@ class InvoiceRecord(Base):
         }
 
 
+class ApiKeyRecord(Base):
+    __tablename__ = "api_keys"
+
+    id = Column(String(50), primary_key=True, index=True)
+    user_id = Column(String(36), index=True, nullable=False)
+    workspace_id = Column(String(50), index=True, nullable=False)
+    name = Column(String(100), nullable=False)
+    key_hash = Column(String(64), index=True, nullable=False)
+    key_prefix = Column(String(20), nullable=False)
+    scopes = Column(Text, default='["*"]')
+    is_active = Column(Boolean, default=True, nullable=False)
+    last_used_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    def to_dict(self) -> dict:
+        try:
+            parsed_scopes = json.loads(self.scopes) if self.scopes else ["*"]
+        except Exception:
+            parsed_scopes = ["*"]
+        return {
+            "id": self.id,
+            "name": self.name,
+            "key_prefix": self.key_prefix,
+            "scopes": parsed_scopes,
+            "is_active": self.is_active,
+            "last_used_at": self.last_used_at.isoformat() + "Z" if self.last_used_at else None,
+            "expires_at": self.expires_at.isoformat() + "Z" if self.expires_at else None,
+            "created_at": self.created_at.isoformat() + "Z" if self.created_at else None,
+        }
+
+
 def emit_notification(
     db,
     user_id: Optional[str] = None,

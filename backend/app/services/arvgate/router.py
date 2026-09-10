@@ -16,13 +16,20 @@ from app.services.arvgate.schemas import (
     UserResponse, AuditLogResponse, PasswordResetRequest, PasswordResetConfirm,
     ProfileUpdateRequest, PasswordChangeRequest
 )
+import hashlib
 from app.core.config import settings
-from app.core.cloud_models import InvitationRecord, emit_notification
+from app.core.rate_limit import rate_limiter
+from app.core.cloud_models import InvitationRecord, ApiKeyRecord, emit_notification
 from app.services.arvgate.dependencies import get_current_user, require_roles
 
 router = APIRouter(prefix="/api/v1/auth", tags=["ArvGate — Identity & Access"])
 
 _reset_tokens: dict[str, dict] = {}
+
+class ApiKeyCreateRequest(BaseModel):
+    name: str
+    scopes: Optional[List[str]] = ["*"]
+    expires_in_days: Optional[int] = 90
 
 class RoleUpdateRequest(BaseModel):
     role: str
@@ -54,7 +61,12 @@ def log_audit(db: Session, email: str, action: str, resource: str, request: Requ
     db.add(audit)
     db.commit()
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(rate_limiter("register", max_requests=3, window_seconds=60))]
+)
 def register_user(user_in: UserRegister, request: Request, db: Session = Depends(get_db)):
     clean_email = str(user_in.email).strip().lower()
     existing = db.query(User).filter(func.lower(User.email) == clean_email).first()
@@ -98,12 +110,9 @@ def register_user(user_in: UserRegister, request: Request, db: Session = Depends
         assigned_role = pending_invite.role
         pending_invite.status = "ACCEPTED"
     else:
-        workspace_id = f"ws-{random.randint(10000, 99999)}"
-        workspace_name = user_in.workspace_name.strip() if user_in.workspace_name else f"{user_in.full_name}'s Workspace"
+        workspace_id = generate_workspace_id()
+        workspace_name = user_in.workspace_name.strip() if user_in.workspace_name and user_in.workspace_name.strip() else f"{user_in.full_name.strip()}'s Workspace"
         assigned_role = "Developer"
-
-    hashed_pwd = get_password_hash(user_in.password)
-    mfa_secret = generate_mfa_secret()
 
     new_user = User(
         id=user_id,
@@ -112,10 +121,11 @@ def register_user(user_in: UserRegister, request: Request, db: Session = Depends
         workspace_name=workspace_name,
         email=clean_email,
         full_name=user_in.full_name.strip(),
-        hashed_password=hashed_pwd,
+        hashed_password=get_password_hash(user_in.password),
         role=assigned_role,
-        mfa_secret=mfa_secret,
-        is_mfa_enabled=False
+        is_active=True,
+        is_mfa_enabled=False,
+        mfa_secret=generate_mfa_secret()
     )
     db.add(new_user)
     db.commit()
@@ -124,7 +134,11 @@ def register_user(user_in: UserRegister, request: Request, db: Session = Depends
     log_audit(db, new_user.email, "USER_REGISTER", "ArvGate", request, f"Registered user {new_user.full_name} in workspace '{workspace_name}' ({workspace_id}) as {assigned_role}", workspace_id=workspace_id)
     return new_user
 
-@router.post("/login", response_model=TokenResponse)
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+    dependencies=[Depends(rate_limiter("login", max_requests=5, window_seconds=60))]
+)
 def login_user(login_in: UserLogin, request: Request, db: Session = Depends(get_db)):
     identifier = login_in.email.strip()
     
@@ -662,7 +676,10 @@ def update_workspace_member_role(
         }
     }
 
-@router.post("/password-reset/request")
+@router.post(
+    "/password-reset/request",
+    dependencies=[Depends(rate_limiter("password_reset", max_requests=3, window_seconds=60))]
+)
 def request_password_reset(req: PasswordResetRequest, request: Request, db: Session = Depends(get_db)):
     email_clean = req.email.strip().lower()
     user = db.query(User).filter(func.lower(User.email) == email_clean).first()
@@ -680,7 +697,10 @@ def request_password_reset(req: PasswordResetRequest, request: Request, db: Sess
         "expires_in_minutes": 15
     }
 
-@router.post("/password-reset/confirm")
+@router.post(
+    "/password-reset/confirm",
+    dependencies=[Depends(rate_limiter("password_reset", max_requests=3, window_seconds=60))]
+)
 def confirm_password_reset(req: PasswordResetConfirm, request: Request, db: Session = Depends(get_db)):
     email_clean = req.email.strip().lower()
     user = db.query(User).filter(func.lower(User.email) == email_clean).first()
@@ -739,3 +759,73 @@ def get_audit_logs(
     else:
         logs = db.query(AuditLog).filter(AuditLog.workspace_id == current_user.workspace_id).order_by(AuditLog.timestamp.desc()).limit(100).all()
     return logs
+
+@router.get("/api-keys")
+def list_api_keys(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """List all active API keys for the current user's workspace."""
+    keys = db.query(ApiKeyRecord).filter(
+        ApiKeyRecord.workspace_id == current_user.workspace_id,
+        ApiKeyRecord.is_active == True
+    ).order_by(ApiKeyRecord.created_at.desc()).all()
+    return [k.to_dict() for k in keys]
+
+@router.post("/api-keys", status_code=status.HTTP_201_CREATED)
+def create_api_key(
+    req: ApiKeyCreateRequest,
+    request: Request,
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Developer"])),
+    db: Session = Depends(get_db)
+):
+    """Generate a scoped API key for third-party integrations (CI/CD, CLI, agents)."""
+    raw_secret = f"arv_live_{secrets.token_urlsafe(24)}"
+    key_hash = hashlib.sha256(raw_secret.encode("utf-8")).hexdigest()
+    key_prefix = raw_secret[:13]
+    
+    expires_at = None
+    if req.expires_in_days and req.expires_in_days > 0:
+        expires_at = datetime.datetime.utcnow() + datetime.timedelta(days=req.expires_in_days)
+        
+    api_key_record = ApiKeyRecord(
+        id=f"key-{uuid.uuid4().hex[:12]}",
+        user_id=current_user.id,
+        workspace_id=current_user.workspace_id,
+        name=req.name.strip() or "Default API Key",
+        key_hash=key_hash,
+        key_prefix=key_prefix,
+        scopes=json.dumps(req.scopes or ["*"]),
+        is_active=True,
+        expires_at=expires_at,
+        created_at=datetime.datetime.utcnow()
+    )
+    db.add(api_key_record)
+    db.commit()
+    db.refresh(api_key_record)
+    
+    log_audit(db, current_user.email, "API_KEY_CREATE", "Security", request, f"Created API key '{api_key_record.name}' with prefix {key_prefix}", workspace_id=current_user.workspace_id)
+    
+    data = api_key_record.to_dict()
+    data["secret_key"] = raw_secret
+    return data
+
+@router.delete("/api-keys/{key_id}")
+def revoke_api_key(
+    key_id: str,
+    request: Request,
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin"])),
+    db: Session = Depends(get_db)
+):
+    """Revoke an API key with workspace isolation check (IDOR defense)."""
+    key = db.query(ApiKeyRecord).filter(
+        ApiKeyRecord.id == key_id,
+        ApiKeyRecord.workspace_id == current_user.workspace_id
+    ).first()
+    if not key:
+        raise HTTPException(status_code=404, detail="API key not found in this workspace")
+        
+    key.is_active = False
+    db.commit()
+    log_audit(db, current_user.email, "API_KEY_REVOKE", "Security", request, f"Revoked API key '{key.name}' ({key.id})", workspace_id=current_user.workspace_id)
+    return {"message": f"API key '{key.name}' has been successfully revoked"}

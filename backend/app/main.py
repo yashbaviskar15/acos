@@ -5,7 +5,7 @@ import datetime
 from contextlib import asynccontextmanager
 from sqlalchemy import text
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import make_asgi_app
 
@@ -381,11 +381,21 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Configure CORS. Allows specified origins + all *.vercel.app preview deployments.
+# HTTP Security Headers Middleware (OWASP recommended defense)
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
+# Configure CORS: explicitly allowed production origins + Aravanta Vercel previews only
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
-    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_origin_regex=r"https://(aravantacos|acos)(-[a-z0-9-]+)?\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
