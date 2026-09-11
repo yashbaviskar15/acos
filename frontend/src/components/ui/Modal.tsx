@@ -251,7 +251,7 @@ export const ModalClose: React.FC<ModalCloseProps> = ({
         'absolute top-4 right-4 z-10 p-2 rounded-lg',
         'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200',
         'hover:bg-slate-100 dark:hover:bg-brandObsidian-700',
-        'focus:outline-none focus-visible:ring-2 focus-visible:ring-brandGold-500/50',
+        'focus:outline-none focus-visible:ring-2 focus-visible:ring-brandGold-500/30',
         'transition-colors',
         className,
       ].join(' ')}

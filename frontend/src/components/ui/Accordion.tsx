@@ -154,8 +154,8 @@ export const AccordionHeader: React.FC<AccordionHeaderProps> = ({
         className={[
           'w-full flex items-center justify-between gap-4 px-6 py-5 text-left',
           'text-sm font-semibold text-slate-900 dark:text-slate-100',
-          'hover:bg-slate-50 dark:hover:bg-brandObsidian-700/40 transition-colors',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandGold-500/50 focus-visible:ring-inset',
+          'hover:bg-brandGold-50 dark:hover:bg-brandObsidian-700/40 transition-colors',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandGold-500/30 focus-visible:ring-inset',
           className,
         ].join(' ')}
       >
@@ -163,7 +163,7 @@ export const AccordionHeader: React.FC<AccordionHeaderProps> = ({
         <motion.span
           animate={{ rotate: isOpen ? 180 : 0 }}
           transition={{ duration: 0.25, ease: 'easeOut' }}
-          className="shrink-0 text-brandGold-500"
+          className="shrink-0 text-brandGold-600"
         >
           <ChevronDown className="w-5 h-5" />
         </motion.span>

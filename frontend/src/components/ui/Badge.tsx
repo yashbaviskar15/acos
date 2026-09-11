@@ -22,7 +22,7 @@ const variantClasses: Record<BadgeVariant, string> = {
   default:
     'bg-slate-100 dark:bg-brandObsidian-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-brandObsidian-700',
   gold:
-    'bg-brandGold-500/10 text-brandGold-600 dark:text-brandGold-400 border border-brandGold-500/30',
+    'bg-brandGold-500/10 text-brandGold-700 border border-brandGold-500/30',
   success:
     'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25',
   warning:
@@ -43,7 +43,7 @@ const sizeClasses: Record<BadgeSize, string> = {
 
 const dotColors: Record<BadgeVariant, string> = {
   default: 'bg-slate-400',
-  gold: 'bg-brandGold-500',
+  gold: 'bg-brandGold-600',
   success: 'bg-emerald-500',
   warning: 'bg-amber-500',
   danger: 'bg-rose-500',

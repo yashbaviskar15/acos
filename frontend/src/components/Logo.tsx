@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 interface LogoProps {
   size?: 'sm' | 'md' | 'lg';
   showText?: boolean;
+  subtitle?: string;
   variant?: 'light' | 'dark' | 'auto';
   className?: string;
 }
@@ -10,6 +11,7 @@ interface LogoProps {
 export const Logo: React.FC<LogoProps> = ({ 
   size = 'md', 
   showText = true, 
+  subtitle = 'Cloud Platform & OS',
   variant = 'auto', 
   className = '' 
 }) => {
@@ -47,11 +49,11 @@ export const Logo: React.FC<LogoProps> = ({
 
   return (
     <div className={`flex items-center gap-3 select-none ${className}`}>
-      <div className={`relative ${dimensions} rounded-xl bg-white dark:bg-slate-900 p-1 flex items-center justify-center border border-slate-200 dark:border-slate-800 shadow-sm shrink-0 overflow-hidden`}>
+      <div className={`relative ${dimensions} rounded-xl bg-white dark:bg-brandObsidian-900 p-1 flex items-center justify-center border border-slate-200 dark:border-brandObsidian-800 shadow-sm shrink-0 overflow-hidden`}>
         <svg
           viewBox="0 0 24 24"
           fill="none"
-          className={`${iconInnerSizes} text-[#C6923B]`}
+          className={`${iconInnerSizes} text-brandGold-500`}
           stroke="currentColor"
           strokeWidth="2.2"
           strokeLinecap="round"
@@ -59,7 +61,7 @@ export const Logo: React.FC<LogoProps> = ({
           aria-hidden={imgOk ? true : false}
         >
           <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
-          <path d="M12 13v4" stroke="#C6923B" strokeWidth="2.5" />
+          <path d="M12 13v4" stroke="#B98B3B" strokeWidth="2.5" />
         </svg>
         <img
           src="/logo.png"
@@ -76,10 +78,10 @@ export const Logo: React.FC<LogoProps> = ({
       {showText && (
         <div className="flex flex-col">
           <h1 className={`font-black ${textSizes} leading-none tracking-tight ${textColorClass} font-sans`}>
-            Aravanta <span className="text-[#C6923B] dark:text-[#D4A347]">CloudOS</span>
+            Aravanta <span className="text-brandGold-500 dark:text-brandGold-400">Cloud OS</span>
           </h1>
           <span className={`text-[9px] ${subtextColorClass} font-mono font-bold tracking-widest uppercase mt-0.5`}>
-            Enterprise Console
+            {subtitle}
           </span>
         </div>
       )}

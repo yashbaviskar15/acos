@@ -31,6 +31,13 @@ import { DevelopersPage } from './pages/DevelopersPage';
 import { DocumentationPage } from './pages/DocumentationPage';
 import { PricingPage } from './pages/PricingPage';
 import { AboutPage } from './pages/AboutPage';
+import { CommunityPage } from './pages/CommunityPage';
+import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
+import { DisclaimerPage } from './pages/DisclaimerPage';
+import { TermsOfUsePage } from './pages/TermsOfUsePage';
+import { ContactUsPage } from './pages/ContactUsPage';
+import { FAQPage } from './pages/FAQPage';
+import { SitemapPage } from './pages/SitemapPage';
 import type { LandingView } from './components/ui/Navbar';
 import { CookieConsent } from './components/ui/CookieConsent';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -83,7 +90,27 @@ export default function App() {
   const [landingView, setLandingView] = useState<LandingView>(() => {
     try {
       const saved = localStorage.getItem('aravanta_landing_view') as LandingView | null;
-      if (saved && ['home', 'features', 'developers', 'documentation', 'pricing', 'about'].includes(saved)) {
+      const validViews: LandingView[] = [
+        'home',
+        'getting-started',
+        'features',
+        'developers',
+        'documentation',
+        'pricing',
+        'about',
+        'community',
+        'privacy',
+        'terms',
+        'disclaimer',
+        'sitemap',
+        'contact',
+        'faq',
+        'foundations',
+        'components',
+        'patterns',
+        'resources',
+      ];
+      if (saved && validViews.includes(saved)) {
         return saved;
       }
     } catch {
@@ -118,8 +145,27 @@ export default function App() {
 
   const handleUniversalNavigate = (target: string) => {
     setIsCommandPaletteOpen(false);
-    const validLandingViews: LandingView[] = ['home', 'features', 'developers', 'documentation', 'pricing', 'about'];
-    
+    const validLandingViews: LandingView[] = [
+      'home',
+      'getting-started',
+      'features',
+      'developers',
+      'documentation',
+      'pricing',
+      'about',
+      'community',
+      'privacy',
+      'terms',
+      'disclaimer',
+      'sitemap',
+      'contact',
+      'faq',
+      'foundations',
+      'components',
+      'patterns',
+      'resources',
+    ];
+
     if (validLandingViews.includes(target as LandingView)) {
       setLandingView(target as LandingView);
       setAuthViewState('landing');
@@ -195,7 +241,26 @@ export default function App() {
   }, [activeTab]);
 
   const handleNavigate = (view: LandingView) => {
-    const validViews: LandingView[] = ['home', 'features', 'developers', 'documentation', 'pricing', 'about'];
+    const validViews: LandingView[] = [
+      'home',
+      'getting-started',
+      'features',
+      'developers',
+      'documentation',
+      'pricing',
+      'about',
+      'community',
+      'privacy',
+      'terms',
+      'disclaimer',
+      'sitemap',
+      'contact',
+      'faq',
+      'foundations',
+      'components',
+      'patterns',
+      'resources',
+    ];
     if (validViews.includes(view)) {
       setLandingView(view);
       // Ensure we're in landing mode (not login/register)
@@ -277,6 +342,12 @@ export default function App() {
 
     let PageComponent: React.ComponentType<any>;
     switch (landingView) {
+      case 'home':
+        PageComponent = LandingPage;
+        break;
+      case 'getting-started':
+        PageComponent = DocumentationPage;
+        break;
       case 'features':
         PageComponent = FeaturesPage;
         break;
@@ -292,7 +363,33 @@ export default function App() {
       case 'about':
         PageComponent = AboutPage;
         break;
-      case 'home':
+      case 'community':
+        PageComponent = CommunityPage;
+        break;
+      case 'privacy':
+        PageComponent = PrivacyPolicyPage;
+        break;
+      case 'terms':
+        PageComponent = TermsOfUsePage;
+        break;
+      case 'disclaimer':
+        PageComponent = DisclaimerPage;
+        break;
+      case 'sitemap':
+        PageComponent = SitemapPage;
+        break;
+      case 'contact':
+        PageComponent = ContactUsPage;
+        break;
+      case 'faq':
+        PageComponent = FAQPage;
+        break;
+      case 'foundations':
+      case 'components':
+      case 'patterns':
+      case 'resources':
+        PageComponent = DocumentationPage;
+        break;
       default:
         PageComponent = LandingPage;
         break;

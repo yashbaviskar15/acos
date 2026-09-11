@@ -127,7 +127,7 @@ export const TabList: React.FC<TabListProps> = ({ className = '', children }) =>
       aria-orientation={orientation}
       onKeyDown={handleKeyDown}
       className={[
-        'inline-flex p-1 rounded-xl bg-slate-100 dark:bg-brandObsidian-800/70 border border-slate-200 dark:border-brandObsidian-700',
+        'inline-flex p-1 rounded-xl bg-brandGold-50 dark:bg-brandObsidian-800/70 border border-brandGold-100 dark:border-brandObsidian-700',
         orientation === 'vertical' ? 'flex-col' : 'flex-row w-auto',
         className,
       ].join(' ')}
@@ -170,10 +170,10 @@ export const Tab: React.FC<TabProps> = ({
       onClick={() => !disabled && setActiveTab(value)}
       className={[
         'relative z-10 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors duration-200 outline-none',
-        'focus-visible:ring-2 focus-visible:ring-brandGold-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-brandObsidian-950',
+        'focus-visible:ring-2 focus-visible:ring-brandGold-500/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-brandObsidian-950',
         isActive
-          ? 'text-brandGold-600 dark:text-brandGold-400'
-          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200',
+          ? 'text-brandGold-700 dark:text-brandGold-400'
+          : 'text-slate-600 dark:text-slate-400 hover:bg-brandGold-50 dark:hover:bg-brandObsidian-800/60 hover:text-slate-900 dark:hover:text-slate-200',
         disabled && 'opacity-50 cursor-not-allowed',
         className,
       ].join(' ')}
@@ -181,7 +181,7 @@ export const Tab: React.FC<TabProps> = ({
       {isActive && (
         <motion.span
           layoutId={`${baseId}-tab-indicator`}
-          className="absolute inset-0 rounded-lg bg-white dark:bg-brandObsidian-950 shadow-sm border border-slate-200 dark:border-brandObsidian-700"
+          className="absolute inset-0 rounded-lg bg-white dark:bg-brandObsidian-950 shadow-sm border border-brandGold-200 dark:border-brandObsidian-700"
           transition={{ type: 'spring', stiffness: 500, damping: 40 }}
         />
       )}

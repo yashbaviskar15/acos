@@ -13,8 +13,6 @@ import {
   Lock,
   Check,
   ChevronRight,
-  Play,
-  Sparkles,
   Globe2,
   BarChart3,
   Shield,
@@ -375,20 +373,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 variants={fadeUp}
                 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tighter leading-[1.02] text-slate-900 dark:text-white"
               >
-                Operate multi-cloud infrastructure from{' '}
-                <span className="bg-gradient-to-br from-brandGold-400 via-brandGold-500 to-brandGold-700 bg-clip-text text-transparent">
-                  one control plane
+                Aravanta{' '}
+                <span className="bg-gradient-to-br from-brandGold-400 via-brandGold-500 to-brandGold-600 bg-clip-text text-transparent">
+                  Cloud OS
                 </span>
-                .
+                <span className="block text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold text-slate-700 dark:text-slate-300 mt-2">
+                  The Unified Multi-Cloud Operating System
+                </span>
               </motion.h1>
 
               <motion.p
                 variants={fadeUp}
                 className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl mx-auto"
               >
-                Provision VMs and Kubernetes, ship code with GitOps safety gates, stream
-                sub-second telemetry, triage alerts, and auto-recover incidents — from a
-                single pane of glass with strict RBAC and immutable audit trails.
+                Orchestrate Kubernetes clusters, deploy virtual compute, manage distributed object stores,
+                and automate cloud SRE from a single sovereign control plane — with sub-second telemetry and zero vendor lock-in.
               </motion.p>
 
               <motion.div
@@ -399,44 +398,50 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   size="xl"
                   variant="primary"
                   onClick={onGoToRegister}
-                  rightIcon={<ArrowRight className="w-4.5 h-4.5" />}
+                  className="bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold shadow-lg shadow-brandGold-500/25 min-h-[48px]"
+                  rightIcon={<ArrowRight className="w-5 h-5" />}
                 >
-                  Launch workspace
+                  Get Started Free
                 </Button>
                 <Button
                   size="xl"
                   variant="outline"
-                  onClick={() =>
-                    document
-                      .getElementById('workflow')
-                      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                  }
-                  leftIcon={<Play className="w-4 h-4" />}
+                  onClick={() => onNavigate?.('documentation')}
+                  className="min-h-[48px] hover:border-brandGold-500/50 hover:text-brandGold-600 dark:hover:text-brandGold-400"
+                  leftIcon={<BookOpen className="w-4 h-4 text-brandGold-500" />}
                 >
-                  Take a tour
+                  Explore Platform
                 </Button>
               </motion.div>
 
               <motion.div
                 variants={fadeUp}
-                className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 pt-3 text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium"
+                className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-6 max-w-3xl mx-auto"
               >
-                <span className="inline-flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                  SOC2-ready architecture
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <HeartPulse className="w-4 h-4 text-emerald-500" />
-                  99.98% uptime
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <Shield className="w-4 h-4 text-emerald-500" />
-                  TOTP MFA
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-emerald-500" />
-                  No credit card
-                </span>
+                {[
+                  { value: '99.99%', label: 'Uptime SLA', icon: HeartPulse },
+                  { value: '< 10ms', label: 'Telemetry Latency', icon: Activity },
+                  { value: '100+', label: 'Cloud Integrations', icon: Cloud },
+                  { value: 'SOC 2 Type II', label: 'Enterprise Ready', icon: ShieldCheck },
+                ].map((stat) => {
+                  const StatIcon = stat.icon;
+                  return (
+                    <div
+                      key={stat.label}
+                      className="p-3.5 rounded-2xl border border-slate-200 dark:border-brandObsidian-700/80 bg-white/70 dark:bg-brandObsidian-900/60 backdrop-blur-sm text-center shadow-sm"
+                    >
+                      <div className="flex items-center justify-center gap-1.5 text-brandGold-500 dark:text-brandGold-400 mb-1">
+                        <StatIcon className="w-4 h-4" />
+                        <span className="text-xl font-black text-slate-900 dark:text-white tabular-nums">
+                          {stat.value}
+                        </span>
+                      </div>
+                      <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider font-mono">
+                        {stat.label}
+                      </div>
+                    </div>
+                  );
+                })}
               </motion.div>
             </motion.div>
 
@@ -654,60 +659,409 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
         </section>
 
-        {/* ── CAPABILITIES ── */}
+        {/* ── 1. ALTERNATING FEATURES SECTION (Responsive image-left / image-right layout) ── */}
         <section id="features" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="max-w-2xl space-y-4 mb-14">
-              <Badge variant="outline" size="md">
-                Product capabilities
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-24 sm:space-y-32">
+            <div className="text-center max-w-3xl mx-auto space-y-4">
+              <Badge variant="gold" size="md">
+                Core Capabilities
               </Badge>
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.1]">
-                Everything your team needs to operate production cloud services.
+                Engineered for High-Velocity Cloud Operations
               </h2>
               <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-                Eliminate fragmented dashboards with a unified operations plane designed
-                explicitly for day-2 cloud management, reliability engineering, and
-                cross-team governance.
+                Break free from fragmented cloud consoles. Aravanta Cloud OS unifies multi-cloud infrastructure, automated SRE, and delivery pipelines into one seamless platform.
+              </p>
+            </div>
+
+            {/* Feature 1: Visual Left, Content Right */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-center">
+              <div className="lg:col-span-6">
+                <div className="relative rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-brandObsidian-900 to-brandObsidian-950 border border-brandGold-500/30 shadow-2xl overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-brandGold-500/10 rounded-full blur-3xl -z-10" />
+                  <div className="flex items-center justify-between pb-4 border-b border-brandObsidian-800">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-rose-500/80" />
+                      <div className="w-3 h-3 rounded-full bg-amber-500/80" />
+                      <div className="w-3 h-3 rounded-full bg-emerald-500/80" />
+                      <span className="ml-2 font-mono text-xs text-slate-400">arv-cluster-canvas // ap-south-1</span>
+                    </div>
+                    <Badge variant="gold" size="sm" dot>Live Fabric</Badge>
+                  </div>
+                  <div className="mt-6 space-y-3">
+                    {[
+                      { name: 'mumbai-core-k8s-01', provider: 'AWS / Bare Metal', nodes: '16 Worker Nodes', cpu: '64 vCPUs', status: 'Healthy' },
+                      { name: 'singapore-edge-vms', provider: 'Google Cloud', nodes: '8 Instances', cpu: '32 vCPUs', status: 'Syncing' },
+                      { name: 'frankfurt-storage-s3', provider: 'Private Cloud', nodes: '128TB Encrypted', cpu: 'NVMe Tier', status: 'Active' },
+                    ].map((c) => (
+                      <div key={c.name} className="p-4 rounded-xl bg-brandObsidian-800/80 border border-brandObsidian-700/60 flex items-center justify-between">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Boxes className="w-4 h-4 text-brandGold-400" />
+                            <span className="font-mono text-xs font-bold text-white">{c.name}</span>
+                          </div>
+                          <span className="text-[11px] text-slate-400">{c.provider} • {c.nodes}</span>
+                        </div>
+                        <span className="font-mono text-xs font-semibold px-2 py-1 rounded bg-brandGold-500/15 text-brandGold-300 border border-brandGold-500/30">
+                          {c.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="lg:col-span-6 space-y-6">
+                <Badge variant="outline" size="md">Multi-Cloud Fabric</Badge>
+                <h3 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
+                  Single Plane Compute, Kubernetes & Object Storage
+                </h3>
+                <p className="text-slate-600 dark:text-slate-300 text-base sm:text-lg leading-relaxed">
+                  Provision high-performance AMD EPYC / ARM virtual machines, self-healing managed Kubernetes clusters, and S3-compatible object buckets across global zones without switching between AWS, GCP, or Azure dashboards.
+                </p>
+                <div className="space-y-3 pt-2">
+                  {[
+                    'Zero provider lock-in: deploy on any cloud or sovereign on-prem hardware',
+                    'Global WireGuard VPC mesh connecting heterogeneous clusters with <5ms latency',
+                    'Attachable NVMe SSD block storage with automated cross-region replication',
+                  ].map((pt) => (
+                    <div key={pt} className="flex items-start gap-3">
+                      <span className="mt-1 w-5 h-5 rounded-full bg-brandGold-500/10 text-brandGold-500 flex items-center justify-center shrink-0">
+                        <Check className="w-3.5 h-3.5" />
+                      </span>
+                      <span className="text-sm sm:text-base text-slate-700 dark:text-slate-200">{pt}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Feature 2: Content Left, Visual Right */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-center">
+              <div className="lg:col-span-6 space-y-6 lg:order-1">
+                <Badge variant="outline" size="md">Reliability & SRE</Badge>
+                <h3 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
+                  Automated SRE War-Room & Incident Self-Healing
+                </h3>
+                <p className="text-slate-600 dark:text-slate-300 text-base sm:text-lg leading-relaxed">
+                  Stream sub-second OpenTelemetry metrics, Prometheus alerts, and Loki logs directly to your SRE console. Execute automated self-healing runbooks that resolve outages before customers notice.
+                </p>
+                <div className="space-y-3 pt-2">
+                  {[
+                    'Automated anomaly detection with SLO burn-rate error budgeting',
+                    'War-room commander assignment, timeline recording, and instant RCA notes',
+                    'Pre-configured self-healing runbooks for pod restart, cache flush, and traffic draining',
+                  ].map((pt) => (
+                    <div key={pt} className="flex items-start gap-3">
+                      <span className="mt-1 w-5 h-5 rounded-full bg-brandGold-500/10 text-brandGold-500 flex items-center justify-center shrink-0">
+                        <Check className="w-3.5 h-3.5" />
+                      </span>
+                      <span className="text-sm sm:text-base text-slate-700 dark:text-slate-200">{pt}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="lg:col-span-6 lg:order-2">
+                <div className="relative rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-brandObsidian-900 to-brandObsidian-950 border border-brandGold-500/30 shadow-2xl overflow-hidden group">
+                  <div className="flex items-center justify-between pb-4 border-b border-brandObsidian-800">
+                    <div className="flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-emerald-400" />
+                      <span className="font-mono text-xs font-bold text-white">ArvWatch Live War-Room</span>
+                    </div>
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      Auto-Remediation Active
+                    </span>
+                  </div>
+                  <div className="mt-6 space-y-4">
+                    <div className="p-4 rounded-xl bg-brandObsidian-800/80 border border-brandObsidian-700/60 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-mono font-bold text-amber-400">INC-849: Redis Replica Lag Spike</span>
+                        <span className="text-[10px] text-slate-400 font-mono">0.4s ago</span>
+                      </div>
+                      <div className="h-1.5 w-full bg-brandObsidian-700 rounded-full overflow-hidden">
+                        <div className="h-full bg-amber-500 rounded-full" style={{ width: '82%' }} />
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] font-mono text-slate-300">
+                        <span>Runbook: `auto-failover-standby`</span>
+                        <span className="text-emerald-400 font-bold">Executed ✓</span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-3.5 rounded-xl bg-brandObsidian-800/50 border border-brandObsidian-700/40 text-center">
+                        <div className="text-[10px] font-mono text-slate-400 uppercase">P99 Telemetry</div>
+                        <div className="text-lg font-mono font-black text-white mt-1">4.2 ms</div>
+                      </div>
+                      <div className="p-3.5 rounded-xl bg-brandObsidian-800/50 border border-brandObsidian-700/40 text-center">
+                        <div className="text-[10px] font-mono text-slate-400 uppercase">MTTR Average</div>
+                        <div className="text-lg font-mono font-black text-emerald-400 mt-1">42 sec</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Feature 3: Visual Left, Content Right */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-center">
+              <div className="lg:col-span-6">
+                <div className="relative rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-brandObsidian-900 to-brandObsidian-950 border border-brandGold-500/30 shadow-2xl overflow-hidden group">
+                  <div className="flex items-center justify-between pb-4 border-b border-brandObsidian-800">
+                    <div className="flex items-center gap-2">
+                      <GitBranch className="w-4 h-4 text-brandGold-400" />
+                      <span className="font-mono text-xs font-bold text-white">GitOps Canary Engine</span>
+                    </div>
+                    <Badge variant="gold" size="sm">v3.4.0</Badge>
+                  </div>
+                  <div className="mt-6 space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs font-mono">
+                        <span className="text-slate-300">Phase 2: Canary Verification</span>
+                        <span className="text-brandGold-400 font-bold">50% Traffic</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-brandObsidian-800 overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-brandGold-400 to-brandGold-600 rounded-full" style={{ width: '50%' }} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center text-[10px] font-mono">
+                      <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold">
+                        Error Rate: 0.00%
+                      </div>
+                      <div className="p-2.5 rounded-lg bg-brandObsidian-800 border border-brandObsidian-700 text-slate-300 font-bold">
+                        P95: 18ms
+                      </div>
+                      <div className="p-2.5 rounded-lg bg-brandGold-500/10 border border-brandGold-500/30 text-brandGold-400 font-bold">
+                        Passes Gate ✓
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-brandObsidian-800/80 border border-brandObsidian-700 text-xs font-mono text-slate-400 flex items-center justify-between">
+                      <span>1-Click Emergency Rollback</span>
+                      <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 text-[10px] font-bold">Zero Downtime</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="lg:col-span-6 space-y-6">
+                <Badge variant="outline" size="md">GitOps Delivery</Badge>
+                <h3 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
+                  Zero-Downtime Releases with Automated Rollback Gates
+                </h3>
+                <p className="text-slate-600 dark:text-slate-300 text-base sm:text-lg leading-relaxed">
+                  Ship container updates with confidence. Aravanta Cloud OS gates every release with automated synthetic health checks, progressive canary weight transitions, and instantaneous rollback triggers.
+                </p>
+                <div className="space-y-3 pt-2">
+                  {[
+                    'Progressive canary, blue-green, and rolling deployment topologies',
+                    'Cryptographic container signature validation before deployment into production',
+                    'Instantaneous 1-click rollback with zero dropped active connections',
+                  ].map((pt) => (
+                    <div key={pt} className="flex items-start gap-3">
+                      <span className="mt-1 w-5 h-5 rounded-full bg-brandGold-500/10 text-brandGold-500 flex items-center justify-center shrink-0">
+                        <Check className="w-3.5 h-3.5" />
+                      </span>
+                      <span className="text-sm sm:text-base text-slate-700 dark:text-slate-200">{pt}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Feature 4: Content Left, Visual Right */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-center">
+              <div className="lg:col-span-6 space-y-6 lg:order-1">
+                <Badge variant="outline" size="md">FinOps & Security</Badge>
+                <h3 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
+                  Transparent Indian Rupee (₹) & USD Billing with Granular RBAC
+                </h3>
+                <p className="text-slate-600 dark:text-slate-300 text-base sm:text-lg leading-relaxed">
+                  Gain granular visibility into your cloud spend. Set strict project budget caps, generate GST-compliant enterprise invoices, and enforce 4-tier role-based access control with immutable 365-day audit trails.
+                </p>
+                <div className="space-y-3 pt-2">
+                  {[
+                    'Predictable pricing in INR (₹) and USD ($) with zero surprise egress markups',
+                    'Fine-grained RBAC matrix with TOTP multi-factor authentication for all admins',
+                    'Immutable, cryptographically verifiable compliance audit logs',
+                  ].map((pt) => (
+                    <div key={pt} className="flex items-start gap-3">
+                      <span className="mt-1 w-5 h-5 rounded-full bg-brandGold-500/10 text-brandGold-500 flex items-center justify-center shrink-0">
+                        <Check className="w-3.5 h-3.5" />
+                      </span>
+                      <span className="text-sm sm:text-base text-slate-700 dark:text-slate-200">{pt}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="lg:col-span-6 lg:order-2">
+                <div className="relative rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-brandObsidian-900 to-brandObsidian-950 border border-brandGold-500/30 shadow-2xl overflow-hidden group">
+                  <div className="flex items-center justify-between pb-4 border-b border-brandObsidian-800">
+                    <div className="flex items-center gap-2">
+                      <BarChart3 className="w-4 h-4 text-brandGold-400" />
+                      <span className="font-mono text-xs font-bold text-white">FinOps Real-Time Telemetry</span>
+                    </div>
+                    <span className="text-[10px] font-mono font-bold text-emerald-400">Within Budget (68%)</span>
+                  </div>
+                  <div className="mt-6 space-y-4">
+                    <div className="p-4 rounded-xl bg-brandObsidian-800/80 border border-brandObsidian-700/60">
+                      <div className="flex justify-between items-baseline mb-2">
+                        <span className="text-xs text-slate-400 font-mono">Current Billing Cycle</span>
+                        <span className="text-xl font-black text-white font-mono">₹28,450.00</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-brandObsidian-700 overflow-hidden">
+                        <div className="h-full bg-brandGold-500 rounded-full" style={{ width: '68%' }} />
+                      </div>
+                      <div className="mt-2 flex justify-between text-[10px] text-slate-400 font-mono">
+                        <span>Budget Cap: ₹40,000.00</span>
+                        <span>₹11,550.00 Remaining</span>
+                      </div>
+                    </div>
+                    <div className="p-3.5 rounded-xl bg-brandObsidian-800/50 border border-brandObsidian-700 flex items-center justify-between text-xs font-mono">
+                      <span className="text-slate-300">GST Invoice #ARV-2026-089</span>
+                      <span className="text-brandGold-400 font-bold">PDF / Print Ready ✓</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── 2. PLATFORM / COMPONENT SHOWCASE (8 CARDS) ── */}
+        <section id="showcase" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800 bg-slate-100/50 dark:bg-brandObsidian-900/40">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center max-w-3xl mx-auto space-y-4 mb-14">
+              <Badge variant="gold" size="md">
+                Component Showcase
+              </Badge>
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.1]">
+                Unified Modules for Modern Cloud Engineering
+              </h2>
+              <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
+                Explore the modular building blocks of Aravanta Cloud OS — each purpose-built for speed, observability, and resilience.
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
               {[
-                { icon: Server, title: 'Compute VM', desc: 'Elastic AMD EPYC and ARM Neoverse instances with attachable NVMe block storage and live vertical resize.', color: 'gold' },
-                { icon: Container, title: 'Managed K8s', desc: 'Production-ready clusters with HPA, VPA, CNI networking, private image registry, and node auto-draining.', color: 'emerald' },
-                { icon: HardDrive, title: 'S3 Storage', desc: 'High-throughput S3-compatible buckets with lifecycle tiering, signed URLs, and TLS 1.3 strict transport.', color: 'sky' },
-                { icon: Database, title: 'Managed DB', desc: 'Replicated Postgres, MySQL, Redis with automated WAL archiving, point-in-time restore, and read replicas.', color: 'violet' },
-                { icon: GitBranch, title: 'GitOps Deploys', desc: 'Rolling, canary, and blue/green strategies with automated pre-flight scans and SLO error-gated rollback.', color: 'gold' },
-                { icon: Activity, title: 'SRE Telemetry', desc: 'Prometheus metrics, Loki logs, OTel traces, SLO burn-rate dashboards, and live service dependency mapping.', color: 'emerald' },
-                { icon: AlertTriangle, title: 'Incident War Room', desc: '4-stage lifecycle, commander assignment, timeline recording, RCA notes, and stakeholder status updates.', color: 'rose' },
-                { icon: Lock, title: 'RBAC Governance', desc: '4-tier roles, TOTP MFA, session revocation, SCIM directory sync, and immutable 365-day audit trail.', color: 'violet' },
-              ].map((f) => {
-                const Icon = f.icon;
-                const toneMap: Record<string, string> = {
-                  gold: 'bg-brandGold-500/10 text-brandGold-500 dark:text-brandGold-400 group-hover:bg-brandGold-500 group-hover:text-white',
-                  emerald: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-500 group-hover:text-white',
-                  sky: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 group-hover:bg-sky-500 group-hover:text-white',
-                  violet: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 group-hover:bg-violet-500 group-hover:text-white',
-                  rose: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 group-hover:bg-rose-500 group-hover:text-white',
-                };
+                { icon: Server, title: 'ArvCompute', badge: 'VM Engines', desc: 'Elastic high-performance virtual machines with NVMe SSD block storage and live resize.' },
+                { icon: Boxes, title: 'ArvKube', badge: 'K8s Clusters', desc: 'Managed Kubernetes clusters with auto-draining, HPA, and multi-tenant namespace isolation.' },
+                { icon: HardDrive, title: 'ArvStore', badge: 'S3 Storage', desc: 'Distributed S3-compatible object storage with cryptographic encryption and lifecycle policies.' },
+                { icon: Database, title: 'ArvDB', badge: 'Managed DB', desc: 'High-availability Postgres, Redis, and MySQL engines with automated PITR backups.' },
+                { icon: GitBranch, title: 'GitOps Engine', badge: 'CI/CD Pipelines', desc: 'Automated release pipelines with canary weight gating and instant rollback triggers.' },
+                { icon: Activity, title: 'Observability Hub', badge: 'Telemetry', desc: 'Sub-second OpenTelemetry metrics, Prometheus scrapers, and live Loki log stream explorer.' },
+                { icon: AlertTriangle, title: 'War-Room Console', badge: 'Incident SRE', desc: 'Incident command center with commander assignment, timeline recording, and RCA generation.' },
+                { icon: Lock, title: 'Security & RBAC', badge: 'IAM Vault', desc: 'Fine-grained permissions matrix, TOTP multi-factor auth, and immutable compliance audit logs.' },
+              ].map((item) => {
+                const Icon = item.icon;
                 return (
-                  <Card key={f.title} hover className="group">
-                    <CardBody className="space-y-4">
-                      <div className={['w-11 h-11 rounded-xl flex items-center justify-center transition-colors duration-300', toneMap[f.color]].join(' ')}>
-                        <Icon className="w-5.5 h-5.5" />
+                  <Card key={item.title} hover className="group border-slate-200 dark:border-brandObsidian-700/80">
+                    <CardBody className="space-y-4 !p-6">
+                      <div className="flex items-center justify-between">
+                        <div className="w-11 h-11 rounded-xl bg-brandGold-500/10 text-brandGold-500 dark:text-brandGold-400 flex items-center justify-center group-hover:bg-brandGold-500 group-hover:text-brandObsidian-950 transition-colors">
+                          <Icon className="w-5.5 h-5.5" />
+                        </div>
+                        <Badge variant="gold" size="sm">{item.badge}</Badge>
                       </div>
                       <div className="space-y-1.5">
-                        <h3 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
-                          {f.title}
+                        <h3 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white group-hover:text-brandGold-600 dark:group-hover:text-brandGold-400 transition-colors">
+                          {item.title}
                         </h3>
                         <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                          {f.desc}
+                          {item.desc}
                         </p>
                       </div>
                     </CardBody>
                   </Card>
                 );
               })}
+            </div>
+          </div>
+        </section>
+
+        {/* ── 3. WHY ARAVANTA CLOUD OS (4 VALUE PROPS) ── */}
+        <section id="why" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center max-w-3xl mx-auto space-y-4 mb-14">
+              <Badge variant="outline" size="md">
+                Why Aravanta
+              </Badge>
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.1]">
+                Built from the Ground Up for Cloud Independence
+              </h2>
+              <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
+                Experience the clarity and velocity of an operating system purpose-built for modern cloud engineering teams.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[
+                {
+                  icon: Server,
+                  title: 'Single Pane of Glass',
+                  desc: 'Eliminate context switching. Unify multi-cloud VMs, Kubernetes, storage, and databases under one cohesive dashboard.',
+                },
+                {
+                  icon: RefreshCcw,
+                  title: 'Zero Vendor Lock-In',
+                  desc: 'Built on open standards: Kubernetes, OpenTelemetry, Prometheus, and Terraform. Migrate anywhere, anytime.',
+                },
+                {
+                  icon: Activity,
+                  title: 'Sub-Second Telemetry',
+                  desc: 'Real-time observability stream with <10ms metrics latency. Catch anomalies before they impact your end users.',
+                },
+                {
+                  icon: Shield,
+                  title: 'Enterprise Security',
+                  desc: 'Workload isolation, AES-256 encryption at rest, TLS 1.3 in transit, and immutable 365-day compliance logs.',
+                },
+              ].map((v) => {
+                const Icon = v.icon;
+                return (
+                  <div key={v.title} className="p-6 rounded-2xl bg-white dark:bg-brandObsidian-850 border border-slate-200 dark:border-brandObsidian-700/80 hover:border-brandGold-500/50 hover:shadow-card-hover transition-all space-y-3">
+                    <div className="w-12 h-12 rounded-xl bg-brandGold-500/10 text-brandGold-500 flex items-center justify-center">
+                      <Icon className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">{v.title}</h3>
+                    <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">{v.desc}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        {/* ── 4. LOGOS / ADOPTERS & TESTIMONIALS STRIP ── */}
+        <section className="py-16 sm:py-20 border-t border-slate-200 dark:border-brandObsidian-800 bg-slate-50 dark:bg-brandObsidian-900/60">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-8 font-mono">
+              Trusted by DevOps & SRE Teams Worldwide
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {[
+                {
+                  quote: "Aravanta Cloud OS cut our multi-cloud deployment overhead by 70%. Having our Kubernetes clusters and S3 storage in one console is a game changer.",
+                  author: "Aditya Sharma",
+                  role: "Head of Infrastructure, FinTech Platform",
+                },
+                {
+                  quote: "The sub-second telemetry and automated self-healing runbooks saved us hours during a major upstream outage. True production-grade reliability.",
+                  author: "Elena Rostova",
+                  role: "Staff SRE, Global Logistics",
+                },
+                {
+                  quote: "Transparent Indian Rupee billing with GST compliance made enterprise procurement frictionless. Exactly what modern engineering needed.",
+                  author: "Vikram Mehta",
+                  role: "VP of Engineering, CloudScale",
+                },
+              ].map((t) => (
+                <div key={t.author} className="p-6 rounded-2xl bg-white dark:bg-brandObsidian-800/80 border border-slate-200 dark:border-brandObsidian-700 shadow-sm space-y-4">
+                  <p className="text-sm text-slate-700 dark:text-slate-300 italic leading-relaxed">
+                    "{t.quote}"
+                  </p>
+                  <div className="pt-2 border-t border-slate-100 dark:border-brandObsidian-700">
+                    <div className="font-bold text-sm text-slate-900 dark:text-white">{t.author}</div>
+                    <div className="text-xs text-brandGold-600 dark:text-brandGold-400 font-mono">{t.role}</div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </section>
@@ -1195,11 +1549,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </Badge>
                 <div className="max-w-2xl mx-auto space-y-4">
                   <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-[1.08]">
-                    Streamline your entire cloud infrastructure today.
+                    Ready to Unify Your Multi-Cloud Infrastructure?
                   </h2>
                   <p className="text-base sm:text-lg text-slate-300 leading-relaxed">
-                    Experience seamless microservice scaling, canary release verification,
-                    and incident management from a single self-service control plane.
+                    Deploy your first Kubernetes cluster, high-performance compute instance,
+                    or distributed S3 bucket in under 60 seconds with Aravanta Cloud OS.
                   </p>
                 </div>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-2">
@@ -1207,17 +1561,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     size="xl"
                     variant="primary"
                     onClick={onGoToRegister}
+                    className="bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold min-h-[48px] shadow-lg shadow-brandGold-500/25"
                     rightIcon={<ArrowRight className="w-4.5 h-4.5" />}
                   >
-                    Launch workspace
+                    Get Started Free
                   </Button>
                   <Button
                     size="xl"
                     variant="secondary"
-                    onClick={() => onNavigate?.('about')}
-                    leftIcon={<BookOpen className="w-4 h-4" />}
+                    onClick={() => onNavigate?.('documentation')}
+                    className="min-h-[48px]"
+                    leftIcon={<BookOpen className="w-4 h-4 text-brandGold-400" />}
                   >
-                    Book a demo
+                    Explore Documentation
                   </Button>
                 </div>
                 <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 pt-3 text-xs sm:text-sm text-slate-400 font-medium">
@@ -1237,7 +1593,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </section>
       </main>
 
-      <Footer onNavigate={onNavigate} onGoToLogin={onGoToLogin} onGoToRegister={onGoToRegister} />
+      <Footer onNavigate={onNavigate} />
     </div>
   );
 };

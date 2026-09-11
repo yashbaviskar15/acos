@@ -14,13 +14,13 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    'bg-brandGold-500 text-white hover:bg-brandGold-600 active:bg-brandGold-700 shadow-sm shadow-brandGold-500/25 hover:shadow-md hover:shadow-brandGold-500/30',
+    'bg-brandGold-600 hover:bg-brandGold-500 text-white active:bg-brandGold-700 shadow-sm shadow-brandGold-600/25 hover:shadow-md hover:shadow-brandGold-600/30',
   secondary:
-    'bg-brandObsidian-800 dark:bg-brandObsidian-700 text-white hover:bg-brandObsidian-700 dark:hover:bg-brandObsidian-600 border border-brandObsidian-700 dark:border-brandObsidian-600',
+    'bg-brandObsidian-900 dark:bg-brandObsidian-800 text-white hover:bg-brandObsidian-800 dark:hover:bg-brandObsidian-700 border border-brandObsidian-700 dark:border-brandObsidian-600',
   ghost:
-    'bg-transparent text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-brandObsidian-800/60',
+    'bg-transparent text-slate-700 dark:text-slate-200 hover:bg-brandGold-50 dark:hover:bg-brandObsidian-800/60',
   outline:
-    'bg-white dark:bg-brandObsidian-900 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-brandObsidian-700 hover:border-brandGold-500/60 dark:hover:border-brandGold-500/60 hover:bg-slate-50 dark:hover:bg-brandObsidian-800/40',
+    'bg-white dark:bg-brandObsidian-900 border border-brandObsidian-200 text-brandObsidian-700 hover:border-brandGold-500 hover:text-brandGold-600 hover:bg-brandGold-50/50 dark:hover:bg-brandObsidian-800/40',
   destructive:
     'bg-rose-600 text-white hover:bg-rose-700 active:bg-rose-800 shadow-sm shadow-rose-500/25',
 };
@@ -51,7 +51,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(({
       disabled={isDisabled}
       className={[
         'inline-flex items-center justify-center font-semibold transition-all duration-200',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandGold-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-brandObsidian-950',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandGold-500/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-brandObsidian-950',
         'disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none',
         variantClasses[variant],
         sizeClasses[size],
@@ -71,4 +71,3 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(({
 });
 
 Button.displayName = 'Button';
-
