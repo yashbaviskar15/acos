@@ -117,3 +117,77 @@ def test_infra_automation_agent():
     high_risk = [r for r in recs if r["risk_level"] == "HIGH"][0]
     assert high_risk["requires_approval"] is True
     assert high_risk["auto_executable"] is False
+
+def test_copilot_chat_storage_s3_query():
+    """Verify Console Copilot answers S3 and ArvStore object storage queries."""
+    res = client.post("/api/v1/ai/copilot/chat", json={
+        "message": "How do I create an S3 bucket in ArvStore?",
+        "tab_context": "storage"
+    })
+    assert res.status_code == 200
+    data = res.json()
+    assert data["intent"] == "storage_status"
+    assert "ArvStore" in data["reply"]
+    assert "S3" in data["reply"]
+    assert data["read_only_guarantee"] is True
+    assert len(data["citations"]) > 0
+
+def test_copilot_chat_database_patroni_query():
+    """Verify Console Copilot answers database queries with Patroni HA facts."""
+    res = client.post("/api/v1/ai/copilot/chat", json={
+        "message": "Explain Patroni database failover and connection pooling",
+        "tab_context": "database"
+    })
+    assert res.status_code == 200
+    data = res.json()
+    assert data["intent"] == "database_status"
+    assert "Patroni" in data["reply"]
+    assert "failover" in data["reply"].lower()
+    assert len(data["suggested_followups"]) >= 3
+
+def test_copilot_chat_security_totp_mfa_query():
+    """Verify Console Copilot answers security, RBAC, and TOTP MFA queries."""
+    res = client.post("/api/v1/ai/copilot/chat", json={
+        "message": "How do I configure TOTP MFA and what are the RBAC roles?",
+        "tab_context": "security"
+    })
+    assert res.status_code == 200
+    data = res.json()
+    assert data["intent"] == "security_status"
+    assert "TOTP" in data["reply"]
+    assert "RBAC" in data["reply"]
+
+def test_copilot_chat_cli_query():
+    """Verify Console Copilot provides CLI command references."""
+    res = client.post("/api/v1/ai/copilot/chat", json={
+        "message": "Show me arv CLI commands syntax",
+        "tab_context": "dashboard"
+    })
+    assert res.status_code == 200
+    data = res.json()
+    assert data["intent"] == "cli_guidance"
+    assert "arv" in data["reply"]
+
+def test_copilot_read_only_mutation_guardrail():
+    """Verify Console Copilot blocks imperative destructive actions under strict read-only guarantee."""
+    res = client.post("/api/v1/ai/copilot/chat", json={
+        "message": "delete all my compute instances",
+        "tab_context": "compute"
+    })
+    assert res.status_code == 200
+    data = res.json()
+    assert data["intent"] == "read_only_guardrail"
+    assert data["read_only_guarantee"] is True
+    assert "Read-Only Safety Guarantee" in data["reply"]
+
+def test_copilot_chat_runbook_oom_query():
+    """Verify Console Copilot diagnoses Exit Code 137 OOMKilled errors with actionable steps."""
+    res = client.post("/api/v1/ai/copilot/chat", json={
+        "message": "What should I do if a container fails with exit code 137?",
+        "tab_context": "incidents"
+    })
+    assert res.status_code == 200
+    data = res.json()
+    assert data["intent"] == "runbook_triage"
+    assert "137" in data["reply"]
+    assert "OOMKilled" in data["reply"]

@@ -75,12 +75,13 @@ class GroundingEngine:
         db: Optional[Session]
     ) -> Dict[str, Any]:
         if not db:
-            return {"compute_vms": [], "kube_clusters": [], "databases": [], "applications": [], "alerts": []}
+            return {"compute_vms": [], "kube_clusters": [], "databases": [], "storage_buckets": [], "applications": [], "alerts": []}
 
         # Filter by workspace / user if provided
         vm_query = db.query(ComputeInstance)
         kube_query = db.query(KubeCluster)
         db_query = db.query(DatabaseInstance)
+        store_query = db.query(StorageBucket)
         app_query = db.query(ApplicationRecord)
         alert_query = db.query(AlertRecord)
         inv_query = db.query(InvoiceRecord)
@@ -89,6 +90,7 @@ class GroundingEngine:
             vm_query = vm_query.filter(or_(ComputeInstance.workspace_id == workspace_id, ComputeInstance.user_id == user_id))
             kube_query = kube_query.filter(or_(KubeCluster.workspace_id == workspace_id, KubeCluster.user_id == user_id))
             db_query = db_query.filter(or_(DatabaseInstance.workspace_id == workspace_id, DatabaseInstance.user_id == user_id))
+            store_query = store_query.filter(or_(StorageBucket.workspace_id == workspace_id, StorageBucket.user_id == user_id))
             app_query = app_query.filter(or_(ApplicationRecord.workspace_id == workspace_id, ApplicationRecord.user_id == user_id))
             alert_query = alert_query.filter(or_(AlertRecord.workspace_id == workspace_id, AlertRecord.user_id == user_id))
             inv_query = inv_query.filter(or_(InvoiceRecord.workspace_id == workspace_id, InvoiceRecord.user_id == user_id))
@@ -96,6 +98,7 @@ class GroundingEngine:
         vms = vm_query.limit(10).all()
         clusters = kube_query.limit(5).all()
         dbs = db_query.limit(5).all()
+        buckets = store_query.limit(10).all()
         apps = app_query.limit(5).all()
         alerts = alert_query.filter(AlertRecord.status == "firing").limit(5).all()
         invoices = inv_query.order_by(InvoiceRecord.created_at.desc()).limit(3).all()
@@ -121,6 +124,13 @@ class GroundingEngine:
                     "status": d.status, "storage_used_gb": d.storage_used_gb,
                     "connections": f"{d.connection_count}/{d.max_connections}"
                 } for d in dbs
+            ],
+            "storage_buckets": [
+                {
+                    "id": b.id, "name": b.name, "region": b.region,
+                    "storage_class": b.storage_class, "size_gb": b.size_gb,
+                    "object_count": b.object_count, "encryption": b.encryption
+                } for b in buckets
             ],
             "applications": [
                 {
