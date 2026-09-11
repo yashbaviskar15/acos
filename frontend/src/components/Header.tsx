@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Bell, Search, RefreshCw, Sun, Moon, X, Menu, User, Clock, BellRing, CheckCircle2, Shield, ChevronDown, Check } from 'lucide-react';
+import { Bell, Search, RefreshCw, Sun, Moon, X, Menu, User, Clock, BellRing, CheckCircle2, Shield, ChevronDown, Check, Bot } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { requestNotificationPermission, sendSystemNotification } from '../utils/notifications';
 import { apiFetch } from '../config/api';
@@ -15,6 +15,7 @@ interface HeaderProps {
   onMobileMenuToggle?: () => void;
   onNavigateToProfile?: () => void;
   onOpenCommandPalette?: () => void;
+  onToggleCopilot?: () => void;
 }
 
 interface NotificationItem {
@@ -36,7 +37,8 @@ export const Header: React.FC<HeaderProps> = ({
   onSearchChange,
   onMobileMenuToggle,
   onNavigateToProfile,
-  onOpenCommandPalette
+  onOpenCommandPalette,
+  onToggleCopilot
 }) => {
   const { theme, toggleTheme } = useTheme();
   const [showNotifications, setShowNotifications] = useState(false);
@@ -416,6 +418,19 @@ export const Header: React.FC<HeaderProps> = ({
           <Clock className="w-3.5 h-3.5 text-amber-500" />
           <span>TRIAL: 8 DAYS LEFT</span>
         </div>
+
+        {/* Console Copilot AI Trigger Button */}
+        {onToggleCopilot && (
+          <button
+            onClick={onToggleCopilot}
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-brandGold-500/15 via-brandGold-600/15 to-brandGold-500/15 hover:from-brandGold-500/25 hover:to-brandGold-600/25 text-brandGold-700 dark:text-brandGold-300 border border-brandGold-500/30 hover:border-brandGold-500/50 text-xs font-mono font-bold transition-all shadow-xs cursor-pointer group"
+            title="Open Console Copilot AI (Ctrl+K)"
+          >
+            <Bot className="w-4 h-4 text-brandGold-500 group-hover:rotate-12 transition-transform shrink-0" />
+            <span className="hidden sm:inline">Copilot</span>
+            <span className="text-[10px] px-1 py-0.2 rounded bg-brandGold-500/20 text-brandGold-600 dark:text-brandGold-400 font-mono font-black">AI</span>
+          </button>
+        )}
 
         {/* Theme Toggle Button (Light/Dark Switcher) */}
         <button

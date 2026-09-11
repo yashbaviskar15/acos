@@ -24,6 +24,7 @@ import { Billing } from './pages/Billing';
 import { Profile } from './pages/Profile';
 import { GettingStarted } from './pages/GettingStarted';
 import { CommandPalette } from './components/CommandPalette';
+import { ConsoleCopilot } from './components/copilot/ConsoleCopilot';
 import { Login } from './pages/Login';
 import { LandingPage } from './pages/LandingPage';
 import { FeaturesPage } from './pages/FeaturesPage';
@@ -130,13 +131,17 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isCopilotOpen, setIsCopilotOpen] = useState(false);
 
-  // Global Cmd+K / Ctrl+K keyboard shortcut listener
+  // Global Cmd+K (Command Palette) and Cmd+J / Cmd+Shift+K (Console Copilot) shortcut listeners
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setIsCommandPaletteOpen(prev => !prev);
+      } else if ((e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === 'j' || (e.shiftKey && e.key.toLowerCase() === 'k'))) {
+        e.preventDefault();
+        setIsCopilotOpen(prev => !prev);
       }
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
@@ -468,6 +473,7 @@ export default function App() {
           onMobileMenuToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           onNavigateToProfile={() => setActiveTab('profile')}
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+          onToggleCopilot={() => setIsCopilotOpen(prev => !prev)}
         />
 
         {/* Dynamic Route Pages with Error Boundary Protection */}
@@ -529,6 +535,32 @@ export default function App() {
             )}
           </ErrorBoundary>
         </main>
+
+        {/* Console Copilot AI Assistant Layer */}
+        <ConsoleCopilot
+          isOpen={isCopilotOpen}
+          onClose={() => setIsCopilotOpen(false)}
+          currentTab={activeTab}
+          onNavigate={(tab) => {
+            setActiveTab(tab);
+            setIsCopilotOpen(false);
+          }}
+        />
+
+        {/* Floating Copilot Launcher Orb (when drawer is closed) */}
+        {!isCopilotOpen && (
+          <button
+            onClick={() => setIsCopilotOpen(true)}
+            className="fixed bottom-5 right-5 z-40 flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-gradient-to-r from-brandGold-600 to-brandGold-500 hover:from-brandGold-500 hover:to-brandGold-600 text-white font-mono font-bold text-xs shadow-xl shadow-brandGold-500/25 border border-brandGold-400/40 hover:scale-105 active:scale-95 transition-all cursor-pointer group"
+            title="Ask Console Copilot AI (Ctrl+J)"
+          >
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+            </span>
+            <span>Copilot AI</span>
+          </button>
+        )}
 
         <CommandPalette
           isOpen={isCommandPaletteOpen}
