@@ -314,33 +314,27 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           >
             <motion.div
               animate={{
-                scale: [1, 1.06, 1],
-                opacity: [0.04, 0.08, 0.04],
-                rotate: [0, 1.5, 0, -1.5, 0],
+                scale: [1, 1.04, 1],
+                opacity: [0.10, 0.18, 0.10],
               }}
               transition={{
-                duration: 14,
+                duration: 10,
                 repeat: Infinity,
                 ease: 'easeInOut',
               }}
-              className="relative w-[340px] h-[340px] sm:w-[500px] sm:h-[500px] md:w-[650px] md:h-[650px] flex items-center justify-center"
+              className="relative w-[360px] h-[360px] sm:w-[540px] sm:h-[540px] md:w-[700px] md:h-[700px] lg:w-[820px] lg:h-[820px] flex items-center justify-center"
             >
               {/* Subtle radial ambient illumination */}
-              <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-brandGold-500/10 via-amber-500/5 to-transparent blur-3xl pointer-events-none" />
-              {/* Logo Watermark: Cloud & Node Mark */}
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                className="w-full h-full text-brandGold-500 stroke-current opacity-60 dark:opacity-80"
-                strokeWidth="1.1"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
-                <path d="M12 13v4" strokeWidth="1.6" />
-                <circle cx="12" cy="13" r="1.5" fill="currentColor" />
-                <circle cx="12" cy="17" r="1.5" fill="currentColor" />
-              </svg>
+              <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-brandGold-500/25 via-amber-500/10 to-transparent blur-3xl pointer-events-none" />
+              {/* Concentric subtle radar pulse rings */}
+              <div className="absolute inset-12 sm:inset-16 rounded-full border border-brandGold-500/15 dark:border-brandGold-500/25 pointer-events-none animate-pulse" />
+              <div className="absolute inset-28 sm:inset-36 rounded-full border border-brandGold-500/10 dark:border-brandGold-500/15 pointer-events-none" />
+              {/* Official Aravanta Logo Mark */}
+              <img
+                src="/assets/aravanta-glyph-glow.png"
+                alt="Aravanta Cloud OS Emblem"
+                className="w-full h-full object-contain filter drop-shadow-[0_0_50px_rgba(185,139,59,0.3)] select-none pointer-events-none"
+              />
             </motion.div>
           </div>
 
@@ -924,8 +918,29 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </section>
 
         {/* ── 2. PLATFORM / COMPONENT SHOWCASE (8 CARDS) ── */}
-        <section id="showcase" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800 bg-slate-100/50 dark:bg-brandObsidian-900/40">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <section id="showcase" className="relative overflow-hidden py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800 bg-slate-100/50 dark:bg-brandObsidian-900/40">
+          {/* Subtle Ambient Brand Watermark in Showcase Background */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-16 top-1/2 -translate-y-1/2 w-[460px] h-[460px] opacity-[0.03] dark:opacity-[0.055] select-none -z-0"
+          >
+            <img
+              src="/assets/aravanta-glyph-gold.png"
+              alt=""
+              className="w-full h-full object-contain rotate-12 filter blur-[0.5px]"
+            />
+          </div>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -left-20 bottom-8 w-[380px] h-[380px] opacity-[0.02] dark:opacity-[0.045] select-none -z-0"
+          >
+            <img
+              src="/assets/aravanta-glyph-glow.png"
+              alt=""
+              className="w-full h-full object-contain -rotate-6"
+            />
+          </div>
+          <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto space-y-4 mb-14">
               <Badge variant="gold" size="md">
                 Component Showcase
@@ -976,8 +991,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </section>
 
         {/* ── 3. WHY ARAVANTA CLOUD OS (4 VALUE PROPS) ── */}
-        <section id="why" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <section id="why" className="relative overflow-hidden py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800">
+          {/* Subtle Centered Brand Watermark */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[580px] h-[580px] opacity-[0.025] dark:opacity-[0.045] select-none -z-0"
+          >
+            <img
+              src="/assets/aravanta-glyph-glow.png"
+              alt=""
+              className="w-full h-full object-contain filter drop-shadow-[0_0_80px_rgba(185,139,59,0.2)]"
+            />
+          </div>
+          <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto space-y-4 mb-14">
               <Badge variant="outline" size="md">
                 Why Aravanta
@@ -1067,8 +1093,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </section>
 
         {/* ── DEVELOPER EXPERIENCE ── */}
-        <section id="dx" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800 bg-slate-100/60 dark:bg-brandObsidian-900/40">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <section id="dx" className="relative overflow-hidden py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800 bg-slate-100/60 dark:bg-brandObsidian-900/40">
+          {/* Subtle Ambient Brand Watermark in Developer Experience Background */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-12 bottom-4 w-[420px] h-[420px] opacity-[0.025] dark:opacity-[0.05] select-none -z-0"
+          >
+            <img
+              src="/assets/aravanta-glyph-gold.png"
+              alt=""
+              className="w-full h-full object-contain rotate-12 filter blur-[0.5px]"
+            />
+          </div>
+          <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-start">
               <div className="lg:col-span-5 space-y-5 lg:sticky lg:top-24">
                 <Badge variant="gold" size="md">
@@ -1530,6 +1567,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     'radial-gradient(85% 85% at 50% -10%, rgba(198,146,59,0.55) 0%, rgba(198,146,59,0) 60%)',
                 }}
               />
+              {/* Glowing Brand Logo Watermark in CTA background */}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -right-16 -bottom-16 sm:-right-10 sm:-bottom-10 w-72 h-72 sm:w-96 sm:h-96 md:w-[440px] md:h-[440px] opacity-15 sm:opacity-20 select-none -z-0"
+              >
+                <img
+                  src="/assets/aravanta-glyph-glow.png"
+                  alt=""
+                  className="w-full h-full object-contain filter drop-shadow-[0_0_60px_rgba(185,139,59,0.4)] rotate-6"
+                />
+              </div>
               <div
                 aria-hidden
                 className="pointer-events-none absolute inset-0 rounded-3xl"
