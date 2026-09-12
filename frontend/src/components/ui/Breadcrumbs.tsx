@@ -10,12 +10,14 @@ export interface BreadcrumbItem {
 export interface BreadcrumbsProps {
   items: BreadcrumbItem[];
   showHome?: boolean;
+  onHomeClick?: () => void;
   className?: string;
 }
 
 export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
   items,
   showHome = true,
+  onHomeClick,
   className = '',
 }) => {
   return (
@@ -27,13 +29,18 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
         {showHome && (
           <li className="flex items-center shrink-0">
             <button
+              type="button"
               onClick={() => {
                 if (typeof window !== 'undefined') {
                   window.scrollTo({ top: 0, behavior: 'auto' });
                 }
-                items[0]?.onClick?.();
+                if (onHomeClick) {
+                  onHomeClick();
+                } else if (items[0]?.onClick) {
+                  items[0].onClick();
+                }
               }}
-              className="inline-flex items-center gap-1 h-8 px-2 rounded-lg hover:bg-brandGold-50 dark:hover:bg-brandObsidian-800 hover:text-brandGold-600 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brandGold-500/30"
+              className="inline-flex items-center gap-1 h-8 px-2 rounded-lg hover:bg-brandGold-50 dark:hover:bg-brandObsidian-800 hover:text-brandGold-600 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brandGold-500/30 cursor-pointer"
             >
               <Home className="w-3.5 h-3.5" />
               <span className="hidden xs:inline font-medium">Home</span>

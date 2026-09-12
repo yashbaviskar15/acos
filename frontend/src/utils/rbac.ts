@@ -41,6 +41,7 @@ export const TAB_PERMISSIONS: Record<string, UserRole[]> = {
   settings: ['SuperAdmin', 'Admin'],
   profile: ['SuperAdmin', 'Admin', 'Operator', 'Developer', 'Viewer'],
   guide: ['SuperAdmin', 'Admin', 'Operator', 'Developer', 'Viewer'],
+  community: ['SuperAdmin', 'Admin', 'Operator', 'Developer', 'Viewer'],
 };
 
 /**

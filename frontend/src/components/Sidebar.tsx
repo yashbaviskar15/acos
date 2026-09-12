@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { 
   LayoutDashboard, 
   Layers, 
@@ -20,7 +21,8 @@ import {
   LogOut, 
   FileCheck,
   Lock,
-  X
+  X,
+  MessageSquare
 } from 'lucide-react';
 import { Logo } from './Logo';
 import { canAccessTab } from '../utils/rbac';
@@ -53,51 +55,59 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpen = false,
   onClose
 }) => {
+  const { t } = useTranslation();
+
   const sections: NavSection[] = [
     {
-      title: 'OPERATIONS',
+      title: t('sidebar.section_operations'),
       items: [
-        { id: 'dashboard', label: 'Overview', icon: LayoutDashboard, badge: 'PROD' },
-        { id: 'infrastructure', label: 'Infrastructure', icon: Server, count: '28' },
-        { id: 'applications', label: 'Applications', icon: Layers, count: '5' },
-        { id: 'deployments', label: 'Deployments', icon: GitBranch },
-        { id: 'containers', label: 'Containers', icon: Box, count: '11' },
+        { id: 'dashboard', label: t('sidebar.item_dashboard'), icon: LayoutDashboard, badge: 'PROD' },
+        { id: 'infrastructure', label: t('sidebar.item_infrastructure'), icon: Server, count: '28' },
+        { id: 'applications', label: t('sidebar.item_applications'), icon: Layers, count: '5' },
+        { id: 'deployments', label: t('sidebar.item_deployments'), icon: GitBranch },
+        { id: 'containers', label: t('sidebar.item_containers'), icon: Box, count: '11' },
       ]
     },
     {
-      title: 'OBSERVABILITY',
+      title: t('sidebar.section_observability'),
       items: [
-        { id: 'monitoring', label: 'Monitoring', icon: Activity },
-        { id: 'logs', label: 'Log Explorer', icon: FileText, badge: 'LIVE' },
-        { id: 'alerts', label: 'Alerts', icon: Bell, count: '6' },
-        { id: 'incidents', label: 'Incidents', icon: ShieldAlert, badge: 'P1' },
+        { id: 'monitoring', label: t('sidebar.item_monitoring'), icon: Activity },
+        { id: 'logs', label: t('sidebar.item_logs'), icon: FileText, badge: 'LIVE' },
+        { id: 'alerts', label: t('sidebar.item_alerts'), icon: Bell, count: '6' },
+        { id: 'incidents', label: t('sidebar.item_incidents'), icon: ShieldAlert, badge: 'P1' },
       ]
     },
     {
-      title: 'AUTOMATION & RELIABILITY',
+      title: t('sidebar.section_automation'),
       items: [
-        { id: 'automation', label: 'Automation', icon: Zap },
-        { id: 'backups', label: 'Backups & DR', icon: HardDrive },
-        { id: 'cicd', label: 'CI/CD Pipelines', icon: GitBranch },
+        { id: 'automation', label: t('sidebar.item_automation'), icon: Zap },
+        { id: 'backups', label: t('sidebar.item_backups'), icon: HardDrive },
+        { id: 'cicd', label: t('sidebar.item_cicd'), icon: GitBranch },
       ]
     },
     {
-      title: 'CLOUD RESOURCES',
+      title: t('sidebar.section_cloud_resources'),
       items: [
-        { id: 'compute', label: 'Compute VMs', icon: Server },
-        { id: 'kubernetes', label: 'Kubernetes', icon: Boxes },
-        { id: 'database', label: 'Databases', icon: Database },
-        { id: 'storage', label: 'Object Storage', icon: HardDrive },
+        { id: 'compute', label: t('sidebar.item_compute'), icon: Server },
+        { id: 'kubernetes', label: t('sidebar.item_kubernetes'), icon: Boxes },
+        { id: 'database', label: t('sidebar.item_database'), icon: Database },
+        { id: 'storage', label: t('sidebar.item_storage'), icon: HardDrive },
       ]
     },
     {
-      title: 'GOVERNANCE & PLATFORM',
+      title: t('sidebar.section_governance'),
       items: [
-        { id: 'security', label: 'Security & RBAC', icon: ShieldCheck },
-        { id: 'audit', label: 'Audit Logs', icon: FileCheck },
-        { id: 'billing', label: 'Billing & FinOps', icon: CreditCard },
-        { id: 'settings', label: 'Platform Settings', icon: SettingsIcon },
-        { id: 'guide', label: 'Operations Guide', icon: BookOpen },
+        { id: 'security', label: t('sidebar.item_security'), icon: ShieldCheck },
+        { id: 'audit', label: t('sidebar.item_audit'), icon: FileCheck },
+        { id: 'billing', label: t('sidebar.item_billing'), icon: CreditCard },
+        { id: 'settings', label: t('sidebar.item_settings'), icon: SettingsIcon },
+        { id: 'guide', label: t('sidebar.item_guide'), icon: BookOpen },
+      ]
+    },
+    {
+      title: t('sidebar.section_collaboration'),
+      items: [
+        { id: 'community', label: t('sidebar.item_community'), icon: MessageSquare },
       ]
     }
   ];

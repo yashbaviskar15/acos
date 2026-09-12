@@ -23,8 +23,10 @@ from app.services.arvcicd.router import router as arvcicd_router
 from app.services.arvbilling.router import router as arvbilling_router
 from app.services.arvoperations.router import router as arvoperations_router
 from app.services.arvai.router import router as arvai_router
+from app.services.arvcommunity.router import router as arvcommunity_router
 import app.services.arvgate.models
 import app.core.cloud_models
+import app.services.arvcommunity.models
 
 logger = logging.getLogger("aravanta.startup")
 
@@ -344,6 +346,102 @@ def init_db():
                 ]
                 db.add_all(demo_notifs)
 
+            from app.services.arvcommunity.models import CommunityPost, CommunityComment, CommunityLike
+            if not db.query(CommunityPost).first():
+                demo_posts = [
+                    CommunityPost(
+                        id="post-welcome-001",
+                        user_id=admin_id,
+                        workspace_id=admin_ws,
+                        author_name="Yash Baviskar",
+                        author_email=admin_email,
+                        author_role="SuperAdmin",
+                        author_avatar="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+                        title="Welcome to Aravanta Cloud OS Community!",
+                        content="Welcome to the official developer and SRE community! This space is dedicated to sharing cloud architectures, Kubernetes configurations, disaster recovery playbooks, and best practices across Indian sovereign infrastructure. Drop a note below to introduce yourself and what workloads you are running!",
+                        category="announcements",
+                        tags='["welcome", "community", "cloudos", "sre"]',
+                        likes_count=18,
+                        comments_count=2,
+                        views_count=342,
+                        is_pinned=True,
+                        created_at=datetime.datetime.utcnow() - datetime.timedelta(days=2)
+                    ),
+                    CommunityPost(
+                        id="post-architecture-002",
+                        user_id=admin_id,
+                        workspace_id=admin_ws,
+                        author_name="DevOps Lead",
+                        author_email="devops@aravanta.com",
+                        author_role="Operator",
+                        author_avatar="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
+                        title="Achieving 1.2s Instant Rollback with Envoy Service Mesh & eBPF",
+                        content="In this write-up, we detail how ArvCICD integrates with Envoy to maintain a 25% canary traffic split during deployments. If HTTP 5xx error rate breaches 1.0% or P95 latency spikes over 500ms, the control plane shifts 100% of ingress back to the previous stable revision in under 1.2 seconds without draining active sessions.",
+                        category="architecture",
+                        tags='["envoy", "canary", "ebpf", "cicd", "mesh"]',
+                        likes_count=24,
+                        comments_count=3,
+                        views_count=520,
+                        is_pinned=False,
+                        created_at=datetime.datetime.utcnow() - datetime.timedelta(days=1)
+                    ),
+                    CommunityPost(
+                        id="post-finops-003",
+                        user_id=admin_id,
+                        workspace_id=admin_ws,
+                        author_name="FinOps Specialist",
+                        author_email="finops@aravanta.com",
+                        author_role="Developer",
+                        author_avatar="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80",
+                        title="Eliminating Cloud Data Egress Tolls: Why Zero-Egress Architecture Matters",
+                        content="Hyperscalers routinely bill upwards of $0.09 per gigabyte for inter-region and outbound traffic. With Aravanta Cloud OS, inter-region replication between Mumbai (ap-south-1) and Hyderabad (ap-south-2) incurs zero egress tolls. How has this impacted your multi-region DR budgets?",
+                        category="showcase",
+                        tags='["finops", "billing", "zero-egress", "multicloud"]',
+                        likes_count=15,
+                        comments_count=1,
+                        views_count=290,
+                        is_pinned=False,
+                        created_at=datetime.datetime.utcnow() - datetime.timedelta(hours=14)
+                    )
+                ]
+                db.add_all(demo_posts)
+                db.commit()
+
+                # Add sample comments
+                sample_comments = [
+                    CommunityComment(
+                        id="comment-001",
+                        post_id="post-welcome-001",
+                        user_id=admin_id,
+                        author_name="Cloud Engineer",
+                        author_email="engineer@partner.com",
+                        author_role="Developer",
+                        content="Excited to be part of the community! Deploying our microservices cluster on ArvKube today.",
+                        created_at=datetime.datetime.utcnow() - datetime.timedelta(days=1, hours=20)
+                    ),
+                    CommunityComment(
+                        id="comment-002",
+                        post_id="post-welcome-001",
+                        user_id=admin_id,
+                        author_name="Yash Baviskar",
+                        author_email=admin_email,
+                        author_role="SuperAdmin",
+                        content="Welcome aboard! Feel free to ask if you have any questions regarding CNI networking or storage buckets.",
+                        created_at=datetime.datetime.utcnow() - datetime.timedelta(days=1, hours=18)
+                    ),
+                    CommunityComment(
+                        id="comment-003",
+                        post_id="post-architecture-002",
+                        user_id=admin_id,
+                        author_name="SRE Architect",
+                        author_email="sre@fintech.io",
+                        author_role="Operator",
+                        content="The 1.2s rollback speed is game changing. How does Envoy handle in-flight websocket connections during canary shifts?",
+                        created_at=datetime.datetime.utcnow() - datetime.timedelta(hours=20)
+                    )
+                ]
+                db.add_all(sample_comments)
+
             db.commit()
             logger.info("Database initialized successfully. Engine: %s", "PostgreSQL" if _is_postgres else "SQLite")
         except Exception as err:
@@ -419,6 +517,7 @@ app.include_router(arvcicd_router)
 app.include_router(arvbilling_router)
 app.include_router(arvoperations_router)
 app.include_router(arvai_router)
+app.include_router(arvcommunity_router)
 
 @app.get("/", tags=["Root"])
 def root():

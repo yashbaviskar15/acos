@@ -520,6 +520,7 @@ export default function App() {
                   />
                 )}
                 {activeTab === 'guide' && <GettingStarted onNavigate={(tab) => setActiveTab(tab)} />}
+                {activeTab === 'community' && <CommunityPage onNavigate={(tab) => setActiveTab(tab)} />}
                 
                 {/* Fallback for unhandled tab */}
                 {![
@@ -527,7 +528,7 @@ export default function App() {
                   'containers', 'monitoring', 'logs', 'alerts', 'incidents', 
                   'automation', 'backups', 'audit', 'settings', 'compute', 
                   'kubernetes', 'storage', 'database', 'cicd', 'security', 
-                  'billing', 'profile', 'guide'
+                  'billing', 'profile', 'guide', 'community'
                 ].includes(activeTab) && (
                   <Dashboard token={token} onNavigate={(tab) => setActiveTab(tab)} searchTerm={searchTerm} />
                 )}

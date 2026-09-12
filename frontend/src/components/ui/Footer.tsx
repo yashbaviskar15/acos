@@ -1,71 +1,82 @@
-import React, { useState } from 'react';
-import { Twitter, Linkedin, Github, Mail, ChevronDown, Users, Shield, Globe, MessageSquare, Server } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Twitter, Linkedin, Github, Mail, ChevronDown, Users, Shield, Globe, MessageSquare, Server, ExternalLink } from 'lucide-react';
 import { Logo } from '../Logo';
 import { LandingView } from './Navbar';
+import { SUPPORTED_LANGS, LangCode } from '../../i18n';
 
 export interface FooterProps {
   onNavigate?: (view: LandingView) => void;
 }
 
 type FooterLink = {
-  label: string;
+  labelKey: string;
   view?: LandingView;
   href?: string;
   external?: boolean;
+  icon?: React.ComponentType<any>;
 };
 
-const footerColumns: Array<{
-  title: string;
-  links: FooterLink[];
-}> = [
-  {
-    title: 'Product',
-    links: [
-      { label: 'Features & Architecture', view: 'features' },
-      { label: 'Compute & Containers', view: 'features' },
-      { label: 'Managed Kubernetes', view: 'features' },
-      { label: 'Pricing Plans', view: 'pricing' },
-      { label: 'Platform Documentation', view: 'documentation' },
-      { label: 'Quickstart Guide', view: 'getting-started' },
-    ],
-  },
-  {
-    title: 'Community',
-    links: [
-      { label: 'Beginners Hub', view: 'community' },
-      { label: 'Developers & SDKs', view: 'community' },
-      { label: 'Students & Learning', view: 'community' },
-      { label: 'Working Professionals', view: 'community' },
-      { label: 'GitHub Discussions', href: 'https://github.com/yashbaviskar15/acos/discussions', external: true },
-      { label: 'Community Discord', href: 'https://discord.gg/aravanta', external: true },
-    ],
-  },
-  {
-    title: 'Legal',
-    links: [
-      { label: 'Privacy Policy', view: 'privacy' },
-      { label: 'Terms of Use', view: 'terms' },
-      { label: 'Disclaimer', view: 'disclaimer' },
-      { label: 'Sitemap', view: 'sitemap' },
-    ],
-  },
-  {
-    title: 'Contact & Support',
-    links: [
-      { label: 'Contact Us', view: 'contact' },
-      { label: 'Frequently Asked Questions', view: 'faq' },
-      { label: 'About Us', view: 'about' },
-      { label: 'Support Desk', href: 'mailto:support@aravanta.cloud' },
-      { label: 'Billing Inquiries', href: 'mailto:billing@aravanta.cloud' },
-    ],
-  },
-];
-
 export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
+  const { t, i18n } = useTranslation();
   const [langOpen, setLangOpen] = useState(false);
-  const [selectedLang, setSelectedLang] = useState('English');
 
-  const languages = ['English', 'Español', 'Deutsch', 'Français', '日本語', 'हिंदी'];
+  const currentCode = (i18n.resolvedLanguage || 'en') as LangCode;
+  const currentLang = SUPPORTED_LANGS.find((l) => l.code === currentCode) || SUPPORTED_LANGS[0];
+
+  const year = new Date().getFullYear();
+
+  const footerColumns: Array<{
+    titleKey: string;
+    links: FooterLink[];
+  }> = [
+    {
+      titleKey: 'footer.product',
+      links: [
+        { labelKey: 'footer.features_link', view: 'features' },
+        { labelKey: 'footer.docs_link', view: 'documentation' },
+        { labelKey: 'footer.pricing_link', view: 'pricing' },
+        { labelKey: 'footer.changelog_link', view: 'documentation' },
+      ],
+    },
+    {
+      titleKey: 'footer.community',
+      links: [
+        { labelKey: 'footer.beginners_link', view: 'community' },
+        { labelKey: 'footer.developers_link', view: 'developers' },
+        { labelKey: 'footer.students_link', view: 'community' },
+        { labelKey: 'footer.professionals_link', view: 'community' },
+        {
+          labelKey: 'footer.docs_link',
+          href: 'https://github.com/yashbaviskar15/acos/discussions',
+          external: true,
+        },
+      ],
+    },
+    {
+      titleKey: 'footer.legal',
+      links: [
+        { labelKey: 'footer.privacy_link', view: 'privacy' },
+        { labelKey: 'footer.terms_link', view: 'terms' },
+        { labelKey: 'footer.disclaimer_link', view: 'disclaimer' },
+        { labelKey: 'footer.sitemap_link', view: 'sitemap' },
+      ],
+    },
+    {
+      titleKey: 'footer.contact',
+      links: [
+        { labelKey: 'nav.contact', view: 'contact' },
+        { labelKey: 'nav.faq', view: 'faq' },
+        { labelKey: 'nav.about', view: 'about' },
+        { labelKey: 'footer.support_email', href: 'mailto:support@aravanta.cloud', icon: Mail },
+      ],
+    },
+  ];
+
+  const handleLanguageChange = (code: LangCode) => {
+    i18n.changeLanguage(code);
+    setLangOpen(false);
+  };
 
   const handleClick = (link?: FooterLink) => {
     if (!link) return;
@@ -85,6 +96,15 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
     }
   };
 
+  useEffect(() => {
+    const handleDocClick = () => setLangOpen(false);
+    if (langOpen) {
+      document.addEventListener('click', handleDocClick);
+      return () => document.removeEventListener('click', handleDocClick);
+    }
+    return;
+  }, [langOpen]);
+
   return (
     <footer className="relative border-t border-slate-200 dark:border-brandObsidian-800 bg-white dark:bg-brandObsidian-950 transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -94,7 +114,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             <div className="sm:col-span-2 lg:col-span-1 space-y-4">
               <Logo size="md" subtitle="Cloud Platform & OS" />
               <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                The unified control plane for multi-cloud infrastructure, Kubernetes orchestration, and automated SRE operations.
+                {t('footer.tagline')}
               </p>
               <div className="pt-1">
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-brandGold-500/10 border border-brandGold-500/30 text-xs font-semibold text-brandGold-700 dark:text-brandGold-400">
@@ -144,35 +164,23 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
 
             {/* Columns 2-5 */}
             {footerColumns.map((col) => (
-              <div key={col.title} className="space-y-4">
+              <div key={col.titleKey} className="space-y-4">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white font-mono">
-                  {col.title}
+                  {t(col.titleKey)}
                 </h4>
                 <ul className="space-y-2.5">
                   {col.links.map((link) => (
-                    <li key={link.label}>
-                      {link.external || link.href ? (
-                        <button
-                          onClick={() => handleClick(link)}
-                          className="inline-flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-brandGold-600 dark:hover:text-brandGold-400 transition-colors text-left py-1"
-                        >
-                          {link.href?.startsWith('mailto:') && (
-                            <Mail className="w-3.5 h-3.5 text-brandGold-500 shrink-0" />
-                          )}
-                          {link.label}
-                        </button>
-                      ) : link.view ? (
-                        <button
-                          onClick={() => handleClick(link)}
-                          className="text-sm text-slate-600 dark:text-slate-400 hover:text-brandGold-600 dark:hover:text-brandGold-400 transition-colors text-left py-1"
-                        >
-                          {link.label}
-                        </button>
-                      ) : (
-                        <span className="text-sm text-slate-400 dark:text-slate-600 cursor-not-allowed">
-                          {link.label}
-                        </span>
-                      )}
+                    <li key={link.labelKey}>
+                      <button
+                        onClick={() => handleClick(link)}
+                        className="inline-flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-brandGold-600 dark:hover:text-brandGold-400 transition-colors text-left py-1 min-h-[32px]"
+                      >
+                        {link.icon && <link.icon className="w-3.5 h-3.5 text-brandGold-500 shrink-0" />}
+                        {link.href?.startsWith('http') && !link.icon && (
+                          <ExternalLink className="w-3 h-3 text-slate-400 shrink-0" />
+                        )}
+                        {t(link.labelKey)}
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -185,11 +193,11 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
         <div className="py-6 border-t border-slate-200 dark:border-brandObsidian-800 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex flex-col sm:flex-row sm:items-center gap-x-4 gap-y-2 text-xs text-slate-500 dark:text-slate-400">
             <span className="font-semibold text-slate-700 dark:text-slate-200">
-              &copy; {new Date().getFullYear()} Aravanta Cloud OS Technologies Inc. All rights reserved.
+              {t('footer.copyright', { year })}
             </span>
             <span className="hidden sm:inline-block text-slate-300 dark:text-brandObsidian-700">•</span>
             <span className="text-slate-500 dark:text-slate-400">
-              Unified Multi-Cloud Control Plane
+              {t('footer.built_by')}
             </span>
           </div>
 
@@ -206,38 +214,45 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             <span className="text-slate-300 dark:text-brandObsidian-700 hidden sm:inline-block">•</span>
             <div className="relative">
               <button
-                onClick={() => setLangOpen(!langOpen)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-brandObsidian-700 bg-white dark:bg-brandObsidian-900 hover:border-brandGold-500/50 hover:bg-brandGold-50/20 dark:hover:bg-brandObsidian-800 transition-all text-slate-700 dark:text-slate-200 font-medium"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLangOpen((prev) => !prev);
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-brandObsidian-700 bg-white dark:bg-brandObsidian-900 hover:border-brandGold-500/50 hover:bg-brandGold-50/20 dark:hover:bg-brandObsidian-800 transition-all text-slate-700 dark:text-slate-200 font-medium min-h-[36px] min-w-[96px]"
                 aria-haspopup="listbox"
                 aria-expanded={langOpen}
+                aria-label={t('footer.select_language')}
               >
                 <Globe className="w-3.5 h-3.5 text-brandGold-500" />
-                <span>{selectedLang}</span>
+                <span>{currentLang.label}</span>
                 <ChevronDown className={`w-3 h-3 transition-transform ${langOpen ? 'rotate-180' : ''}`} />
               </button>
               {langOpen && (
                 <>
-                  <div className="fixed inset-0 z-10" onClick={() => setLangOpen(false)} />
                   <div
-                    className="absolute bottom-full mb-2 right-0 z-20 w-36 max-h-56 overflow-y-auto rounded-xl border border-slate-200 dark:border-brandObsidian-700 bg-white dark:bg-brandObsidian-900 shadow-xl py-1"
+                    className="fixed inset-0 z-10"
+                    onClick={() => setLangOpen(false)}
+                    onContextMenu={(e) => e.stopPropagation()}
+                  />
+                  <div
+                    className="absolute bottom-full mb-2 right-0 z-20 w-40 max-h-64 overflow-y-auto rounded-xl border border-slate-200 dark:border-brandObsidian-700 bg-white dark:bg-brandObsidian-900 shadow-xl py-1"
                     role="listbox"
+                    aria-label={t('footer.select_language')}
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    {languages.map((lang) => (
+                    {SUPPORTED_LANGS.map((lang) => (
                       <button
-                        key={lang}
-                        onClick={() => {
-                          setSelectedLang(lang);
-                          setLangOpen(false);
-                        }}
-                        className={`w-full px-3 py-1.5 text-left text-xs transition-colors ${
-                          selectedLang === lang
+                        key={lang.code}
+                        onClick={() => handleLanguageChange(lang.code)}
+                        className={`w-full px-3 py-2 text-left text-xs transition-colors min-h-[36px] flex items-center ${
+                          currentCode === lang.code
                             ? 'text-brandGold-600 dark:text-brandGold-400 bg-brandGold-50/50 dark:bg-brandGold-500/10 font-bold'
                             : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-brandObsidian-800'
                         }`}
                         role="option"
-                        aria-selected={selectedLang === lang}
+                        aria-selected={currentCode === lang.code}
                       >
-                        {lang}
+                        {lang.label}
                       </button>
                     ))}
                   </div>
