@@ -10,11 +10,7 @@
  *   (info-disclosure hardening: never show raw URLs / Vercel IDs / stack traces to users.)
  */
 
-const DEFAULT_BACKEND =
-  typeof window !== 'undefined' &&
-  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? 'http://localhost:8000'
-    : 'https://arv-backend.vercel.app';
+const DEFAULT_BACKEND = 'https://arv-backend.vercel.app';
 
 export const API_BASE_URL = (import.meta.env.VITE_API_URL || DEFAULT_BACKEND).replace(/\/+$/, '');
 

@@ -252,18 +252,18 @@ const InlineToaster: React.FC<{ toasts: Toast[]; onRemove: (id: string) => void 
   );
 };
 
-const StatCard: React.FC<{ Icon: React.FC<any>; label: string; value: number | undefined; accent: string }> = ({ Icon, label, value, accent }) => (
-  <Card className="flex-1 min-w-[140px]">
-    <CardBody className="p-4 sm:p-5">
+const StatCard: React.FC<{ Icon: React.FC<any>; label: string; value: number | string | undefined; accent: string }> = ({ Icon, label, value, accent }) => (
+  <Card className="flex-1 min-w-[130px] border border-slate-200/80 dark:border-brandObsidian-700/80 hover:border-brandGold-500/40 hover:shadow-md transition-all">
+    <CardBody className="p-3.5 sm:p-5">
       <div className="flex items-center gap-3 sm:gap-4">
-        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl ${accent} flex items-center justify-center shrink-0`}>
+        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl ${accent} flex items-center justify-center shrink-0 shadow-sm`}>
           <Icon className="w-5 h-5 sm:w-6 sm:h-6" />
         </div>
         <div className="min-w-0">
-          <div className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-            {typeof value === 'number' ? value.toLocaleString() : '–'}
+          <div className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+            {typeof value === 'number' ? value.toLocaleString() : (value ?? '0')}
           </div>
-          <div className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">{label}</div>
+          <div className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium truncate">{label}</div>
         </div>
       </div>
     </CardBody>
