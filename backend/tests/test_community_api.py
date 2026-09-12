@@ -122,3 +122,44 @@ def test_search_and_category_filtering():
     # Filter by category
     res_cat = client.get("/api/v1/community/posts?category=general")
     assert res_cat.status_code == 200
+
+
+def test_post_with_images_and_likers(dev_auth_headers, auth_headers):
+    """Verify creating a post with images, toggling likes, and querying who liked the post."""
+    # 1. Create post with image
+    create_res = client.post(
+        "/api/v1/community/posts",
+        json={
+            "title": "Production eBPF Architecture Diagram",
+            "content": "Attached below is our multi-cluster eBPF network topology.",
+            "category": "architecture",
+            "tags": ["ebpf", "networking"],
+            "images": ["data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="]
+        },
+        headers=dev_auth_headers
+    )
+    assert create_res.status_code == 201
+    post = create_res.json()
+    post_id = post["id"]
+    assert len(post["images"]) == 1
+
+    # 2. View post and verify view increment
+    view_res = client.post(f"/api/v1/community/posts/{post_id}/view")
+    assert view_res.status_code == 200
+    assert view_res.json()["views_count"] >= 1
+
+    # 3. First user likes post
+    like_res = client.post(f"/api/v1/community/posts/{post_id}/like", headers=auth_headers)
+    assert like_res.status_code == 200
+    assert like_res.json()["liked"] is True
+
+    # 4. Query who liked the post
+    likers_res = client.get(f"/api/v1/community/posts/{post_id}/likes")
+    assert likers_res.status_code == 200
+    likers_data = likers_res.json()
+    assert likers_data["likes_count"] >= 1
+    assert any(u["name"] in ["Yash Baviskar", "yashbaviskar67"] or "SuperAdmin" in u.get("role", "") for u in likers_data["users"])
+
+    # 5. Clean up
+    client.delete(f"/api/v1/community/posts/{post_id}", headers=auth_headers)
+

@@ -31,7 +31,10 @@ import {
   Wrench,
   Cpu,
   CornerUpRight,
-  BookOpen
+  BookOpen,
+  Image as ImageIcon,
+  UploadCloud,
+  Maximize2
 } from 'lucide-react';
 import { apiFetch } from '../config/api';
 import { Button } from '../components/ui/Button';
@@ -59,10 +62,19 @@ function adaptPostFromApi(raw: any, currentUserId?: string): CommunityPost {
     avatar: raw.author_avatar,
   };
   const isOwner = Boolean(raw.is_owner || (currentUserId && (raw.user_id === currentUserId || author.id === currentUserId)));
+  
+  let parsedImages: string[] = [];
+  if (Array.isArray(raw.images)) {
+    parsedImages = raw.images;
+  } else if (typeof raw.images === 'string') {
+    try { parsedImages = JSON.parse(raw.images); } catch { parsedImages = []; }
+  }
+
   return {
     ...raw,
     author,
     tags: Array.isArray(raw.tags) ? raw.tags : [],
+    images: parsedImages,
     like_count: typeof raw.likes_count === 'number' ? raw.likes_count : (raw.like_count ?? 0),
     comment_count: typeof raw.comments_count === 'number' ? raw.comments_count : (raw.comment_count ?? 0),
     view_count: typeof raw.views_count === 'number' ? raw.views_count : (raw.view_count ?? 0),
@@ -100,6 +112,7 @@ export interface CommunityPost {
   content: string;
   category: Category;
   tags: string[];
+  images?: string[];
   author: {
     id?: string;
     name: string;
@@ -115,6 +128,7 @@ export interface CommunityPost {
   is_owner?: boolean;
   created_at: string;
   updated_at?: string;
+  likers?: Array<{ id: string; user_id?: string; name: string; role?: string; avatar?: string; created_at: string }>;
 }
 
 export interface CommunityComment {
@@ -142,6 +156,15 @@ export interface CommunityStats {
   contributors_count?: number | string;
   engineers_count?: number | string;
   categories?: { id: string; label: string; count: number }[];
+}
+
+export interface LikerUser {
+  id: string;
+  user_id?: string;
+  name: string;
+  role?: string;
+  avatar?: string;
+  created_at: string;
 }
 
 interface Toast {
@@ -190,8 +213,8 @@ const formatRelativeTime = (iso: string, t: (k: string) => string): string => {
   return `${diffYr}${t('community.time_years') || 'y ago'}`;
 };
 
-const AuthorAvatar: React.FC<{ name: string; size?: 'sm' | 'md' | 'lg'; className?: string }> = ({ name, size = 'md', className = '' }) => {
-  const sizeCls = size === 'sm' ? 'w-8 h-8 text-[10px]' : size === 'lg' ? 'w-12 h-12 text-sm' : 'w-10 h-10 text-xs';
+const AuthorAvatar: React.FC<{ name: string; size?: 'xs' | 'sm' | 'md' | 'lg'; className?: string }> = ({ name, size = 'md', className = '' }) => {
+  const sizeCls = size === 'xs' ? 'w-6 h-6 text-[9px]' : size === 'sm' ? 'w-8 h-8 text-[10px]' : size === 'lg' ? 'w-12 h-12 text-sm' : 'w-10 h-10 text-xs';
   const colors = [
     'bg-brandGold-500/80 text-brandObsidian-950',
     'bg-sky-500/80 text-white',
@@ -342,6 +365,10 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
   const [detailLoading, setDetailLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ kind: 'post' | 'comment'; id: string; postId?: string } | null>(null);
 
+  // Likers Modal State
+  const [likersModalPostId, setLikersModalPostId] = useState<string | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+
   const currentUser = useMemo<{ id?: string; name?: string } | null>(() => {
     try {
       const raw = localStorage.getItem('aravanta_user');
@@ -428,6 +455,7 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
         has_liked: Boolean(res?.liked),
         like_count: typeof res?.likes_count === 'number' ? res.likes_count : (post.like_count as number)
       });
+      loadStats();
     } catch (e: any) {
       optimisticUpdatePost(post.id, { has_liked: prevLiked, like_count: prevCount });
       addToast({ variant: 'error', title: t('community.error_like') || 'Error updating like', description: e?.message });
@@ -436,9 +464,13 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
 
   const openPostDetail = async (post: CommunityPost) => {
     setDetailOpen(true);
-    setDetailPost(post);
+    // Optimistic view increment in UI
+    const updatedPost = { ...post, view_count: (post.view_count || 0) + 1 };
+    setDetailPost(updatedPost);
+    optimisticUpdatePost(post.id, { view_count: updatedPost.view_count });
     setDetailLoading(true);
     setDetailComments([]);
+
     try {
       const [detailRes, commentsRes] = await Promise.all([
         apiFetch<CommunityPost>(`/community/posts/${post.id}`, { method: 'GET' }),
@@ -805,6 +837,29 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
                   {post.content}
                 </p>
 
+                {/* Attached Image Preview */}
+                {Array.isArray(post.images) && post.images.length > 0 && (
+                  <div
+                    onClick={() => openPostDetail(post)}
+                    className="mt-3 relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900/80 cursor-pointer h-40 max-h-44 group/thumb"
+                  >
+                    <img
+                      src={post.images[0]}
+                      alt="Attachment Preview"
+                      className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-300"
+                      loading="lazy"
+                    />
+                    {post.images.length > 1 && (
+                      <span className="absolute bottom-2 right-2 px-2 py-0.5 rounded-lg bg-black/75 text-white text-[10px] font-bold backdrop-blur">
+                        +{post.images.length - 1} more
+                      </span>
+                    )}
+                    <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-slate-900/80 text-white text-[10px] font-semibold flex items-center gap-1 backdrop-blur">
+                      <ImageIcon className="w-3 h-3" /> Diagram
+                    </span>
+                  </div>
+                )}
+
                 {/* Tags */}
                 {Array.isArray(post.tags) && post.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mt-3">
@@ -822,7 +877,7 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
 
               {/* Bottom Actions */}
               <div className="flex items-center justify-between pt-3 mt-4 border-t border-slate-100 dark:border-slate-800/80">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => handleToggleLike(post)}
@@ -836,10 +891,22 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
                     <span>{post.like_count || 0}</span>
                   </button>
 
+                  {/* "Who liked this post" trigger */}
+                  {post.like_count > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setLikersModalPostId(post.id)}
+                      className="text-[11px] font-bold text-slate-500 hover:text-brandGold-600 dark:hover:text-brandGold-400 hover:underline px-1 py-0.5 rounded cursor-pointer"
+                      title="View engineers who liked this discussion"
+                    >
+                      Liked by...
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     onClick={() => openPostDetail(post)}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer ml-1"
                   >
                     <MessageCircle className="w-3.5 h-3.5" />
                     <span>{post.comment_count || 0}</span>
@@ -917,7 +984,7 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
       {filterBlock}
       {contentBlock}
 
-      {/* Create / Edit Post Modal */}
+      {/* Create / Edit Post Modal (with Image Upload & Text) */}
       <CreateEditPostModal
         open={createOpen}
         post={editingPost}
@@ -932,7 +999,7 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
         onError={(title, desc) => addToast({ variant: 'error', title, description: desc })}
       />
 
-      {/* Detailed Post Modal */}
+      {/* Detailed Post Modal (with Image Lightbox, Likers View, & Nested Comments) */}
       <PostDetailModal
         open={detailOpen}
         post={detailPost}
@@ -940,6 +1007,8 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
         loading={detailLoading}
         onClose={() => { setDetailOpen(false); setDetailPost(null); }}
         onToggleLike={() => { if (detailPost) handleToggleLike(detailPost); }}
+        onOpenLikers={(pid) => setLikersModalPostId(pid)}
+        onOpenLightbox={(src) => setLightboxImage(src)}
         onCommentAdded={async () => {
           if (!detailPost) return;
           try {
@@ -957,6 +1026,20 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
           setPosts(prev => prev.map(p => p.id === detailPost.id ? { ...p, comment_count: nc } : p));
         }}
         onRequestDeleteComment={(c) => setDeleteConfirm({ kind: 'comment', id: c.id, postId: detailPost?.id })}
+      />
+
+      {/* "Who Liked Our Post" Modal */}
+      <LikersModal
+        open={Boolean(likersModalPostId)}
+        postId={likersModalPostId}
+        onClose={() => setLikersModalPostId(null)}
+      />
+
+      {/* Lightbox Modal for Zooming Images */}
+      <LightboxModal
+        open={Boolean(lightboxImage)}
+        imageSrc={lightboxImage}
+        onClose={() => setLightboxImage(null)}
       />
 
       {/* Delete Confirmation Modal */}
@@ -999,7 +1082,7 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
 };
 
 // -------------------------------------------------------------
-// Subcomponents (CreateEditPostModal, PostDetailModal, DeleteConfirmModal)
+// Subcomponents (CreateEditPostModal, PostDetailModal, LikersModal, LightboxModal, DeleteConfirmModal)
 // -------------------------------------------------------------
 
 interface CreateEditPostModalProps {
@@ -1017,9 +1100,11 @@ const CreateEditPostModal: React.FC<CreateEditPostModalProps> = ({ open, post, o
   const [content, setContent] = useState('');
   const [category, setCategory] = useState<string>('general');
   const [tagsInput, setTagsInput] = useState('');
+  const [images, setImages] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [titleErr, setTitleErr] = useState<string | null>(null);
   const [contentErr, setContentErr] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -1027,11 +1112,62 @@ const CreateEditPostModal: React.FC<CreateEditPostModalProps> = ({ open, post, o
       setContent(post?.content || '');
       setCategory(post?.category || 'general');
       setTagsInput(Array.isArray(post?.tags) ? post.tags.join(', ') : '');
+      setImages(Array.isArray(post?.images) ? post.images : []);
       setTitleErr(null);
       setContentErr(null);
       setSubmitting(false);
     }
   }, [open, post]);
+
+  // Client-side image resize and base64 compression
+  const handleImageUpload = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const maxFiles = 4;
+    const remaining = maxFiles - images.length;
+    if (remaining <= 0) {
+      alert(`You can upload a maximum of ${maxFiles} images per post.`);
+      return;
+    }
+
+    Array.from(files).slice(0, remaining).forEach((file) => {
+      if (!file.type.startsWith('image/')) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target?.result as string;
+        if (!dataUrl) return;
+
+        // Compress image using HTML5 Canvas
+        const img = new Image();
+        img.onload = () => {
+          const maxDim = 1200;
+          let w = img.width;
+          let h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, w, h);
+            const compressed = canvas.toDataURL('image/jpeg', 0.82);
+            setImages((prev) => [...prev.slice(0, maxFiles - 1), compressed]);
+          } else {
+            setImages((prev) => [...prev.slice(0, maxFiles - 1), dataUrl]);
+          }
+        };
+        img.src = dataUrl;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1055,7 +1191,14 @@ const CreateEditPostModal: React.FC<CreateEditPostModalProps> = ({ open, post, o
       .filter(Boolean)
       .slice(0, 8);
 
-    const payload: any = { title: trimmedTitle, content: trimmedContent, category, tags: tagsArr };
+    const payload: any = {
+      title: trimmedTitle,
+      content: trimmedContent,
+      category,
+      tags: tagsArr,
+      images,
+    };
+
     try {
       let result: CommunityPost;
       if (isEdit) {
@@ -1073,7 +1216,7 @@ const CreateEditPostModal: React.FC<CreateEditPostModalProps> = ({ open, post, o
 
   return (
     <Modal open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
-      <ModalContent onClose={onClose} className="max-w-2xl bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-6">
+      <ModalContent onClose={onClose} className="max-w-2xl bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <ModalHeader>
             <div className="flex items-center justify-between">
@@ -1082,7 +1225,7 @@ const CreateEditPostModal: React.FC<CreateEditPostModalProps> = ({ open, post, o
                   {isEdit ? t('community.edit_discussion') || 'Edit Discussion' : t('community.start_discussion') || 'Start a Discussion'}
                 </ModalTitle>
                 <ModalDescription className="text-xs text-slate-500 mt-0.5">
-                  Share architecture design, incident post-mortems, or ask technical questions.
+                  Share architecture design, incident post-mortems, or attach runbook diagrams with text.
                 </ModalDescription>
               </div>
               <ModalClose />
@@ -1137,12 +1280,12 @@ const CreateEditPostModal: React.FC<CreateEditPostModalProps> = ({ open, post, o
 
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                Content
+                Content & Description
               </label>
               <textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                rows={7}
+                rows={6}
                 placeholder="Provide architecture context, metrics thresholds, or reproduction steps..."
                 maxLength={30000}
                 className={`w-full px-3.5 py-2.5 bg-slate-100 dark:bg-slate-900 border ${
@@ -1150,6 +1293,69 @@ const CreateEditPostModal: React.FC<CreateEditPostModalProps> = ({ open, post, o
                 } rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-brandGold-500/40 font-mono`}
               />
               {contentErr && <p className="text-[11px] text-rose-500 mt-1">{contentErr}</p>}
+            </div>
+
+            {/* Upload Images with Text */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  Attach Screenshots / Architecture Diagrams ({images.length}/4)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-xs font-bold text-brandGold-600 dark:text-brandGold-400 hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <UploadCloud className="w-3.5 h-3.5" /> Select Image
+                </button>
+              </div>
+
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => handleImageUpload(e.target.files)}
+              />
+
+              {/* Image Previews */}
+              {images.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-2">
+                  {images.map((img, idx) => (
+                    <div key={idx} className="relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 h-24 group">
+                      <img src={img} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setImages(prev => prev.filter((_, i) => i !== idx))}
+                        className="absolute top-1 right-1 p-1 rounded-md bg-rose-600 hover:bg-rose-700 text-white cursor-pointer shadow"
+                        title="Remove image"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {images.length < 4 && (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="h-24 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-brandGold-500/50 flex flex-col items-center justify-center text-slate-400 hover:text-brandGold-500 transition-colors cursor-pointer"
+                    >
+                      <Plus className="w-5 h-5" />
+                      <span className="text-[10px] font-bold mt-1">Add Image</span>
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-2 border-dashed border-slate-200 dark:border-slate-800 hover:border-brandGold-500/50 rounded-xl p-4 text-center cursor-pointer transition-colors"
+                >
+                  <UploadCloud className="w-6 h-6 mx-auto text-slate-400 mb-1" />
+                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">Click or drag images to attach with your discussion</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">PNG, JPG, WebP, GIF (Max 4 images)</p>
+                </div>
+              )}
             </div>
 
             <div>
@@ -1193,6 +1399,8 @@ interface PostDetailModalProps {
   loading: boolean;
   onClose: () => void;
   onToggleLike: () => void;
+  onOpenLikers: (postId: string) => void;
+  onOpenLightbox: (src: string) => void;
   onCommentAdded: () => void;
   onUpdateCommentCount: (delta: number) => void;
   onRequestDeleteComment: (c: CommunityComment) => void;
@@ -1205,6 +1413,8 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
   loading,
   onClose,
   onToggleLike,
+  onOpenLikers,
+  onOpenLightbox,
   onCommentAdded,
   onUpdateCommentCount,
   onRequestDeleteComment,
@@ -1285,10 +1495,49 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
 
         <ModalBody className="overflow-y-auto flex-1 py-4 space-y-6">
           <div>
-            <h2 className="text-xl font-black text-slate-900 dark:text-white">{post.title}</h2>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 uppercase">
+                {post.category}
+              </span>
+              <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono">
+                <Eye className="w-3.5 h-3.5" />
+                <span>{post.view_count || 0} views</span>
+              </div>
+            </div>
+
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white leading-tight">{post.title}</h2>
+            
             <div className="text-xs sm:text-sm text-slate-700 dark:text-slate-200 mt-3 whitespace-pre-wrap leading-relaxed font-sans">
               {post.content}
             </div>
+
+            {/* Attached Architecture Diagrams / Images */}
+            {Array.isArray(post.images) && post.images.length > 0 && (
+              <div className="mt-5 space-y-2">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                  <ImageIcon className="w-3.5 h-3.5" /> Attached Diagrams & Screenshots ({post.images.length})
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  {post.images.map((img, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => onOpenLightbox(img)}
+                      className="relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 group/img cursor-pointer"
+                    >
+                      <img
+                        src={img}
+                        alt={`Attachment ${idx + 1}`}
+                        className="w-full max-h-64 object-contain rounded-xl transition-transform duration-300 group-hover/img:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1.5">
+                        <Maximize2 className="w-4 h-4" /> Click to Zoom
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {Array.isArray(post.tags) && post.tags.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-4">
                 {post.tags.map((tg, i) => (
@@ -1303,22 +1552,35 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-3 py-3 border-y border-slate-100 dark:border-slate-800">
-            <button
-              onClick={onToggleLike}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                post.has_liked
-                  ? 'bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
-              }`}
-            >
-              <Heart className={`w-4 h-4 ${post.has_liked ? 'fill-current' : ''}`} />
-              <span>{post.like_count || 0} Upvotes</span>
-            </button>
-            <div className="text-xs text-slate-400 flex items-center gap-1">
-              <MessageCircle className="w-3.5 h-3.5" />
-              <span>{post.comment_count || 0} Comments</span>
+          {/* Action Row: Upvote & "Who liked our post" banner */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 border-y border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={onToggleLike}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  post.has_liked
+                    ? 'bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
+                }`}
+              >
+                <Heart className={`w-4 h-4 ${post.has_liked ? 'fill-current' : ''}`} />
+                <span>{post.like_count || 0} Upvotes</span>
+              </button>
+
+              <div className="text-xs text-slate-400 flex items-center gap-1">
+                <MessageCircle className="w-3.5 h-3.5" />
+                <span>{post.comment_count || 0} Comments</span>
+              </div>
             </div>
+
+            {/* Who liked this post button */}
+            <button
+              onClick={() => onOpenLikers(post.id)}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-brandGold-600 dark:text-brandGold-400 hover:underline cursor-pointer"
+            >
+              <ThumbsUp className="w-3.5 h-3.5" />
+              <span>See who liked this post ({post.like_count || 0})</span>
+            </button>
           </div>
 
           {/* New Comment Input */}
@@ -1480,6 +1742,111 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
             )}
           </div>
         </ModalBody>
+      </ModalContent>
+    </Modal>
+  );
+};
+
+interface LikersModalProps {
+  open: boolean;
+  postId: string | null;
+  onClose: () => void;
+}
+
+const LikersModal: React.FC<LikersModalProps> = ({ open, postId, onClose }) => {
+  const [users, setUsers] = useState<LikerUser[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (open && postId) {
+      setLoading(true);
+      apiFetch<{ likes_count: number; users: LikerUser[] }>(`/community/posts/${postId}/likes`, { method: 'GET' })
+        .then((res) => {
+          setUsers(res?.users || []);
+        })
+        .catch(() => {
+          setUsers([]);
+        })
+        .finally(() => setLoading(false));
+    }
+  }, [open, postId]);
+
+  return (
+    <Modal open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
+      <ModalContent onClose={onClose} className="max-w-md bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-2xl">
+        <ModalHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center">
+                <Heart className="w-4 h-4 fill-current" />
+              </div>
+              <div>
+                <ModalTitle className="text-base font-bold text-slate-900 dark:text-white">
+                  Post Appreciations ({users.length})
+                </ModalTitle>
+                <ModalDescription className="text-xs text-slate-500 mt-0.5">
+                  Engineers who liked and upvoted this discussion
+                </ModalDescription>
+              </div>
+            </div>
+            <ModalClose />
+          </div>
+        </ModalHeader>
+
+        <ModalBody className="py-4 max-h-72 overflow-y-auto space-y-2.5">
+          {loading ? (
+            <div className="py-6 text-center text-xs text-slate-400">Loading engineers...</div>
+          ) : users.length === 0 ? (
+            <div className="py-6 text-center text-xs text-slate-400">No appreciations yet.</div>
+          ) : (
+            users.map((u, i) => (
+              <div key={`${u.id || u.user_id}-${i}`} className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2.5">
+                  <AuthorAvatar name={u.name || 'Engineer'} size="sm" />
+                  <div>
+                    <div className="text-xs font-bold text-slate-900 dark:text-white">{u.name}</div>
+                    <span className="text-[10px] px-1.5 py-0.2 font-semibold rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                      {u.role || 'Developer'}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-[10px] text-slate-400 font-mono">
+                  {u.created_at ? new Date(u.created_at).toLocaleDateString() : ''}
+                </div>
+              </div>
+            ))
+          )}
+        </ModalBody>
+      </ModalContent>
+    </Modal>
+  );
+};
+
+interface LightboxModalProps {
+  open: boolean;
+  imageSrc: string | null;
+  onClose: () => void;
+}
+
+const LightboxModal: React.FC<LightboxModalProps> = ({ open, imageSrc, onClose }) => {
+  if (!imageSrc) return null;
+  return (
+    <Modal open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
+      <ModalContent onClose={onClose} className="max-w-4xl bg-black/90 border border-slate-800 rounded-2xl p-4 shadow-2xl flex flex-col items-center justify-center">
+        <div className="w-full flex justify-end pb-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 text-slate-400 hover:text-white rounded-lg bg-white/10 cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <img
+          src={imageSrc}
+          alt="Enlarged diagram"
+          className="max-h-[80vh] w-auto object-contain rounded-xl shadow-lg"
+        />
       </ModalContent>
     </Modal>
   );

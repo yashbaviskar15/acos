@@ -40,6 +40,30 @@ def ensure_community_tables(db: Session):
         existing = db.query(CommunityPost).first()
         if not existing:
             _seed_community_data(db)
+        # Run schema migrations for PostgreSQL / SQLite
+        try:
+            from app.core.database import engine
+            from sqlalchemy import text
+            with engine.begin() as conn:
+                try:
+                    conn.execute(text("ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS images TEXT DEFAULT '[]'"))
+                except Exception:
+                    pass
+                try:
+                    conn.execute(text("ALTER TABLE community_likes ADD COLUMN IF NOT EXISTS author_name VARCHAR(255)"))
+                except Exception:
+                    pass
+                try:
+                    conn.execute(text("ALTER TABLE community_likes ADD COLUMN IF NOT EXISTS author_role VARCHAR(50) DEFAULT 'Developer'"))
+                except Exception:
+                    pass
+                try:
+                    conn.execute(text("ALTER TABLE community_likes ADD COLUMN IF NOT EXISTS author_avatar VARCHAR(500)"))
+                except Exception:
+                    pass
+        except Exception as mig_exc:
+            logger.warning(f"Schema migration warning: {mig_exc}")
+
         _tables_initialized = True
     except Exception as exc:
         logger.warning(f"ensure_community_tables primary create: {exc}")
@@ -191,6 +215,7 @@ class PostCreateRequest(BaseModel):
     content: str = Field(..., min_length=5, max_length=30000)
     category: Optional[str] = Field("general", max_length=50)
     tags: Optional[List[str]] = Field(default_factory=list)
+    images: Optional[List[str]] = Field(default_factory=list)
 
 
 class PostUpdateRequest(BaseModel):
@@ -198,6 +223,7 @@ class PostUpdateRequest(BaseModel):
     content: Optional[str] = Field(None, min_length=5, max_length=30000)
     category: Optional[str] = Field(None, max_length=50)
     tags: Optional[List[str]] = None
+    images: Optional[List[str]] = None
 
 
 class CommentCreateRequest(BaseModel):
@@ -330,8 +356,14 @@ def get_post(
         CommunityComment.post_id == post_id
     ).order_by(asc(CommunityComment.created_at)).all()
 
+    # Fetch likers
+    likes = db.query(CommunityLike).filter(
+        CommunityLike.post_id == post_id
+    ).order_by(desc(CommunityLike.created_at)).all()
+
     post_dict = post.to_dict(current_user_id=current_user_id, has_liked=has_liked)
     post_dict["comments"] = [c.to_dict(current_user_id=current_user_id) for c in comments]
+    post_dict["likers"] = [l.to_dict() for l in likes]
 
     return post_dict
 
@@ -353,6 +385,7 @@ def create_post(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Content must be at least 5 characters.")
 
     tags_json = json.dumps([t.strip().lower() for t in payload.tags if t.strip()]) if payload.tags else "[]"
+    images_json = json.dumps(payload.images) if payload.images else "[]"
 
     new_post = CommunityPost(
         id=f"post-{uuid.uuid4().hex[:12]}",
@@ -366,6 +399,7 @@ def create_post(
         content=clean_content,
         category=clean_category,
         tags=tags_json,
+        images=images_json,
         likes_count=0,
         comments_count=0,
         views_count=1,
@@ -427,6 +461,9 @@ def update_post(
 
     if payload.tags is not None:
         post.tags = json.dumps([t.strip().lower() for t in payload.tags if t.strip()])
+
+    if payload.images is not None:
+        post.images = json.dumps(payload.images)
 
     post.updated_at = datetime.datetime.utcnow()
     db.commit()
@@ -495,12 +532,54 @@ def toggle_like_post(
             id=f"like-{uuid.uuid4().hex[:12]}",
             post_id=post_id,
             user_id=current_user.id,
+            author_name=current_user.full_name or current_user.email.split("@")[0],
+            author_role=current_user.role or "Developer",
+            author_avatar=current_user.avatar_url,
             created_at=datetime.datetime.utcnow()
         )
         db.add(new_like)
         post.likes_count = (post.likes_count or 0) + 1
         db.commit()
         return {"liked": True, "likes_count": post.likes_count}
+
+
+
+@router.get("/posts/{post_id}/likes")
+def get_post_likes(
+    post_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    List all engineers/users who liked a specific post.
+    Returns array of users with name, role, avatar, and like timestamp.
+    """
+    ensure_community_tables(db)
+    post = db.query(CommunityPost).filter(CommunityPost.id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
+
+    likes = db.query(CommunityLike).filter(CommunityLike.post_id == post_id).order_by(desc(CommunityLike.created_at)).all()
+    return {
+        "post_id": post_id,
+        "likes_count": len(likes),
+        "users": [l.to_dict() for l in likes]
+    }
+
+
+@router.post("/posts/{post_id}/view")
+def record_post_view(
+    post_id: str,
+    db: Session = Depends(get_db)
+):
+    """Explicitly record a view on a discussion post."""
+    ensure_community_tables(db)
+    post = db.query(CommunityPost).filter(CommunityPost.id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
+
+    post.views_count = (post.views_count or 0) + 1
+    db.commit()
+    return {"post_id": post_id, "views_count": post.views_count}
 
 
 @router.get("/posts/{post_id}/comments")
