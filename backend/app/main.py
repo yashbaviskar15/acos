@@ -100,7 +100,7 @@ async def lifespan(_app: FastAPI):
     On serverless (Vercel / AWS Lambda), the database tables already persist permanently in PostgreSQL,
     so skipping synchronous init_db() keeps cold starts sub-second and prevents execution timeouts."""
     is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
-    should_init = (not is_serverless) or _is_sqlite or (os.environ.get("AUTO_INIT_DB", "").lower() in ("true", "1"))
+    should_init = (not is_serverless) or (os.environ.get("AUTO_INIT_DB", "").lower() in ("true", "1"))
     if should_init:
         try:
             init_db()

@@ -72,14 +72,15 @@ if is_sqlite:
         pool_pre_ping=True,
     )
 else:
-    # PostgreSQL: proper connection pooling for serverless
+    # PostgreSQL: proper connection pooling for serverless with fast timeout
     engine = create_engine(
         DATABASE_URL,
         pool_pre_ping=True,
         pool_size=5,
         max_overflow=10,
         pool_recycle=300,  # Recycle connections every 5 minutes
-        pool_timeout=30,
+        pool_timeout=5,
+        connect_args={"connect_timeout": 5},
     )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
