@@ -17,11 +17,15 @@ if not curr_secret or len(curr_secret) < 32 or curr_secret == "aravanta_super_se
 try:
     from app.main import app
 
-    try:
-        from mangum import Mangum
-        handler = Mangum(app, lifespan="off")
-    except ImportError:
-        handler = app
+    def handler(event_or_scope, context_or_receive=None, send=None):
+        if send is not None:
+            return app(event_or_scope, context_or_receive, send)
+        try:
+            from mangum import Mangum
+            _mangum = Mangum(app, lifespan="off")
+            return _mangum(event_or_scope, context_or_receive)
+        except Exception:
+            return app(event_or_scope, context_or_receive, send)
 except Exception as e:
     err_tb = traceback.format_exc()
     print("FATAL: Startup exception in Vercel handler:", err_tb, file=sys.stderr)
