@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { HardDrive, Plus, Trash2, Folder, FileText, RefreshCw, Upload, CheckCircle2, Download, Eye, Copy, Check, Info, AlertCircle, X } from 'lucide-react';
+import { HardDrive, Plus, Trash2, Folder, FileText, RefreshCw, Upload, CheckCircle2, Download, Eye, Copy, Check, Info, AlertCircle, X, Zap } from 'lucide-react';
 import { ModalPortal } from '../components/ModalPortal';
 import { apiFetch } from '../config/api';
 
@@ -641,6 +641,27 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
               className="rounded bg-slate-100 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-emerald-600 focus:ring-0 cursor-pointer"
             />
             <label htmlFor="versioning" className="text-slate-700 dark:text-slate-300 cursor-pointer font-medium">Enable Object Versioning</label>
+          </div>
+
+          {/* All-in Pricing Display */}
+          <div className="p-4 bg-gradient-to-br from-emerald-500/5 via-slate-50 dark:via-slate-900 to-slate-100 dark:to-slate-950 border border-emerald-500/20 rounded-2xl space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5" /> All-In Estimated Monthly Price
+              </span>
+              <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                100,000 API Calls + 20GB Egress
+              </span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-xl font-black text-slate-900 dark:text-white">
+                ₹150/mo
+              </span>
+              <span className="text-[11px] text-slate-500 font-medium">starter tier all-in</span>
+            </div>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+              Includes 50GB {storageClass} object storage + 100,000 GET/PUT requests + 20GB bundled network transfer. Zero per-request API micro-surcharges.
+            </p>
           </div>
 
           <div className="pt-3 flex gap-3">

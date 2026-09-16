@@ -456,8 +456,8 @@ export const Billing: React.FC = () => {
         </div>
       </div>
 
-      {/* Resource Utilization Meters */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Resource Utilization Meters with Bundled Egress Allowance */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm space-y-2">
           <div className="flex justify-between items-center text-slate-500 text-[10px] font-bold uppercase">
             <span>vCPU Cores</span>
@@ -490,12 +490,23 @@ export const Billing: React.FC = () => {
 
         <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm space-y-2">
           <div className="flex justify-between items-center text-slate-500 text-[10px] font-bold uppercase">
-            <span>Monthly Deployments</span>
+            <span>Monthly Deploys</span>
             <span className="text-slate-900 dark:text-white">{usage.metrics.deployments_month} / {usage.metrics.deployments_limit}</span>
           </div>
           <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-            <div className="bg-emerald-600 h-full" style={{ width: `${(usage.metrics.deployments_month / usage.metrics.deployments_limit) * 100}%` }} />
+            <div className="bg-cyan-600 h-full" style={{ width: `${(usage.metrics.deployments_month / usage.metrics.deployments_limit) * 100}%` }} />
           </div>
+        </div>
+
+        <div className="bg-white dark:bg-[#0F2038] border border-emerald-500/30 dark:border-emerald-500/20 p-4 rounded-2xl shadow-sm space-y-2">
+          <div className="flex justify-between items-center text-slate-500 text-[10px] font-bold uppercase">
+            <span className="text-emerald-600 dark:text-emerald-400 font-black">Bundled Egress</span>
+            <span className="text-slate-900 dark:text-white font-bold">{usage.metrics.bandwidth_gb_used} / {usage.metrics.bandwidth_gb_limit} GB</span>
+          </div>
+          <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+            <div className="bg-emerald-500 h-full" style={{ width: `${(usage.metrics.bandwidth_gb_used / usage.metrics.bandwidth_gb_limit) * 100}%` }} />
+          </div>
+          <p className="text-[9px] text-emerald-600/90 dark:text-emerald-400/90 font-medium">Zero-penalty allowance included</p>
         </div>
       </div>
 

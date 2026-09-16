@@ -33,37 +33,6 @@ def get_current_user(
             user_email: str = payload.get("sub")
             if user_email is not None:
                 user = db.query(User).filter(func.lower(User.email) == str(user_email).strip().lower()).first()
-                if user is None:
-                    # Token signature was cryptographically verified by SECRET_KEY.
-                    uid = payload.get("uid") or str(uuid.uuid4())
-                    name = payload.get("name") or user_email.split("@")[0].replace(".", " ").title()
-                    acc = payload.get("acc") or f"ARV-ACC-{random.randint(100000, 999999)}"
-                    ws_id = payload.get("ws_id") or f"ws-{random.randint(10000, 99999)}"
-                    ws_name = payload.get("ws_name") or f"{name}'s Workspace"
-                    roles = payload.get("roles") or ["Developer"]
-                    role = payload.get("role") or (roles[0] if isinstance(roles, list) and roles else "Developer")
-                    
-                    import secrets
-                    user = User(
-                        id=uid,
-                        account_id=acc,
-                        workspace_id=ws_id,
-                        workspace_name=ws_name,
-                        email=str(user_email).strip().lower(),
-                        full_name=name,
-                        hashed_password=get_password_hash(secrets.token_urlsafe(32)),
-                        role=role,
-                        is_active=True,
-                        is_mfa_enabled=False
-                    )
-                    try:
-                        db.add(user)
-                        db.commit()
-                        db.refresh(user)
-                    except Exception:
-                        db.rollback()
-                        user = db.query(User).filter(func.lower(User.email) == str(user_email).strip().lower()).first()
-
                 if user is not None and user.is_active:
                     return user
 

@@ -7,7 +7,7 @@ from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from app.core.database import get_db
 from app.core.security import get_password_hash, verify_password, create_access_token, generate_mfa_secret, verify_mfa_token
 from app.services.arvgate.models import User, AuditLog, generate_account_id, generate_workspace_id
@@ -26,16 +26,80 @@ router = APIRouter(prefix="/api/v1/auth", tags=["ArvGate — Identity & Access"]
 
 _reset_tokens: dict[str, dict] = {}
 
+ROLE_LEVELS: Dict[str, int] = {
+    "SuperAdmin": 5,
+    "Admin": 4,
+    "Operator": 3,
+    "Developer": 2,
+    "Viewer": 1,
+}
+ALLOWED_ROLES: List[str] = list(ROLE_LEVELS.keys())
+
+def _role_level(role: str) -> int:
+    return ROLE_LEVELS.get(role, 0)
+
+def _can_assign_role(caller_role: str, target_role: str) -> bool:
+    if target_role not in ALLOWED_ROLES:
+        return False
+    caller_lvl = _role_level(caller_role)
+    target_lvl = _role_level(target_role)
+    if caller_lvl < _role_level("Admin"):
+        return False
+    if target_role == "SuperAdmin" and caller_role != "SuperAdmin":
+        return False
+    return target_lvl <= caller_lvl
+
+_VALID_API_SCOPE_TOKENS = {"*", "read", "write", "admin", "compute", "storage", "db",
+                            "kube", "registry", "edge", "billing", "ai", "cicd",
+                            "operations", "community", "watch", "pulse", "guard",
+                            "sandbox", "costiq"}
+
+def _is_valid_scope(scope: str) -> bool:
+    if not isinstance(scope, str):
+        return False
+    s = scope.strip()
+    if not s:
+        return False
+    if s in _VALID_API_SCOPE_TOKENS:
+        return True
+    if ":" in s:
+        left, _, right = s.partition(":")
+        if left in _VALID_API_SCOPE_TOKENS and right in {"*", "read", "write", "admin"}:
+            return True
+    return False
+
 class ApiKeyCreateRequest(BaseModel):
     name: str
     scopes: Optional[List[str]] = ["*"]
     expires_in_days: Optional[int] = 90
+
+    @model_validator(mode="before")
+    @classmethod
+    def _validate_scopes(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            scopes_raw = data.get("scopes", ["*"])
+            scopes = scopes_raw if isinstance(scopes_raw, list) else [scopes_raw]
+            for s in scopes:
+                if not _is_valid_scope(s if isinstance(s, str) else str(s) if s is not None else ""):
+                    raise ValueError(
+                        f"Invalid API scope '{s}'. Use '*', a resource name, or 'resource:action'."
+                    )
+        return data
 
 class RoleUpdateRequest(BaseModel):
     role: str
 
 class MFAEnableRequest(BaseModel):
     mfa_code: str
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_client_role(cls, data: Any) -> Any:
+        if isinstance(data, dict) and ("role" in data or "roles" in data or "permissions" in data or "scopes" in data):
+            raise ValueError(
+                "Client-specified role/permissions/scopes are forbidden on MFA enable requests."
+            )
+        return data
 
 class InviteMemberRequest(BaseModel):
     email: str
@@ -46,6 +110,16 @@ class AcceptInviteRequest(BaseModel):
     token: str
     password: str
     full_name: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_client_role(cls, data: Any) -> Any:
+        if isinstance(data, dict) and ("role" in data or "roles" in data or "permissions" in data or "scopes" in data):
+            raise ValueError(
+                "Client-specified role/permissions/scopes are forbidden on invite acceptance. "
+                "The invited role is determined by the invitation record."
+            )
+        return data
 
 def log_audit(db: Session, email: str, action: str, resource: str, request: Request = None, details: str = None, workspace_id: str = None):
     ip_addr = request.client.host if request and request.client else "127.0.0.1"
@@ -71,29 +145,7 @@ def register_user(user_in: UserRegister, request: Request, db: Session = Depends
     clean_email = str(user_in.email).strip().lower()
     existing = db.query(User).filter(func.lower(User.email) == clean_email).first()
     if existing:
-        is_dummy_invite = verify_password("Aravanta@2026!", existing.hashed_password)
-        if verify_password(user_in.password, existing.hashed_password) or is_dummy_invite:
-            existing.hashed_password = get_password_hash(user_in.password)
-            if user_in.full_name and user_in.full_name.strip():
-                existing.full_name = user_in.full_name.strip()
-            if user_in.workspace_name and user_in.workspace_name.strip():
-                existing.workspace_name = user_in.workspace_name.strip()
-            
-            # Check and resolve pending invite if one exists
-            pending_inv = db.query(InvitationRecord).filter(
-                func.lower(InvitationRecord.email) == clean_email,
-                InvitationRecord.status == "PENDING"
-            ).first()
-            if pending_inv:
-                existing.workspace_id = pending_inv.workspace_id
-                existing.workspace_name = pending_inv.workspace_name
-                existing.role = pending_inv.role
-                pending_inv.status = "ACCEPTED"
-
-            db.commit()
-            db.refresh(existing)
-            return existing
-        raise HTTPException(status_code=400, detail="An account with this email already exists. Please sign in instead.")
+        raise HTTPException(status_code=409, detail="An account with this email already exists. Please sign in or use password reset.")
 
     # Check if there is an active pending invitation for this email
     pending_invite = db.query(InvitationRecord).filter(
@@ -308,12 +360,23 @@ def invite_workspace_member(
     clean_email = req.email.strip().lower()
     if not clean_email or "@" not in clean_email or "." not in clean_email:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="Please provide a valid work email address (e.g. name@company.com)."
         )
 
     clean_name = req.full_name.strip() if req.full_name else clean_email.split('@')[0].replace('.', ' ').title()
-    assigned_role = req.role if req.role in ["Admin", "Operator", "Developer", "Viewer"] else "Developer"
+    candidate_role = req.role if req.role in ALLOWED_ROLES else "Developer"
+    if not _can_assign_role(current_user.role, candidate_role):
+        log_audit(
+            db, current_user.email, "MEMBER_INVITE_BLOCKED", "Workspace", request,
+            f"Caller ({current_user.role}) attempted to invite with role '{candidate_role}' — rejected",
+            workspace_id=current_user.workspace_id
+        )
+        raise HTTPException(
+            status_code=403,
+            detail=f"Insufficient privilege to invite a member with role '{candidate_role}'."
+        )
+    assigned_role = candidate_role
 
     if not current_user.workspace_id:
         current_user.workspace_id = f"ws-{random.randint(10000, 99999)}"
@@ -323,7 +386,6 @@ def invite_workspace_member(
 
     ws_name = current_user.workspace_name or f"{current_user.full_name}'s Workspace"
 
-    # Check if user is already an existing active user
     existing = db.query(User).filter(func.lower(User.email) == clean_email).first()
     if existing:
         existing.workspace_id = current_user.workspace_id
@@ -593,15 +655,41 @@ def update_role(
     current_user: User = Depends(require_roles(["SuperAdmin", "Admin"])),
     db: Session = Depends(get_db)
 ):
-    if req.role not in ["SuperAdmin", "Admin", "Operator", "Developer", "Viewer"]:
+    if req.role not in ALLOWED_ROLES:
         raise HTTPException(status_code=400, detail="Invalid system role specified")
 
+    if not _can_assign_role(current_user.role, req.role):
+        log_audit(
+            db, current_user.email, "ROLE_UPDATE_BLOCKED", "ArvGate", request,
+            f"Self-escalation attempt from '{current_user.role}' to '{req.role}' rejected",
+            workspace_id=current_user.workspace_id
+        )
+        raise HTTPException(
+            status_code=403,
+            detail=f"Insufficient privilege to change own role to '{req.role}'. "
+                   "A role change at or above your current privilege level requires a separate SuperAdmin grant."
+        )
+
+    if current_user.role == "SuperAdmin" and req.role != "SuperAdmin":
+        admin_count = db.query(User).filter(
+            User.workspace_id == current_user.workspace_id,
+            User.role == "SuperAdmin",
+            User.is_active == True
+        ).count()
+        if admin_count <= 1:
+            raise HTTPException(status_code=400, detail="Cannot demote the only active SuperAdmin of this workspace")
+
+    old_role = current_user.role
     current_user.role = req.role
     db.commit()
     db.refresh(current_user)
 
     new_token = create_access_token(subject=current_user.email, roles=[current_user.role], user_obj=current_user)
-    log_audit(db, current_user.email, "ROLE_UPDATE", "ArvGate", request, f"System role changed to '{req.role}'", workspace_id=current_user.workspace_id)
+    log_audit(
+        db, current_user.email, "ROLE_UPDATE", "ArvGate", request,
+        f"System role changed from '{old_role}' to '{req.role}'",
+        workspace_id=current_user.workspace_id
+    )
 
     return {
         "message": f"System role updated to '{req.role}'",
@@ -631,7 +719,7 @@ def update_workspace_member_role(
     current_user: User = Depends(require_roles(["SuperAdmin", "Admin"])),
     db: Session = Depends(get_db)
 ):
-    if req.role not in ["SuperAdmin", "Admin", "Operator", "Developer", "Viewer"]:
+    if req.role not in ALLOWED_ROLES:
         raise HTTPException(status_code=400, detail="Invalid system role specified")
 
     target_user = db.query(User).filter(
@@ -644,7 +732,23 @@ def update_workspace_member_role(
     if not target_user:
         raise HTTPException(status_code=404, detail="Workspace member not found")
 
-    # Prevent demoting the last active SuperAdmin in the workspace
+    if not _can_assign_role(current_user.role, req.role):
+        log_audit(
+            db, current_user.email, "MEMBER_ROLE_CHANGE_BLOCKED", "Workspace", request,
+            f"Caller '{current_user.email}' ({current_user.role}) attempted to elevate "
+            f"{target_user.email} to '{req.role}' — rejected by role hierarchy",
+            workspace_id=current_user.workspace_id
+        )
+        raise HTTPException(
+            status_code=403,
+            detail=f"Insufficient privilege to assign role '{req.role}'. "
+                   "Only a SuperAdmin can grant SuperAdmin, and you cannot assign a role "
+                   "with higher privilege than your own."
+        )
+
+    if target_user.id != current_user.id and target_user.workspace_id != current_user.workspace_id:
+        raise HTTPException(status_code=404, detail="Workspace member not found")
+
     if target_user.id == current_user.id and target_user.role == "SuperAdmin" and req.role != "SuperAdmin":
         admin_count = db.query(User).filter(
             User.workspace_id == current_user.workspace_id,
@@ -661,7 +765,8 @@ def update_workspace_member_role(
 
     log_audit(
         db, current_user.email, "MEMBER_ROLE_CHANGE", "Workspace", request,
-        f"Admin {current_user.email} changed role of member {target_user.email} from '{old_role}' to '{req.role}'",
+        f"Caller {current_user.email} ({current_user.role}) changed role of member {target_user.email} "
+        f"from '{old_role}' to '{req.role}'",
         workspace_id=current_user.workspace_id
     )
 
@@ -683,17 +788,15 @@ def update_workspace_member_role(
 def request_password_reset(req: PasswordResetRequest, request: Request, db: Session = Depends(get_db)):
     email_clean = req.email.strip().lower()
     user = db.query(User).filter(func.lower(User.email) == email_clean).first()
-    
-    token = f"{secrets.randbelow(900000) + 100000}"
-    expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=15)
-    _reset_tokens[email_clean] = {"token": token, "expires_at": expires_at}
 
     if user:
+        token = f"{secrets.randbelow(900000) + 100000}"
+        expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=15)
+        _reset_tokens[email_clean] = {"token": token, "expires_at": expires_at}
         log_audit(db, user.email, "PASSWORD_RESET_REQUEST", "ArvGate", request, "Password reset code generated", workspace_id=user.workspace_id)
 
     return {
-        "message": f"Verification code sent to {req.email}",
-        "reset_token": token,
+        "message": f"If an account exists for {req.email}, a verification code has been sent.",
         "expires_in_minutes": 15
     }
 
@@ -704,37 +807,35 @@ def request_password_reset(req: PasswordResetRequest, request: Request, db: Sess
 def confirm_password_reset(req: PasswordResetConfirm, request: Request, db: Session = Depends(get_db)):
     email_clean = req.email.strip().lower()
     user = db.query(User).filter(func.lower(User.email) == email_clean).first()
-    
+
     if not user:
-        # If user not found in local table, create account so password reset is seamless
-        user = User(
-            id=str(uuid.uuid4()),
-            account_id=f"ARV-ACC-{random.randint(100000, 999999)}",
-            workspace_id=f"ws-{random.randint(10000, 99999)}",
-            workspace_name=f"{email_clean.split('@')[0]}'s Workspace",
-            email=email_clean,
-            full_name=email_clean.split('@')[0].replace('.', ' ').title(),
-            hashed_password=get_password_hash(req.new_password),
-            role="SuperAdmin",
-            is_active=True,
-            is_mfa_enabled=False,
-            mfa_secret=generate_mfa_secret()
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid verification code or email. Please request a new password reset."
         )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
 
     record = _reset_tokens.get(email_clean)
-    valid_token = record["token"] if record else None
-    
-    is_token_valid = (
-        (valid_token and valid_token == req.reset_token.strip()) or 
-        req.reset_token.strip() in ["123456", "000000", "165451"] or
-        (len(req.reset_token.strip()) == 6 and req.reset_token.strip().isdigit())
-    )
+    if not record:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid verification code or email. Please request a new password reset."
+        )
 
-    if not is_token_valid:
-        raise HTTPException(status_code=400, detail="Invalid verification code. Please check the code.")
+    if record.get("expires_at") and record["expires_at"] < datetime.datetime.utcnow():
+        if email_clean in _reset_tokens:
+            del _reset_tokens[email_clean]
+        raise HTTPException(
+            status_code=400,
+            detail="This verification code has expired. Please request a new password reset."
+        )
+
+    stored_token = str(record["token"])
+    submitted_token = str(req.reset_token).strip()
+    if not secrets.compare_digest(stored_token, submitted_token):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid verification code or email. Please request a new password reset."
+        )
 
     if len(req.new_password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters long")
@@ -829,3 +930,23 @@ def revoke_api_key(
     db.commit()
     log_audit(db, current_user.email, "API_KEY_REVOKE", "Security", request, f"Revoked API key '{key.name}' ({key.id})", workspace_id=current_user.workspace_id)
     return {"message": f"API key '{key.name}' has been successfully revoked"}
+
+@router.post("/logout")
+def logout_user(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Revoke the caller's active bearer access token."""
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+        from app.core.security import revoke_token
+        revoke_token(token)
+    log_audit(
+        db, current_user.email, "LOGOUT", "ArvGate", request,
+        "User logged out and access token revoked",
+        workspace_id=current_user.workspace_id
+    )
+    return {"message": "Successfully logged out. Access token has been revoked."}
+

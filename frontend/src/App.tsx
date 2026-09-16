@@ -33,6 +33,10 @@ import { DocumentationPage } from './pages/DocumentationPage';
 import { PricingPage } from './pages/PricingPage';
 import { AboutPage } from './pages/AboutPage';
 import { CommunityPage } from './pages/CommunityPage';
+import { CostIQ } from './pages/CostIQ';
+import { Compliance } from './pages/Compliance';
+import { Pulse } from './pages/Pulse';
+import { Sandbox } from './pages/Sandbox';
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
 import { DisclaimerPage } from './pages/DisclaimerPage';
 import { TermsOfUsePage } from './pages/TermsOfUsePage';
@@ -303,7 +307,21 @@ export default function App() {
     setAuthViewState('landing');
   };
 
-  const handleLogout = () => {
+  const [sessionInvalidatedReason, setSessionInvalidatedReason] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleInvalidation = (e: any) => {
+      const reason = e?.detail?.reason || 'Your session was invalidated or expired. Please sign in again.';
+      handleLogout(reason);
+    };
+    window.addEventListener('acos:session-invalidated', handleInvalidation);
+    return () => window.removeEventListener('acos:session-invalidated', handleInvalidation);
+  }, [token]);
+
+  const handleLogout = (reason?: string) => {
+    if (token) {
+      apiFetch('/api/v1/auth/logout', { method: 'POST', token }).catch(() => {});
+    }
     setToken(null);
     setUser(null);
     try {
@@ -311,7 +329,13 @@ export default function App() {
       localStorage.removeItem('aravanta_user');
       localStorage.removeItem('aravanta_active_tab');
     } catch {}
-    setAuthViewState('landing');
+    if (reason) {
+      setSessionInvalidatedReason(reason);
+      setAuthViewState('login');
+    } else {
+      setSessionInvalidatedReason(null);
+      setAuthViewState('landing');
+    }
   };
 
   if (!token) {
@@ -319,11 +343,16 @@ export default function App() {
       return (
         <ErrorBoundary>
           <Login 
-            onLoginSuccess={handleLoginSuccess}
+            onLoginSuccess={(userData, newToken) => {
+              setSessionInvalidatedReason(null);
+              handleLoginSuccess(userData, newToken);
+            }}
             initialTab={inviteToken ? 'invite' : (authViewState === 'register' ? 'register' : 'signin')}
             inviteToken={inviteToken}
+            sessionInvalidatedReason={sessionInvalidatedReason}
             onGoToLanding={() => {
               setInviteToken(null);
+              setSessionInvalidatedReason(null);
               setAuthViewState('landing');
             }}
           />
@@ -437,6 +466,10 @@ export default function App() {
       case 'settings': return 'Platform Settings & SRE Microservices Health Matrix';
       case 'profile': return 'User Profile & IAM API Credentials';
       case 'guide': return 'Operations Guide & SOP Documentation';
+      case 'costiq': return 'ArvCostIQ — Predictive Cost Intelligence Engine';
+      case 'compliance': return 'ArvGuard — Compliance-as-Infrastructure (India-First)';
+      case 'pulse': return 'ArvPulse — Predictive Infrastructure Health Engine';
+      case 'sandbox': return 'ArvSandbox — Ephemeral Environment Engine';
       default: return 'Aravanta CloudOS Control Plane';
     }
   };
@@ -503,7 +536,7 @@ export default function App() {
                 
                 {/* Cloud Resources */}
                 {activeTab === 'compute' && <Compute token={token} />}
-                {activeTab === 'kubernetes' && <Kubernetes token={token} />}
+                {activeTab === 'kubernetes' && <Kubernetes token={token} onNavigate={(tab) => setActiveTab(tab)} />}
                 {activeTab === 'storage' && <Storage token={token} />}
                 {activeTab === 'database' && <Databases token={token} />}
                 {activeTab === 'cicd' && <CICD />}
@@ -521,6 +554,10 @@ export default function App() {
                 )}
                 {activeTab === 'guide' && <GettingStarted onNavigate={(tab) => setActiveTab(tab)} />}
                 {activeTab === 'community' && <CommunityPage onNavigate={(tab) => setActiveTab(tab)} />}
+                {activeTab === 'costiq' && <CostIQ token={token} />}
+                {activeTab === 'compliance' && <Compliance token={token} />}
+                {activeTab === 'pulse' && <Pulse token={token} />}
+                {activeTab === 'sandbox' && <Sandbox token={token} />}
                 
                 {/* Fallback for unhandled tab */}
                 {![
@@ -528,7 +565,8 @@ export default function App() {
                   'containers', 'monitoring', 'logs', 'alerts', 'incidents', 
                   'automation', 'backups', 'audit', 'settings', 'compute', 
                   'kubernetes', 'storage', 'database', 'cicd', 'security', 
-                  'billing', 'profile', 'guide', 'community'
+                  'billing', 'profile', 'guide', 'community',
+                  'costiq', 'compliance', 'pulse', 'sandbox'
                 ].includes(activeTab) && (
                   <Dashboard token={token} onNavigate={(tab) => setActiveTab(tab)} searchTerm={searchTerm} />
                 )}

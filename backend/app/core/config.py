@@ -1,27 +1,22 @@
 import os
+import re
 from typing import List
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Aravanta CloudOS"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
 
-    # Security — MUST be overridden via SECRET_KEY env var in production
-    SECRET_KEY: str = "aravanta_super_secret_jwt_key_change_in_production_2026"
+    SECRET_KEY: str
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 1 day
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
 
-    # Database — MUST be set to a PostgreSQL URL in production via DATABASE_URL env var
-    # Examples:
-    #   postgresql://user:pass@ep-xxx.us-east-2.aws.neon.tech/neondb?sslmode=require
-    #   postgresql://postgres:pass@db.xxx.supabase.co:5432/postgres
     DATABASE_URL: str = ""
 
-    # Redis (optional)
     REDIS_URL: str = "redis://localhost:6379/0"
 
-    # CORS — comma-separated list of browser origins allowed to call this API.
     BACKEND_CORS_ORIGINS: str = (
         "https://aravantacos.vercel.app,"
         "https://arv-frontend.vercel.app,"
@@ -33,14 +28,44 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(case_sensitive=True, env_file=".env", extra="ignore")
 
+    @field_validator("SECRET_KEY")
+    @classmethod
+    def _validate_secret_key(cls, v: str) -> str:
+        if not v or not isinstance(v, str):
+            raise ValueError(
+                "SECRET_KEY is required and must be a non-empty string. "
+                "Set it via environment variable or .env file. "
+                "Generate a secure one with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
+            )
+        stripped = v.strip()
+        insecure_patterns = [
+            r"^change.?me$",
+            r"^aravanta_super_secret",
+            r"^default$",
+            r"^test123$",
+            r"changeme",
+            r"^please.?change",
+        ]
+        lowered = stripped.lower()
+        for pat in insecure_patterns:
+            if re.search(pat, lowered):
+                raise ValueError(
+                    "SECRET_KEY looks like an insecure placeholder. "
+                    "Generate a real secret with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
+                )
+        if len(stripped) < 32:
+            raise ValueError(
+                "SECRET_KEY must be at least 32 characters for HS256 cryptographic safety. "
+                "Generate a secure one with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
+            )
+        return stripped
+
     @property
     def cors_origins_list(self) -> List[str]:
-        """Parsed list form of BACKEND_CORS_ORIGINS for CORSMiddleware."""
         return [origin.strip() for origin in self.BACKEND_CORS_ORIGINS.split(",") if origin.strip()]
 
     @property
     def is_production(self) -> bool:
-        """True when running on serverless / production."""
         return bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
 
 settings = Settings()

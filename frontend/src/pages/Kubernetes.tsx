@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Boxes, Plus, Trash2, RefreshCw, Activity, Terminal, Copy, Check, Info, Play } from 'lucide-react';
+import { Boxes, Plus, Trash2, RefreshCw, Activity, Terminal, Copy, Check, Info, Play, Layers, ArrowRight, Moon, Zap } from 'lucide-react';
 import { ModalPortal } from '../components/ModalPortal';
 import { apiFetch } from '../config/api';
 
 interface KubernetesProps {
   token: string | null;
+  onNavigate?: (tab: string) => void;
 }
 
-export const Kubernetes: React.FC<KubernetesProps> = ({ token }) => {
+export const Kubernetes: React.FC<KubernetesProps> = ({ token, onNavigate }) => {
   const [clusters, setClusters] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>(null);
   const [selectedCluster, setSelectedCluster] = useState<any | null>(null);
@@ -21,11 +22,28 @@ export const Kubernetes: React.FC<KubernetesProps> = ({ token }) => {
 
   // Form State
   const [name, setName] = useState('');
+  const [environment, setEnvironment] = useState<'development' | 'staging' | 'production'>('development');
   const [version, setVersion] = useState('1.30.1');
   const [region, setRegion] = useState('arv-us-east-1');
   const [nodeCount, setNodeCount] = useState(3);
   const [nodeSize, setNodeSize] = useState('arv.large');
+  const [autoSuspend, setAutoSuspend] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+
+  const calculateK8sAllInPrice = () => {
+    const sizePrices: Record<string, number> = {
+      'arv.small': 700,
+      'arv.medium': 1400,
+      'arv.large': 2800,
+      'arv.xlarge': 5600,
+    };
+    const nodeUnit = sizePrices[nodeSize] || 2800;
+    const workers = nodeCount * nodeUnit;
+    const controlPlane = 1200;
+    const full = workers + controlPlane;
+    const effective = autoSuspend && environment !== 'production' ? Math.round(full * 0.45) : full;
+    return { full, effective };
+  };
 
   const handleCopyText = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -132,6 +150,34 @@ Metrics-server is running and healthy.`);
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
+      {/* Architecture Guidance: Escape Hatch Notice */}
+      <div className="bg-gradient-to-r from-purple-500/10 via-slate-50 dark:via-slate-900 to-blue-500/10 border border-purple-500/20 rounded-2xl p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30">
+              Escape Hatch Surface
+            </span>
+            <h3 className="text-sm font-black text-slate-900 dark:text-white">
+              Kubernetes is an Escape Hatch, Not the Default Deploy Path
+            </h3>
+          </div>
+          <p className="text-xs text-slate-600 dark:text-slate-400 font-sans max-w-3xl">
+            For 95% of web services and microservices, deploy via <strong>Applications (git-push & container-first)</strong> for zero-downtime rollouts, automated SSL routing, and managed autoscaling without YAML or cluster overhead. Use this raw cluster console only when you require custom CRDs, low-level DaemonSets, or direct <code className="text-purple-600 dark:text-purple-400">kubectl</code> cluster access.
+          </p>
+        </div>
+
+        {onNavigate && (
+          <button
+            onClick={() => onNavigate('applications')}
+            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all flex items-center gap-2 shrink-0 shadow-sm cursor-pointer"
+          >
+            <Layers className="w-4 h-4" />
+            <span>Deploy via Container-First (Recommended)</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
       {/* Top Action Bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm">
         <div>
@@ -372,6 +418,89 @@ Metrics-server is running and healthy.`);
                 <option value="arv.xlarge">arv.xlarge (4 vCPU, 16GB)</option>
               </select>
             </div>
+          </div>
+
+          {/* Environment Selector */}
+          <div>
+            <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1.5 uppercase font-mono">Environment Tier</label>
+            <div className="grid grid-cols-3 gap-2">
+              {(['development', 'staging', 'production'] as const).map((env) => (
+                <button
+                  key={env}
+                  type="button"
+                  onClick={() => {
+                    setEnvironment(env);
+                    if (env === 'production') {
+                      setAutoSuspend(false);
+                      setNodeCount(3);
+                    } else {
+                      setAutoSuspend(true);
+                      setNodeCount(2);
+                    }
+                  }}
+                  className={`py-2 px-3 rounded-xl border text-center font-bold capitalize transition-all cursor-pointer ${
+                    environment === env
+                      ? 'border-purple-500 bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 shadow-sm'
+                      : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  {env}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Non-Prod Auto-Suspend Worker Nodes */}
+          <div className="p-3.5 bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Moon className="w-4 h-4 text-purple-500" />
+                <span className="font-bold text-slate-800 dark:text-slate-200">Idle Node Auto-Suspend</span>
+                {environment !== 'production' && (
+                  <span className="px-2 py-0.5 text-[9px] font-bold rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                    Active by Default
+                  </span>
+                )}
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={autoSuspend}
+                  onChange={(e) => setAutoSuspend(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
+              </label>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Scales down non-prod worker nodes during inactivity to eliminate idle compute waste. Automatically resumes when pods schedule.
+            </p>
+          </div>
+
+          {/* All-In Pricing Display */}
+          <div className="p-4 bg-gradient-to-br from-purple-500/5 via-slate-50 dark:via-slate-900 to-slate-100 dark:to-slate-950 border border-purple-500/20 rounded-2xl space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5" /> All-In Estimated Monthly Price
+              </span>
+              <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                Control Plane & 100GB Egress Included
+              </span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-xl font-black text-slate-900 dark:text-white">
+                ₹{calculateK8sAllInPrice().effective.toLocaleString()}/mo
+              </span>
+              {autoSuspend && environment !== 'production' && (
+                <span className="text-[11px] text-slate-400 line-through">
+                  ₹{calculateK8sAllInPrice().full.toLocaleString()}/mo
+                </span>
+              )}
+              <span className="text-[11px] text-slate-500 font-medium">all-in estimate</span>
+            </div>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+              Includes managed HA control plane + {nodeCount} {nodeSize} worker nodes + 100GB bundled network egress. Zero hourly cluster fee markup.
+            </p>
           </div>
 
           <div className="pt-3 flex gap-3">

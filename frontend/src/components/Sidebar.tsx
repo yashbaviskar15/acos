@@ -89,7 +89,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       title: t('sidebar.section_cloud_resources'),
       items: [
         { id: 'compute', label: t('sidebar.item_compute'), icon: Server },
-        { id: 'kubernetes', label: t('sidebar.item_kubernetes'), icon: Boxes },
+        { id: 'kubernetes', label: t('sidebar.item_kubernetes'), icon: Boxes, badge: 'ADVANCED' },
         { id: 'database', label: t('sidebar.item_database'), icon: Database },
         { id: 'storage', label: t('sidebar.item_storage'), icon: HardDrive },
       ]

@@ -14,6 +14,7 @@ import {
   Cpu,
   Boxes,
   Loader2,
+  AlertTriangle,
   X,
 } from 'lucide-react';
 import { Logo } from '../components/Logo';
@@ -24,6 +25,7 @@ interface LoginProps {
   onGoToLanding?: () => void;
   initialTab?: 'signin' | 'register' | 'invite';
   inviteToken?: string | null;
+  sessionInvalidatedReason?: string | null;
 }
 
 // ---- lightweight inline validators ----
@@ -40,12 +42,14 @@ export const Login: React.FC<LoginProps> = ({
   onGoToLanding,
   initialTab = 'signin',
   inviteToken = null,
+  sessionInvalidatedReason = null,
 }) => {
   const [activeTab, setActiveTab] = useState<'signin' | 'register' | 'mfa' | 'forgot' | 'invite'>(initialTab);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [errorDismissed, setErrorDismissed] = useState(false);
   const [success, setSuccess] = useState('');
+  const [resetStep, setResetStep] = useState<'request' | 'confirm'>('request');
 
   // Sign In form state
   const [email, setEmail] = useState('');
@@ -276,16 +280,17 @@ export const Login: React.FC<LoginProps> = ({
     setLoading(true);
 
     try {
-      const data = await apiFetch<any>('/api/v1/auth/password-reset/request', {
+      await apiFetch<any>('/api/v1/auth/password-reset/request', {
         method: 'POST',
         body: JSON.stringify({ email: resetEmail.trim() })
       });
-      setSuccess(data.message || 'Verification code sent to your email.');
-      if (data.reset_token) {
-        setResetCode(data.reset_token);
-      }
-    } catch (err: any) {
-      setError(err.message || 'Failed to request reset token.');
+      // Uniform generic confirmation state — prevents email enumeration
+      setSuccess('If an account exists with this email, a single-use verification code has been sent. Please check your inbox.');
+      setResetStep('confirm');
+    } catch (_err: any) {
+      // Keep UI response identical to prevent timing or status code leaks
+      setSuccess('If an account exists with this email, a single-use verification code has been sent. Please check your inbox.');
+      setResetStep('confirm');
     } finally {
       setLoading(false);
     }
@@ -302,10 +307,19 @@ export const Login: React.FC<LoginProps> = ({
       return;
     }
 
+    if (newPassword.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+
+    if (!resetCode.trim()) {
+      setError('Please enter the 6-digit verification code from your email.');
+      return;
+    }
+
     const targetEmail = (resetEmail || email).trim();
     if (!targetEmail) {
       setError('Please provide the account email address.');
-      setLoading(false);
       return;
     }
 
@@ -319,14 +333,17 @@ export const Login: React.FC<LoginProps> = ({
           new_password: newPassword
         })
       });
-      setSuccess(data.message || 'Password reset successfully.');
+      setSuccess(data.message || 'Password has been reset successfully. Please sign in with your new credentials.');
       setTimeout(() => {
         setActiveTab('signin');
         setEmail(targetEmail);
         setResetCode('');
-      }, 1500);
+        setNewPassword('');
+        setConfirmNewPassword('');
+        setResetStep('request');
+      }, 2000);
     } catch (err: any) {
-      setError(err.message || 'Password reset failed.');
+      setError(err.message || 'Verification code is invalid or has expired. Please request a new code.');
     } finally {
       setLoading(false);
     }
@@ -529,6 +546,19 @@ export const Login: React.FC<LoginProps> = ({
           )}
 
           {/* Feedback Messages — dismissible, inline, user-safe */}
+          {sessionInvalidatedReason && (
+            <div
+              role="alert"
+              className="p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 rounded-xl text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5 font-mono animate-fadeIn"
+            >
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+              <div className="flex-1">
+                <p className="font-bold">Session Notice</p>
+                <p className="text-[11px] mt-0.5 opacity-90">{sessionInvalidatedReason}</p>
+              </div>
+            </div>
+          )}
+
           {error && !errorDismissed && (
             <div
               role="alert"
@@ -785,12 +815,12 @@ export const Login: React.FC<LoginProps> = ({
           {/* ── 4. FORGOT PASSWORD STEP ── */}
           {activeTab === 'forgot' && (
             <div className="space-y-4 font-mono text-xs">
-              {!resetCode ? (
+              {resetStep === 'request' ? (
                 <form onSubmit={handleRequestReset} className="space-y-4">
                   <div className="space-y-1">
                     <h3 className="font-bold text-slate-900 dark:text-white font-sans text-sm">Reset Account Password</h3>
                     <p className="text-[11px] text-slate-500 font-sans">
-                      Enter your account email to generate a secure reset token.
+                      Enter your account email. If an account exists, we'll send a single-use verification code.
                     </p>
                   </div>
 
@@ -868,15 +898,15 @@ export const Login: React.FC<LoginProps> = ({
                   <div className="flex gap-2 pt-1">
                     <button
                       type="button"
-                      onClick={() => setActiveTab('signin')}
-                      className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl font-bold"
+                      onClick={() => { setResetStep('request'); setResetCode(''); }}
+                      className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition-colors cursor-pointer"
                     >
-                      Cancel
+                      Change Email
                     </button>
                     <button
                       type="submit"
                       disabled={loading}
-                      className="flex-1 py-2.5 bg-[#C6923B] hover:bg-[#B07B28] text-white rounded-xl font-bold shadow-md shadow-[#C6923B]/25"
+                      className="flex-1 py-2.5 bg-[#C6923B] hover:bg-[#B07B28] text-white rounded-xl font-bold shadow-md shadow-[#C6923B]/25 transition-all cursor-pointer"
                     >
                       {loading ? 'Saving...' : 'Set New Password'}
                     </button>

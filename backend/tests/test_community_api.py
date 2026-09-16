@@ -11,18 +11,62 @@ init_db()
 @pytest.fixture
 def auth_headers():
     """Generates a valid test JWT token for an active admin user."""
+    from tests.conftest import TestingSessionLocal
+    from app.services.arvgate.models import User
+    from app.core.security import get_password_hash
+    db = TestingSessionLocal()
+    try:
+        email = "yashbaviskar67@gmail.com"
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            user = User(
+                id="test-sa-uid",
+                email=email,
+                full_name="Yash Baviskar",
+                role="SuperAdmin",
+                hashed_password=get_password_hash("SuperPass123!"),
+                is_active=True
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+    finally:
+        db.close()
     token = create_access_token(
         subject="yashbaviskar67@gmail.com",
-        roles=["SuperAdmin"]
+        roles=["SuperAdmin"],
+        user_obj=user
     )
     return {"Authorization": f"Bearer {token}"}
 
 @pytest.fixture
 def dev_auth_headers():
     """Generates a valid test JWT token for a standard developer user."""
+    from tests.conftest import TestingSessionLocal
+    from app.services.arvgate.models import User
+    from app.core.security import get_password_hash
+    db = TestingSessionLocal()
+    try:
+        email = "developer@aravanta.com"
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            user = User(
+                id="test-dev-uid",
+                email=email,
+                full_name="Developer",
+                role="Developer",
+                hashed_password=get_password_hash("DevPass123!"),
+                is_active=True
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+    finally:
+        db.close()
     token = create_access_token(
         subject="developer@aravanta.com",
-        roles=["Developer"]
+        roles=["Developer"],
+        user_obj=user
     )
     return {"Authorization": f"Bearer {token}"}
 

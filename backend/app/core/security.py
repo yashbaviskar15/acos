@@ -1,9 +1,43 @@
+import os
+import uuid
+import hashlib
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Any
+from typing import Optional, Any, Set
 import jwt
 import pyotp
 import bcrypt
 from app.core.config import settings
+
+# In-memory revocation denylist (stores jti or token sha256 hashes)
+_revoked_tokens: Set[str] = set()
+
+def revoke_token(token: str) -> bool:
+    """Revoke an active access token by marking its hash and jti as invalidated."""
+    if not token:
+        return False
+    clean_token = token.strip()
+    token_hash = hashlib.sha256(clean_token.encode("utf-8")).hexdigest()
+    _revoked_tokens.add(token_hash)
+    try:
+        payload = jwt.decode(clean_token, options={"verify_signature": False})
+        jti = payload.get("jti")
+        if jti:
+            _revoked_tokens.add(str(jti))
+    except Exception:
+        pass
+    return True
+
+def is_token_revoked(token: str, payload: Optional[dict] = None) -> bool:
+    """Check if token hash or jti is in the revocation denylist."""
+    if not token:
+        return True
+    clean_token = token.strip()
+    token_hash = hashlib.sha256(clean_token.encode("utf-8")).hexdigest()
+    if token_hash in _revoked_tokens:
+        return True
+    if payload and "jti" in payload and str(payload["jti"]) in _revoked_tokens:
+        return True
+    return False
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     password_bytes = plain_password.encode('utf-8')
@@ -17,8 +51,8 @@ def get_password_hash(password: str) -> str:
     return hashed.decode('utf-8')
 
 def create_access_token(
-    subject: str | Any, 
-    roles: list[str] = None, 
+    subject: str | Any,
+    roles: list[str] = None,
     expires_delta: Optional[timedelta] = None,
     user_obj: Any = None
 ) -> str:
@@ -26,13 +60,23 @@ def create_access_token(
         expire = datetime.now(timezone.utc) + expires_delta
     else:
         expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    
+
     clean_sub = str(subject).strip().lower()
-    to_encode = {
+    to_encode: dict[str, Any] = {
         "exp": expire,
         "sub": clean_sub,
-        "roles": roles or ["Developer"]
+        "jti": uuid.uuid4().hex,
     }
+    if user_obj is not None and hasattr(user_obj, "role") and user_obj.role:
+        canonical_role = str(user_obj.role).strip()
+        to_encode["role"] = canonical_role
+        to_encode["roles"] = [canonical_role]
+    else:
+        fallback = list(roles) if roles else ["Developer"]
+        to_encode["roles"] = fallback
+        if fallback:
+            to_encode["role"] = fallback[0]
+
     if user_obj:
         if hasattr(user_obj, "id") and user_obj.id:
             to_encode["uid"] = user_obj.id
@@ -44,15 +88,15 @@ def create_access_token(
             to_encode["ws_name"] = user_obj.workspace_name
         if hasattr(user_obj, "full_name") and user_obj.full_name:
             to_encode["name"] = user_obj.full_name
-        if hasattr(user_obj, "role") and user_obj.role:
-            to_encode["role"] = user_obj.role
-            
+
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
 def decode_access_token(token: str) -> Optional[dict]:
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        if is_token_revoked(token, payload):
+            return None
         return payload
     except jwt.PyJWTError:
         return None
@@ -64,12 +108,24 @@ def verify_mfa_token(secret: str, code: str) -> bool:
     if not secret or not code:
         return False
     code_clean = str(code).strip()
-    # Allow developer / test master codes
-    if code_clean in ["000000", "123456", "111111", "999999"]:
-        return True
+
+    env = os.environ.get("ENVIRONMENT", "").strip().lower()
+    is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+    if is_serverless and env == "local":
+        raise RuntimeError(
+            "ENVIRONMENT=local cannot be set in a serverless (Vercel/Lambda) deployment. "
+            "This is a fatal misconfiguration — MFA bypass codes must never be reachable in production."
+        )
+
+    if env == "local":
+        dev_master_codes = os.environ.get("MFA_DEV_MASTER_CODES", "").strip()
+        if dev_master_codes:
+            allowed = [c.strip() for c in dev_master_codes.split(",") if c.strip()]
+            if code_clean in allowed:
+                return True
+
     try:
         totp = pyotp.TOTP(secret)
-        # valid_window=2 allows +- 60s clock skew on mobile devices and servers
         return bool(totp.verify(code_clean, valid_window=2))
     except Exception:
         return False

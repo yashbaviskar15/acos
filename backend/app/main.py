@@ -24,9 +24,17 @@ from app.services.arvbilling.router import router as arvbilling_router
 from app.services.arvoperations.router import router as arvoperations_router
 from app.services.arvai.router import router as arvai_router
 from app.services.arvcommunity.router import router as arvcommunity_router
+from app.services.arvcostiq.router import router as arvcostiq_router
+from app.services.arvguard.router import router as arvguard_router
+from app.services.arvpulse.router import router as arvpulse_router
+from app.services.arvsandbox.router import router as arvsandbox_router
 import app.services.arvgate.models
 import app.core.cloud_models
 import app.services.arvcommunity.models
+import app.services.arvcostiq.models
+import app.services.arvguard.models
+import app.services.arvpulse.models
+import app.services.arvsandbox.models
 
 logger = logging.getLogger("aravanta.startup")
 
@@ -35,17 +43,17 @@ _is_postgres = DATABASE_URL.startswith("postgresql")
 
 
 def init_db():
-    """Initialize database tables and seed default admin users.
-    
+    """Initialize database tables and schema migrations only.
+
     This function is idempotent:
     - create_all() only creates tables that don't exist
-    - Seed data checks by primary key, not by table count
-    - Safe to call on every cold start
+    - SQLite/PostgreSQL column migrations are safe on re-run
+    - NO seed users, NO demo data, NO hardcoded credentials
+    - For demo/seed data, run scripts/seed.py manually
     """
     try:
         Base.metadata.create_all(bind=engine)
 
-        # SQLite-only: add columns that may be missing from older schemas
         if _is_sqlite:
             try:
                 with engine.connect() as conn:
@@ -64,7 +72,6 @@ def init_db():
                             pass
             except Exception:
                 pass
-        # PostgreSQL: expand last4 column for UPI VPAs and NetBanking labels
         if _is_postgres:
             try:
                 with engine.connect() as conn:
@@ -74,378 +81,12 @@ def init_db():
                 pass
 
         from app.core.database import SessionLocal
-        from app.services.arvgate.models import User
-        from app.core.security import get_password_hash, generate_mfa_secret
-        from app.core.cloud_models import (
-            Notification, ComputeInstance, KubeCluster, StorageBucket, StorageObject,
-            DatabaseInstance, ApplicationRecord, DeploymentRecord, IncidentRecord,
-            AlertRecord, WorkflowRecord, BackupRecord
-        )
 
         db = SessionLocal()
         try:
-            # Seed primary administrator account (idempotent — check by email)
-            admin_email = "yashbaviskar67@gmail.com"
-            user = db.query(User).filter(User.email == admin_email).first()
-            if not user:
-                new_user = User(
-                    id="usr-yash-admin-001",
-                    account_id="ARV-ACC-100001",
-                    workspace_id="ws-yash-prod",
-                    workspace_name="Yash's Production Cloud Ops",
-                    email=admin_email,
-                    full_name="Yash Baviskar",
-                    hashed_password=get_password_hash("Padma@0215"),
-                    role="SuperAdmin",
-                    is_mfa_enabled=False,
-                    mfa_secret=generate_mfa_secret()
-                )
-                db.add(new_user)
-                user = new_user
-
-            # Seed platform admin account (idempotent — check by email)
-            cloud_admin = db.query(User).filter(User.email == "admin@aravanta.cloud").first()
-            if not cloud_admin:
-                new_admin = User(
-                    id="usr-cloud-admin-002",
-                    account_id="ARV-ACC-100002",
-                    workspace_id="ws-enterprise-default",
-                    workspace_name="Enterprise Platform Operations",
-                    email="admin@aravanta.cloud",
-                    full_name="Enterprise Administrator",
-                    hashed_password=get_password_hash("Aravanta@2026!"),
-                    role="SuperAdmin",
-                    is_mfa_enabled=False,
-                    mfa_secret=generate_mfa_secret()
-                )
-                db.add(new_admin)
-
-            db.commit()
-
-            # Seed demo infrastructure ONLY for primary admin workspace
-            # Idempotent: check by specific IDs, not by count
-            admin_id = user.id if user else "usr-yash-admin-001"
-            admin_ws = "ws-yash-prod"
-
-            if not db.query(ComputeInstance).filter(ComputeInstance.id == "arv-i-prod-web01").first():
-                demo_vms = [
-                    ComputeInstance(
-                        id="arv-i-prod-web01",
-                        user_id=admin_id,
-                        workspace_id=admin_ws,
-                        name="web-server-prod-01",
-                        instance_type="arv.large",
-                        os_image="Ubuntu 22.04 LTS",
-                        region="arv-us-east-1",
-                        status="RUNNING",
-                        private_ip="10.0.1.12",
-                        public_ip="34.120.45.89",
-                        cpu_usage=18.5,
-                        ram_usage=42.0,
-                        disk_gb=100,
-                        tags='{"env": "production", "tier": "frontend"}'
-                    ),
-                    ComputeInstance(
-                        id="arv-i-prod-api01",
-                        user_id=admin_id,
-                        workspace_id=admin_ws,
-                        name="api-gateway-prod",
-                        instance_type="arv.xlarge",
-                        os_image="Ubuntu 24.04 LTS",
-                        region="arv-us-east-1",
-                        status="RUNNING",
-                        private_ip="10.0.1.15",
-                        public_ip="34.120.45.90",
-                        cpu_usage=24.0,
-                        ram_usage=55.0,
-                        disk_gb=150,
-                        tags='{"env": "production", "tier": "backend"}'
-                    ),
-                    ComputeInstance(
-                        id="arv-i-prod-worker01",
-                        user_id=admin_id,
-                        workspace_id=admin_ws,
-                        name="worker-node-01",
-                        instance_type="arv.compute.large",
-                        os_image="Ubuntu 22.04 LTS",
-                        region="arv-us-west-2",
-                        status="RUNNING",
-                        private_ip="10.0.2.20",
-                        public_ip=None,
-                        cpu_usage=38.0,
-                        ram_usage=64.0,
-                        disk_gb=200,
-                        tags='{"env": "production", "tier": "workers"}'
-                    ),
-                    ComputeInstance(
-                        id="arv-i-stg-app01",
-                        user_id=admin_id,
-                        workspace_id=admin_ws,
-                        name="staging-app-01",
-                        instance_type="arv.medium",
-                        os_image="Ubuntu 22.04 LTS",
-                        region="arv-eu-west-1",
-                        status="STOPPED",
-                        private_ip="10.0.3.5",
-                        public_ip=None,
-                        cpu_usage=0.0,
-                        ram_usage=0.0,
-                        disk_gb=50,
-                        tags='{"env": "staging"}'
-                    ),
-                ]
-                db.add_all(demo_vms)
-
-            if not db.query(KubeCluster).filter(KubeCluster.id == "arv-k8s-prod01").first():
-                demo_cluster = KubeCluster(
-                    id="arv-k8s-prod01",
-                    user_id=admin_id,
-                    workspace_id=admin_ws,
-                    name="aravanta-prod",
-                    version="1.30.1",
-                    region="arv-us-east-1",
-                    status="ACTIVE",
-                    node_count=3,
-                    node_size="arv.large",
-                    endpoint="https://arv-k8s-prod01.k8s.aravanta.cloud:6443",
-                    cpu_cores_total=24,
-                    ram_gb_total=96,
-                    pod_count=18
-                )
-                db.add(demo_cluster)
-
-            if not db.query(StorageBucket).filter(StorageBucket.id == "arv-s3-assets-prod").first():
-                demo_buckets = [
-                    StorageBucket(
-                        id="arv-s3-assets-prod",
-                        user_id=admin_id,
-                        workspace_id=admin_ws,
-                        name="aravanta-assets-prod",
-                        region="arv-us-east-1",
-                        storage_class="STANDARD",
-                        size_gb=156.8,
-                        object_count=1240,
-                        versioning=True,
-                        encryption="AES-256",
-                        access="PRIVATE",
-                        monthly_cost=3.61
-                    ),
-                    StorageBucket(
-                        id="arv-s3-backups",
-                        user_id=admin_id,
-                        workspace_id=admin_ws,
-                        name="aravanta-backups",
-                        region="arv-us-east-1",
-                        storage_class="INFREQUENT_ACCESS",
-                        size_gb=420.3,
-                        object_count=89,
-                        versioning=False,
-                        encryption="AES-256",
-                        access="PRIVATE",
-                        monthly_cost=9.67
-                    ),
-                ]
-                db.add_all(demo_buckets)
-
-            if not db.query(DatabaseInstance).filter(DatabaseInstance.id == "arv-db-core-prod").first():
-                demo_db = DatabaseInstance(
-                    id="arv-db-core-prod",
-                    user_id=admin_id,
-                    workspace_id=admin_ws,
-                    name="aravanta-core-db",
-                    engine="PostgreSQL 16",
-                    tier="db.arv.large",
-                    region="arv-us-east-1",
-                    storage_gb=200,
-                    storage_used_gb=84.5,
-                    status="AVAILABLE",
-                    endpoint="aravanta-core-db.db.aravanta.cloud",
-                    port="5432",
-                    connection_count=42,
-                    max_connections=200,
-                    latency_ms=1.2,
-                    iops=4500
-                )
-                db.add(demo_db)
-
-            if not db.query(ApplicationRecord).filter(ApplicationRecord.id == "app-api-gateway").first():
-                demo_apps = [
-                    ApplicationRecord(
-                        id="app-api-gateway",
-                        user_id=admin_id,
-                        workspace_id=admin_ws,
-                        name="api-gateway",
-                        environment="production",
-                        version="v2.4.1",
-                        previous_version="v2.4.0",
-                        replicas=4,
-                        target_replicas=4,
-                        status="HEALTHY",
-                        health_percent=100.0,
-                        error_rate_percent=0.01,
-                        cpu_usage_m=420,
-                        memory_usage_mb=680,
-                        p95_latency_ms=38.5,
-                        requests_per_sec=4200,
-                        strategy="RollingUpdate",
-                        image="aravanta/api-gateway:v2.4.1",
-                        repository="github.com/yashbaviskar15/acos-gateway",
-                        endpoints='["https://api.aravanta.cloud", "https://arv-backend.vercel.app"]',
-                        ports="[8000, 443]",
-                        env_vars='{"NODE_ENV": "production", "LOG_LEVEL": "info"}'
-                    ),
-                    ApplicationRecord(
-                        id="app-web-console",
-                        user_id=admin_id,
-                        workspace_id=admin_ws,
-                        name="web-console",
-                        environment="production",
-                        version="v1.5.2",
-                        previous_version="v1.5.1",
-                        replicas=3,
-                        target_replicas=3,
-                        status="HEALTHY",
-                        health_percent=100.0,
-                        error_rate_percent=0.0,
-                        cpu_usage_m=190,
-                        memory_usage_mb=310,
-                        p95_latency_ms=18.2,
-                        requests_per_sec=3100,
-                        strategy="Canary",
-                        image="aravanta/web-console:v1.5.2",
-                        repository="github.com/yashbaviskar15/acos-frontend",
-                        endpoints='["https://aravantacos.vercel.app"]',
-                        ports="[3000, 80]",
-                        env_vars='{"VITE_API_URL": "https://arv-backend.vercel.app"}'
-                    ),
-                ]
-                db.add_all(demo_apps)
-
-            if not db.query(Notification).filter(Notification.title == "Control Plane Active").first():
-                demo_notifs = [
-                    Notification(
-                        id=f"notif-{uuid.uuid4().hex[:12]}",
-                        user_id=admin_id,
-                        workspace_id=admin_ws,
-                        title="Control Plane Active",
-                        desc="Unified CloudOS control plane operational across Mumbai & Global regions.",
-                        type="success",
-                        read=False,
-                        created_at=datetime.datetime.utcnow() - datetime.timedelta(hours=2)
-                    ),
-                    Notification(
-                        id=f"notif-{uuid.uuid4().hex[:12]}",
-                        user_id=admin_id,
-                        workspace_id=admin_ws,
-                        title="10-Day Trial Active",
-                        desc="Your enterprise trial is active with unrestricted resource provisioning.",
-                        type="info",
-                        read=False,
-                        created_at=datetime.datetime.utcnow() - datetime.timedelta(hours=5)
-                    ),
-                ]
-                db.add_all(demo_notifs)
-
-            from app.services.arvcommunity.models import CommunityPost, CommunityComment, CommunityLike
-            if not db.query(CommunityPost).first():
-                demo_posts = [
-                    CommunityPost(
-                        id="post-welcome-001",
-                        user_id=admin_id,
-                        workspace_id=admin_ws,
-                        author_name="Yash Baviskar",
-                        author_email=admin_email,
-                        author_role="SuperAdmin",
-                        author_avatar="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-                        title="Welcome to Aravanta Cloud OS Community!",
-                        content="Welcome to the official developer and SRE community! This space is dedicated to sharing cloud architectures, Kubernetes configurations, disaster recovery playbooks, and best practices across Indian sovereign infrastructure. Drop a note below to introduce yourself and what workloads you are running!",
-                        category="announcements",
-                        tags='["welcome", "community", "cloudos", "sre"]',
-                        likes_count=18,
-                        comments_count=2,
-                        views_count=342,
-                        is_pinned=True,
-                        created_at=datetime.datetime.utcnow() - datetime.timedelta(days=2)
-                    ),
-                    CommunityPost(
-                        id="post-architecture-002",
-                        user_id=admin_id,
-                        workspace_id=admin_ws,
-                        author_name="DevOps Lead",
-                        author_email="devops@aravanta.com",
-                        author_role="Operator",
-                        author_avatar="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
-                        title="Achieving 1.2s Instant Rollback with Envoy Service Mesh & eBPF",
-                        content="In this write-up, we detail how ArvCICD integrates with Envoy to maintain a 25% canary traffic split during deployments. If HTTP 5xx error rate breaches 1.0% or P95 latency spikes over 500ms, the control plane shifts 100% of ingress back to the previous stable revision in under 1.2 seconds without draining active sessions.",
-                        category="architecture",
-                        tags='["envoy", "canary", "ebpf", "cicd", "mesh"]',
-                        likes_count=24,
-                        comments_count=3,
-                        views_count=520,
-                        is_pinned=False,
-                        created_at=datetime.datetime.utcnow() - datetime.timedelta(days=1)
-                    ),
-                    CommunityPost(
-                        id="post-finops-003",
-                        user_id=admin_id,
-                        workspace_id=admin_ws,
-                        author_name="FinOps Specialist",
-                        author_email="finops@aravanta.com",
-                        author_role="Developer",
-                        author_avatar="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80",
-                        title="Eliminating Cloud Data Egress Tolls: Why Zero-Egress Architecture Matters",
-                        content="Hyperscalers routinely bill upwards of $0.09 per gigabyte for inter-region and outbound traffic. With Aravanta Cloud OS, inter-region replication between Mumbai (ap-south-1) and Hyderabad (ap-south-2) incurs zero egress tolls. How has this impacted your multi-region DR budgets?",
-                        category="showcase",
-                        tags='["finops", "billing", "zero-egress", "multicloud"]',
-                        likes_count=15,
-                        comments_count=1,
-                        views_count=290,
-                        is_pinned=False,
-                        created_at=datetime.datetime.utcnow() - datetime.timedelta(hours=14)
-                    )
-                ]
-                db.add_all(demo_posts)
-                db.commit()
-
-                # Add sample comments
-                sample_comments = [
-                    CommunityComment(
-                        id="comment-001",
-                        post_id="post-welcome-001",
-                        user_id=admin_id,
-                        author_name="Cloud Engineer",
-                        author_email="engineer@partner.com",
-                        author_role="Developer",
-                        content="Excited to be part of the community! Deploying our microservices cluster on ArvKube today.",
-                        created_at=datetime.datetime.utcnow() - datetime.timedelta(days=1, hours=20)
-                    ),
-                    CommunityComment(
-                        id="comment-002",
-                        post_id="post-welcome-001",
-                        user_id=admin_id,
-                        author_name="Yash Baviskar",
-                        author_email=admin_email,
-                        author_role="SuperAdmin",
-                        content="Welcome aboard! Feel free to ask if you have any questions regarding CNI networking or storage buckets.",
-                        created_at=datetime.datetime.utcnow() - datetime.timedelta(days=1, hours=18)
-                    ),
-                    CommunityComment(
-                        id="comment-003",
-                        post_id="post-architecture-002",
-                        user_id=admin_id,
-                        author_name="SRE Architect",
-                        author_email="sre@fintech.io",
-                        author_role="Operator",
-                        content="The 1.2s rollback speed is game changing. How does Envoy handle in-flight websocket connections during canary shifts?",
-                        created_at=datetime.datetime.utcnow() - datetime.timedelta(hours=20)
-                    )
-                ]
-                db.add_all(sample_comments)
-
-            db.commit()
             logger.info("Database initialized successfully. Engine: %s", "PostgreSQL" if _is_postgres else "SQLite")
         except Exception as err:
-            logger.warning("Seed error: %s", err)
+            logger.warning("Init DB error: %s", err)
             db.rollback()
         finally:
             db.close()
@@ -455,10 +96,9 @@ def init_db():
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    """Run DB setup only in local development or when explicitly requested via AUTO_INIT_DB.
-    On serverless (Vercel / AWS Lambda), the database tables and seed data already persist
-    permanently in PostgreSQL, so skipping synchronous init_db() keeps cold starts sub-second
-    and prevents FUNCTION_INVOCATION_FAILED execution timeouts."""
+    """Run DB schema setup only in local development or when explicitly requested via AUTO_INIT_DB.
+    On serverless (Vercel / AWS Lambda), the database tables already persist permanently in PostgreSQL,
+    so skipping synchronous init_db() keeps cold starts sub-second and prevents execution timeouts."""
     is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
     should_init = (not is_serverless) or (os.environ.get("AUTO_INIT_DB", "").lower() in ("true", "1"))
     if should_init:
@@ -518,6 +158,10 @@ app.include_router(arvbilling_router)
 app.include_router(arvoperations_router)
 app.include_router(arvai_router)
 app.include_router(arvcommunity_router)
+app.include_router(arvcostiq_router)
+app.include_router(arvguard_router)
+app.include_router(arvpulse_router)
+app.include_router(arvsandbox_router)
 
 @app.get("/", tags=["Root"])
 def root():

@@ -127,6 +127,16 @@ export async function apiFetch<T = any>(
           continue;
         }
 
+        if (typeof window !== 'undefined' && response.status === 401 && !cleanPath.includes('/auth/login') && !cleanPath.includes('/auth/register')) {
+          window.dispatchEvent(
+            new CustomEvent('acos:session-invalidated', {
+              detail: {
+                reason: serverMsg || 'Your session was invalidated or expired. Please sign in again.'
+              }
+            })
+          );
+        }
+
         const error = new Error(buildUserError(response.status, serverMsg));
         (error as any).status = response.status;
         (error as any).payload = payload;

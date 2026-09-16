@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Database, Plus, Trash2, RefreshCw, Terminal, Copy, Check, ShieldCheck } from 'lucide-react';
+import { Database, Plus, Trash2, RefreshCw, Terminal, Copy, Check, ShieldCheck, Zap } from 'lucide-react';
 import { ModalPortal } from '../components/ModalPortal';
 import { apiFetch } from '../config/api';
 
@@ -17,12 +17,27 @@ export const Databases: React.FC<DatabaseProps> = ({ token }) => {
 
   // Form State
   const [name, setName] = useState('');
+  const [environment, setEnvironment] = useState<'development' | 'staging' | 'production'>('development');
   const [engine, setEngine] = useState('PostgreSQL 16');
-  const [tier, setTier] = useState('db.arv.medium');
+  const [tier, setTier] = useState('db.arv.micro');
   const [region, setRegion] = useState('arv-us-east-1');
-  const [storageGb, setStorageGb] = useState(100);
+  const [storageGb, setStorageGb] = useState(50);
   const [multiAz, setMultiAz] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+
+  const calculateDbAllIn = () => {
+    const tierPrices: Record<string, number> = {
+      'db.arv.micro': 450,
+      'db.arv.small': 900,
+      'db.arv.medium': 1800,
+      'db.arv.large': 3600,
+      'db.arv.xlarge': 7200,
+    };
+    const base = tierPrices[tier] || 450;
+    const storage = storageGb * 3;
+    const azMultiplier = multiAz ? 1.75 : 1.0;
+    return Math.round((base + storage) * azMultiplier);
+  };
 
   const handleCopyText = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -231,6 +246,41 @@ export const Databases: React.FC<DatabaseProps> = ({ token }) => {
             />
           </div>
 
+          {/* Environment Tag Selector */}
+          <div>
+            <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1.5 uppercase font-mono">Target Environment</label>
+            <div className="grid grid-cols-3 gap-2">
+              {(['development', 'staging', 'production'] as const).map((env) => (
+                <button
+                  key={env}
+                  type="button"
+                  onClick={() => {
+                    setEnvironment(env);
+                    if (env === 'production') {
+                      setTier('db.arv.medium');
+                      setMultiAz(true);
+                    } else {
+                      setTier('db.arv.micro');
+                      setMultiAz(false);
+                    }
+                  }}
+                  className={`py-2 px-3 rounded-xl border text-center font-bold capitalize transition-all cursor-pointer ${
+                    environment === env
+                      ? 'border-amber-500 bg-amber-50 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300 shadow-sm'
+                      : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  {env}
+                </button>
+              ))}
+            </div>
+            {environment !== 'production' && (
+              <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-1">
+                ✓ Environment auto-selected lowest viable tier (db.arv.micro) with Single-AZ to minimize non-prod costs.
+              </p>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1.5 uppercase font-mono">Database Engine</label>
@@ -254,9 +304,13 @@ export const Databases: React.FC<DatabaseProps> = ({ token }) => {
                 onChange={(e) => setTier(e.target.value)}
                 className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-slate-900 dark:text-white focus:outline-none focus:border-blue-600 dark:focus:border-[#C9A84C]"
               >
-                <option value="db.arv.micro">db.arv.micro (1 vCPU, 1GB)</option>
+                <option value="db.arv.micro">
+                  db.arv.micro (1 vCPU, 1GB) {environment !== 'production' ? '⭐ Recommended' : ''}
+                </option>
                 <option value="db.arv.small">db.arv.small (1 vCPU, 2GB)</option>
-                <option value="db.arv.medium">db.arv.medium (2 vCPU, 4GB)</option>
+                <option value="db.arv.medium">
+                  db.arv.medium (2 vCPU, 4GB) {environment === 'production' ? '⭐ Recommended' : ''}
+                </option>
                 <option value="db.arv.large">db.arv.large (2 vCPU, 8GB)</option>
                 <option value="db.arv.xlarge">db.arv.xlarge (4 vCPU, 16GB)</option>
               </select>
@@ -298,7 +352,30 @@ export const Databases: React.FC<DatabaseProps> = ({ token }) => {
               onChange={(e) => setMultiAz(e.target.checked)}
               className="rounded bg-slate-100 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-0 cursor-pointer"
             />
-            <label htmlFor="multiAz" className="text-slate-700 dark:text-slate-300 cursor-pointer font-medium">Enable Multi-AZ High Availability Replication</label>
+            <label htmlFor="multiAz" className="text-slate-700 dark:text-slate-300 cursor-pointer font-medium">
+              Enable Multi-AZ High Availability Replication (Recommended for Production)
+            </label>
+          </div>
+
+          {/* All-in Pricing Display */}
+          <div className="p-4 bg-gradient-to-br from-amber-500/5 via-slate-50 dark:via-slate-900 to-slate-100 dark:to-slate-950 border border-amber-500/20 rounded-2xl space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5" /> All-In Estimated Monthly Price
+              </span>
+              <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                Backups & 50GB Egress Included
+              </span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-xl font-black text-slate-900 dark:text-white">
+                ₹{calculateDbAllIn().toLocaleString()}/mo
+              </span>
+              <span className="text-[11px] text-slate-500 font-medium">all-in estimate</span>
+            </div>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+              Includes {tier} database compute + {storageGb}GB SSD volume + point-in-time backup retention + 50GB network transfer. Zero per-query IOPS fees.
+            </p>
           </div>
 
           <div className="pt-3 flex gap-3">

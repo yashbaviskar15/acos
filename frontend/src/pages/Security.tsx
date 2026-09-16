@@ -6,7 +6,9 @@ import {
   Check, 
   X, 
   Smartphone, 
-  Globe
+  Globe,
+  Shield,
+  ArrowRight
 } from 'lucide-react';
 
 interface PermissionRow {
@@ -42,8 +44,109 @@ const PERMISSIONS_MATRIX: PermissionRow[] = [
   { category: 'Security & IAM', action: 'Rotate API Keys & MFA Secrets', admin: true, operator: false, developer: false, viewer: false },
 ];
 
+const PLAIN_LANGUAGE_CHECKS = [
+  {
+    id: 'deploy-prod',
+    question: 'Can this user deploy to production?',
+    action: 'Trigger Production Deployment',
+    allowedRoles: ['SuperAdmin', 'Admin', 'Operator', 'Developer'],
+    blockedRoles: ['Viewer'],
+    explanation: 'Developers, Operators, and Admins can trigger production deployments. Viewers are strictly read-only.',
+  },
+  {
+    id: 'emergency-rollback',
+    question: 'Can this user execute an emergency rollback?',
+    action: 'Execute Emergency Rollback',
+    allowedRoles: ['SuperAdmin', 'Admin', 'Operator', 'Developer'],
+    blockedRoles: ['Viewer'],
+    explanation: 'Emergency rollback is self-service for all engineering tiers (Developer and above) to ensure immediate MTTR remediation.',
+  },
+  {
+    id: 'terminate-resource',
+    question: 'Who can decommission or terminate production resources?',
+    action: 'Decommission / Terminate Resource',
+    allowedRoles: ['SuperAdmin', 'Admin'],
+    blockedRoles: ['Operator', 'Developer', 'Viewer'],
+    explanation: 'Destructive termination actions require Administrator authority to prevent accidental outage or data loss.',
+  },
+  {
+    id: 'manage-rbac',
+    question: 'Who can assign roles or change permissions?',
+    action: 'Assign RBAC System Roles',
+    allowedRoles: ['SuperAdmin', 'Admin'],
+    blockedRoles: ['Operator', 'Developer', 'Viewer'],
+    explanation: 'Role modification is strictly restricted to Admins via server-verified hierarchy check.',
+  },
+  {
+    id: 'run-automations',
+    question: 'Can this user execute runbooks ("Run Now")?',
+    action: 'Execute Runbook ("Run Now")',
+    allowedRoles: ['SuperAdmin', 'Admin', 'Operator', 'Developer'],
+    blockedRoles: ['Viewer'],
+    explanation: 'Engineers can trigger pre-approved remediation workflows without manual ticket escalation.',
+  },
+];
+
+const ROLE_SUMMARIES: Record<string, { title: string; can: string[]; cannot: string[] }> = {
+  Developer: {
+    title: 'Developer',
+    can: [
+      'Deploy applications & microservices to production and staging',
+      'Trigger 1-click emergency rollbacks and canary traffic shifts',
+      'Reboot and scale virtual machines and Kubernetes worker nodes',
+      'View real-time telemetry, Prometheus metrics, and live stdout/stderr logs',
+      'Execute pre-approved self-healing automation runbooks',
+    ],
+    cannot: [
+      'Cannot decommission or terminate database instances or clusters',
+      'Cannot invite users with Admin/SuperAdmin privileges or edit RBAC policies',
+      'Cannot view or rotate master secret keys or workspace payment methods',
+    ],
+  },
+  Operator: {
+    title: 'Operator (SRE)',
+    can: [
+      'Provision new compute VMs, database engines, and storage buckets',
+      'Trigger deployments, manage deployment strategies, and execute rollbacks',
+      'Acknowledge, mute, and declare incidents in the Incident War Room',
+      'Inspect security audit trails and log stream archives',
+      'Create and edit cron schedules and automation runbooks',
+    ],
+    cannot: [
+      'Cannot terminate production resources without Admin dual-authorization',
+      'Cannot modify workspace security policies or assign SuperAdmin roles',
+    ],
+  },
+  Admin: {
+    title: 'Admin / SuperAdmin',
+    can: [
+      'Full administrative authority across all infrastructure and deployments',
+      'Provision, scale, reboot, and decommission any resource',
+      'Assign workspace roles (subject to hierarchy), invite members, and rotate API keys',
+      'Manage billing, payment methods, and invoice exports',
+    ],
+    cannot: ['No restrictions within workspace scope'],
+  },
+  Viewer: {
+    title: 'Viewer (Auditor)',
+    can: [
+      'Inspect live telemetry, performance gauges, and incident status',
+      'Read application catalogs and deployment history',
+      'Browse compliance reports and read-only audit log views',
+    ],
+    cannot: [
+      'Cannot deploy, restart, or modify any container, VM, or database',
+      'Cannot trigger automations, rollbacks, or alert actions',
+      'Cannot access credentials or configuration secrets',
+    ],
+  },
+};
+
 export const Security: React.FC<{ token?: string | null }> = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [activeQuestionId, setActiveQuestionId] = useState<string>('deploy-prod');
+  const [inspectedRole, setInspectedRole] = useState<string>('Developer');
+  const [viewMode, setViewMode] = useState<'plain' | 'matrix'>('plain');
   const [sessions, setSessions] = useState([
     { id: 'sess-01', user: 'yashbaviskar67@gmail.com', ip: '203.0.113.45', location: 'Mumbai, IN', browser: 'Chrome 128 / Windows', status: 'ACTIVE', current: true },
     { id: 'sess-02', user: 'admin@aravanta.cloud', ip: '198.51.100.22', location: 'Virginia, US', browser: 'Firefox 130 / macOS', status: 'ACTIVE', current: false },
@@ -53,6 +156,9 @@ export const Security: React.FC<{ token?: string | null }> = () => {
   const handleRevokeSession = (id: string) => {
     setSessions(prev => prev.filter(s => s.id !== id));
   };
+
+  const currentQuestion = PLAIN_LANGUAGE_CHECKS.find(q => q.id === activeQuestionId) || PLAIN_LANGUAGE_CHECKS[0];
+  const currentRoleSummary = ROLE_SUMMARIES[inspectedRole] || ROLE_SUMMARIES.Developer;
 
   const filteredPermissions = selectedCategory === 'all' 
     ? PERMISSIONS_MATRIX 
@@ -111,30 +217,166 @@ export const Security: React.FC<{ token?: string | null }> = () => {
         </div>
       </div>
 
-      {/* RBAC Permission Matrix */}
-      <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      {/* RBAC Governance Section */}
+      <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-5">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-4">
           <div>
-            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase">RBAC Roles & Permission Entitlements Matrix</h3>
-            <p className="text-slate-500 text-[11px]">Enforced at API gateway middleware layer</p>
+            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase flex items-center gap-2">
+              <Shield className="w-4 h-4 text-purple-500" />
+              RBAC Plain-Language Entitlement Inspector
+            </h3>
+            <p className="text-slate-500 text-[11px] mt-0.5">Zero-cross-referencing plain-English answers to critical authorization questions</p>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            {['all', 'Infrastructure', 'Deployments', 'Observability', 'Logs', 'Automation', 'Security & IAM'].map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                  selectedCategory === cat
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                }`}
-              >
-                {cat === 'all' ? 'All Domains' : cat}
-              </button>
-            ))}
+          <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
+            <button
+              onClick={() => setViewMode('plain')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                viewMode === 'plain'
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Plain-Language Inspector
+            </button>
+            <button
+              onClick={() => setViewMode('matrix')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                viewMode === 'matrix'
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Raw 4-Tier Matrix
+            </button>
           </div>
         </div>
+
+        {viewMode === 'plain' ? (
+          <div className="space-y-5">
+            {/* Quick Question Bar */}
+            <div className="space-y-2">
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Frequently Asked Entitlement Questions</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                {PLAIN_LANGUAGE_CHECKS.map((q) => (
+                  <button
+                    key={q.id}
+                    onClick={() => setActiveQuestionId(q.id)}
+                    className={`text-left p-3 rounded-xl border transition-all cursor-pointer text-xs ${
+                      activeQuestionId === q.id
+                        ? 'border-purple-500 bg-purple-50/50 dark:bg-purple-500/10 text-purple-950 dark:text-purple-200 shadow-sm font-bold'
+                        : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 text-slate-700 dark:text-slate-300 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span>{q.question}</span>
+                      <ArrowRight className={`w-3.5 h-3.5 shrink-0 ml-2 ${activeQuestionId === q.id ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400'}`} />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Answer Card */}
+            <div className="p-4 bg-gradient-to-br from-purple-500/5 via-slate-50 dark:via-[#111827] to-slate-100 dark:to-[#0B1528] rounded-2xl border border-purple-500/20 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider">Direct Verdict</span>
+                  <h4 className="text-sm font-black text-slate-900 dark:text-white">{currentQuestion.question}</h4>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {['SuperAdmin', 'Admin', 'Operator', 'Developer', 'Viewer'].map((r) => {
+                    const isAllowed = currentQuestion.allowedRoles.includes(r);
+                    return (
+                      <span
+                        key={r}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border ${
+                          isAllowed
+                            ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/30'
+                            : 'bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-500/30'
+                        }`}
+                      >
+                        {isAllowed ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                        {r}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-300 bg-white/70 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+                {currentQuestion.explanation}
+              </p>
+            </div>
+
+            {/* Role Persona Inspector */}
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Inspect Capabilities by Role</span>
+                <div className="flex items-center gap-1">
+                  {['Developer', 'Operator', 'Admin', 'Viewer'].map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => setInspectedRole(r)}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        inspectedRole === r
+                          ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 bg-emerald-50/50 dark:bg-emerald-500/5 rounded-xl border border-emerald-200 dark:border-emerald-500/20 space-y-2">
+                  <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-bold text-xs uppercase tracking-wider">
+                    <Check className="w-4 h-4" /> Allowed Actions for {currentRoleSummary.title}
+                  </div>
+                  <ul className="space-y-1.5 text-slate-700 dark:text-slate-300 text-xs">
+                    {currentRoleSummary.can.map((item, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">•</span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="p-4 bg-rose-50/50 dark:bg-rose-500/5 rounded-xl border border-rose-200 dark:border-rose-500/20 space-y-2">
+                  <div className="flex items-center gap-2 text-rose-700 dark:text-rose-400 font-bold text-xs uppercase tracking-wider">
+                    <X className="w-4 h-4" /> Restricted / Blocked for {currentRoleSummary.title}
+                  </div>
+                  <ul className="space-y-1.5 text-slate-700 dark:text-slate-300 text-xs">
+                    {currentRoleSummary.cannot.map((item, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <span className="text-rose-600 dark:text-rose-400 font-bold">•</span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              {['all', 'Infrastructure', 'Deployments', 'Observability', 'Logs', 'Automation', 'Security & IAM'].map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                    selectedCategory === cat
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                  }`}
+                >
+                  {cat === 'all' ? 'All Domains' : cat}
+                </button>
+              ))}
+            </div>
 
         {/* Matrix Table */}
         <div className="overflow-x-auto">
@@ -213,6 +455,8 @@ export const Security: React.FC<{ token?: string | null }> = () => {
           </table>
         </div>
       </div>
+    )}
+  </div>
 
       {/* Active User Sessions */}
       <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">

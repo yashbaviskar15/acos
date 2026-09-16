@@ -1,21 +1,32 @@
 import os
 import pytest
+import secrets
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-# Set in-memory test database URL before any config imports
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+os.environ["SECRET_KEY"] = "test_" + secrets.token_urlsafe(64)
+os.environ["ENVIRONMENT"] = "local"
+os.environ.pop("MFA_DEV_MASTER_CODES", None)
 
 from app.core.database import Base, get_db
-from app.main import app
+from app.main import app as fastapi_app
 
-# Create in-memory SQLite engine with StaticPool (retains tables across all threads/connections)
+import app.services.arvgate.models
+import app.core.cloud_models
+import app.services.arvcommunity.models
+import app.services.arvcostiq.models
+import app.services.arvguard.models
+import app.services.arvpulse.models
+import app.services.arvsandbox.models
+
 test_engine = create_engine(
     "sqlite:///:memory:",
     connect_args={"check_same_thread": False},
     poolclass=StaticPool,
 )
+Base.metadata.create_all(bind=test_engine)
 
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
@@ -25,6 +36,24 @@ def setup_test_db():
     yield
     Base.metadata.drop_all(bind=test_engine)
 
+@pytest.fixture(autouse=True)
+def _per_test_isolation(setup_test_db):
+    from app.core.rate_limit import clear_rate_limits
+    clear_rate_limits()
+    Base.metadata.create_all(bind=test_engine)
+    db = TestingSessionLocal()
+    try:
+        for table in reversed(Base.metadata.sorted_tables):
+            if table.name not in {"sqlite_master"}:
+                try:
+                    db.execute(table.delete())
+                except Exception:
+                    pass
+        db.commit()
+    finally:
+        db.close()
+    yield
+
 def override_get_db():
     db = TestingSessionLocal()
     try:
@@ -32,5 +61,4 @@ def override_get_db():
     finally:
         db.close()
 
-# Override FastAPI get_db dependency for tests
-app.dependency_overrides[get_db] = override_get_db
+fastapi_app.dependency_overrides[get_db] = override_get_db

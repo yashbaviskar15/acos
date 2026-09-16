@@ -5,7 +5,10 @@ import {
   CheckCircle2, 
   VolumeX, 
   ShieldAlert, 
-  X
+  X,
+  Sliders,
+  BellRing,
+  Sparkles
 } from 'lucide-react';
 import { apiFetch } from '../config/api';
 import { StatusBadge } from '../components/StatusBadge';
@@ -24,6 +27,58 @@ interface AlertItem {
   runbook_url?: string;
 }
 
+interface AlertRuleDefault {
+  id: string;
+  name: string;
+  target: string;
+  condition: string;
+  severity: 'CRITICAL' | 'WARNING' | 'INFO';
+  enabled: boolean;
+}
+
+const PRE_TUNED_ALERT_DEFAULTS: AlertRuleDefault[] = [
+  {
+    id: 'def-rule-01',
+    name: 'High CPU Saturation',
+    target: 'All Compute Instances & Containers',
+    condition: 'CPU utilization > 85% sustained for 5m',
+    severity: 'WARNING',
+    enabled: true,
+  },
+  {
+    id: 'def-rule-02',
+    name: 'Memory Out-Of-Memory (OOM) Danger',
+    target: 'All Microservices & Pods',
+    condition: 'RAM resident memory > 90% sustained for 3m',
+    severity: 'CRITICAL',
+    enabled: true,
+  },
+  {
+    id: 'def-rule-03',
+    name: 'Elevated P95 Ingress Latency',
+    target: 'Edge Router & API Gateway',
+    condition: 'P95 response time > 800ms over 2m window',
+    severity: 'WARNING',
+    enabled: true,
+  },
+  {
+    id: 'def-rule-04',
+    name: 'HTTP 5xx Error Spike',
+    target: 'All Production Ingress Routes',
+    condition: 'HTTP 5xx rate > 2.0% of requests over 3m',
+    severity: 'CRITICAL',
+    enabled: true,
+  },
+  {
+    id: 'def-rule-05',
+    name: 'Persistent Disk Volume Exhaustion',
+    target: 'Managed PostgreSQL & Redis',
+    condition: 'Storage volume space < 15% remaining',
+    severity: 'CRITICAL',
+    enabled: true,
+  },
+];
+
 export const Alerts: React.FC<{ token: string | null; onNavigate?: (tab: string) => void }> = ({ token, onNavigate }) => {
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,6 +87,14 @@ export const Alerts: React.FC<{ token: string | null; onNavigate?: (tab: string)
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedAlert, setSelectedAlert] = useState<AlertItem | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'active' | 'defaults'>('active');
+  const [defaultRules, setDefaultRules] = useState<AlertRuleDefault[]>(PRE_TUNED_ALERT_DEFAULTS);
+
+  const handleToggleRule = (ruleId: string) => {
+    setDefaultRules(prev => prev.map(r => r.id === ruleId ? { ...r, enabled: !r.enabled } : r));
+    setToastMessage('Alert rule preference updated.');
+    setTimeout(() => setToastMessage(null), 4000);
+  };
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -155,9 +218,101 @@ export const Alerts: React.FC<{ token: string | null; onNavigate?: (tab: string)
         </div>
       </div>
 
-      {/* Filter and Table */}
-      <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+      {/* Tab Switcher: Firing Alerts vs Pre-Tuned Defaults */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800">
+          <button
+            onClick={() => setActiveTab('active')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+              activeTab === 'active'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <BellRing className="w-3.5 h-3.5" />
+            <span>Active Incidents & Alerts ({filtered.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('defaults')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+              activeTab === 'defaults'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>Pre-Tuned Alert Defaults ({defaultRules.filter(r => r.enabled).length} Active)</span>
+          </button>
+        </div>
+
+        <span className="text-[11px] text-slate-500">
+          Baseline threshold monitors auto-attached to all cloud resources
+        </span>
+      </div>
+
+      {activeTab === 'defaults' ? (
+        <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-4">
+            <div>
+              <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-blue-500" />
+                Pre-Tuned Out-of-the-Box Alert Defaults
+              </h3>
+              <p className="text-slate-500 text-[11px] mt-0.5">
+                Every newly created compute instance, database, or container arrives pre-configured with active baseline rules — edit or disable anytime
+              </p>
+            </div>
+            <span className="px-3 py-1 text-[10px] font-bold rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+              5 Active Baselines
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            {defaultRules.map((rule) => (
+              <div
+                key={rule.id}
+                className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 flex flex-col md:flex-row md:items-center justify-between gap-4"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-slate-900 dark:text-white text-xs">{rule.name}</span>
+                    <span className="px-2 py-0.5 text-[9px] font-bold rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                      default alert — edit or disable
+                    </span>
+                    <span className={`px-2 py-0.5 text-[9px] font-bold rounded-full ${
+                      rule.severity === 'CRITICAL' ? 'bg-rose-500/10 text-rose-500' : 'bg-amber-500/10 text-amber-500'
+                    }`}>
+                      {rule.severity}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 font-mono">
+                    Condition: <strong className="text-slate-900 dark:text-white">{rule.condition}</strong>
+                  </p>
+                  <p className="text-[11px] text-slate-400">Target Resource: {rule.target}</p>
+                </div>
+
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="text-xs font-bold text-slate-500">
+                    {rule.enabled ? 'Active' : 'Disabled'}
+                  </span>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={rule.enabled}
+                      onChange={() => handleToggleRule(rule.id)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        /* Filter and Table */
+        <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
           <div className="relative w-full sm:w-80">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
@@ -306,6 +461,7 @@ export const Alerts: React.FC<{ token: string | null; onNavigate?: (tab: string)
           </table>
         </div>
       </div>
+    )}
 
       {/* Alert Detail Modal */}
       {selectedAlert && (

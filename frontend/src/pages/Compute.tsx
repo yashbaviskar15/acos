@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Server, Plus, Play, Square, RotateCw, Trash2, RefreshCw } from 'lucide-react';
+import { Server, Plus, Play, Square, RotateCw, Trash2, RefreshCw, Moon, Clock, Zap } from 'lucide-react';
 import { ModalPortal } from '../components/ModalPortal';
 import { apiFetch } from '../config/api';
 
@@ -21,7 +21,25 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
   const [osImage, setOsImage] = useState('Ubuntu 22.04 LTS');
   const [region, setRegion] = useState('arv-us-east-1');
   const [diskGb, setDiskGb] = useState(50);
+  const [environment, setEnvironment] = useState<'development' | 'staging' | 'production'>('development');
+  const [autoSuspend, setAutoSuspend] = useState(true);
+  const [suspendMinutes, setSuspendMinutes] = useState(30);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  const calculateAllInPrice = () => {
+    const basePrices: Record<string, number> = {
+      'arv.micro': 350,
+      'arv.small': 700,
+      'arv.medium': 1400,
+      'arv.large': 2800,
+      'arv.xlarge': 5600,
+    };
+    const computeBase = basePrices[instanceType] || 1400;
+    const diskCost = diskGb * 4;
+    const fullMonthly = computeBase + diskCost;
+    const effectiveMonthly = autoSuspend && environment !== 'production' ? Math.round(fullMonthly * 0.38) : fullMonthly;
+    return { fullMonthly, effectiveMonthly };
+  };
 
   const fetchInstances = async () => {
     setLoading(true);
@@ -191,7 +209,12 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
                         <Server className="w-4 h-4" />
                       </div>
                       <div>
-                        <p className="font-bold text-slate-900 dark:text-white text-xs">{inst.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-slate-900 dark:text-white text-xs">{inst.name}</p>
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                            Auto-Suspend: 30m
+                          </span>
+                        </div>
                         <p className="font-mono text-[10px] text-slate-500 dark:text-slate-400">{inst.id}</p>
                       </div>
                     </div>
@@ -348,6 +371,104 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
                 className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-slate-900 dark:text-white focus:outline-none focus:border-blue-600"
               />
             </div>
+          </div>
+
+          {/* Environment Selector */}
+          <div>
+            <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1.5 uppercase font-mono">Environment Tier</label>
+            <div className="grid grid-cols-3 gap-2">
+              {(['development', 'staging', 'production'] as const).map((env) => (
+                <button
+                  key={env}
+                  type="button"
+                  onClick={() => {
+                    setEnvironment(env);
+                    if (env === 'production') {
+                      setAutoSuspend(false);
+                    } else {
+                      setAutoSuspend(true);
+                      setSuspendMinutes(30);
+                    }
+                  }}
+                  className={`py-2 px-3 rounded-xl border text-center font-bold capitalize transition-all cursor-pointer ${
+                    environment === env
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300 shadow-sm'
+                      : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  {env}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Non-Prod Auto-Suspend Autopilot */}
+          <div className="p-3.5 bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Moon className="w-4 h-4 text-amber-500" />
+                <span className="font-bold text-slate-800 dark:text-slate-200">Non-Prod Auto-Suspend</span>
+                {environment !== 'production' && (
+                  <span className="px-2 py-0.5 text-[9px] font-bold rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                    On by Default
+                  </span>
+                )}
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={autoSuspend}
+                  onChange={(e) => setAutoSuspend(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Automatically suspends CPU cores after inactivity. Wakes instantly on incoming traffic with zero state loss.
+            </p>
+            {autoSuspend && (
+              <div className="flex items-center gap-2 pt-1">
+                <Clock className="w-3.5 h-3.5 text-slate-400" />
+                <span className="text-[11px] text-slate-600 dark:text-slate-300 font-bold">Inactivity Timer:</span>
+                <select
+                  value={suspendMinutes}
+                  onChange={(e) => setSuspendMinutes(Number(e.target.value))}
+                  className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-slate-900 dark:text-white"
+                >
+                  <option value={15}>15 minutes</option>
+                  <option value={30}>30 minutes (Recommended)</option>
+                  <option value={60}>1 hour</option>
+                  <option value={120}>2 hours</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* All-in Pricing Display */}
+          <div className="p-4 bg-gradient-to-br from-blue-500/5 via-slate-50 dark:via-slate-900 to-slate-100 dark:to-slate-950 border border-blue-500/20 rounded-2xl space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5" /> All-In Estimated Monthly Price
+              </span>
+              <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                100 GB Egress Included
+              </span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-xl font-black text-slate-900 dark:text-white">
+                ₹{calculateAllInPrice().effectiveMonthly.toLocaleString()}/mo
+              </span>
+              {autoSuspend && environment !== 'production' && (
+                <span className="text-[11px] text-slate-400 line-through">
+                  ₹{calculateAllInPrice().fullMonthly.toLocaleString()}/mo
+                </span>
+              )}
+              <span className="text-[11px] text-slate-500 font-medium">all-in estimate</span>
+            </div>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+              Includes {instanceType} + {diskGb}GB NVMe SSD storage + 100GB bundled network egress. No hidden intra-VPC or API request fees.
+            </p>
           </div>
 
           <div className="pt-3 flex gap-3">
