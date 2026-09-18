@@ -399,7 +399,7 @@ export const Header: React.FC<HeaderProps> = ({
               {showRoleMenu && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowRoleMenu(false)} />
-                  <div className="fixed inset-x-3 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 mt-2 sm:w-64 max-w-sm mx-auto sm:mx-0 bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-2.5 z-50 space-y-1 animate-fadeIn font-sans">
+                  <div className="fixed inset-x-3 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 mt-2 sm:w-64 max-w-sm mx-auto sm:mx-0 bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-2.5 z-50 space-y-1 animate-dropdownIn font-sans">
                     <div className="px-2.5 py-1.5 border-b border-slate-100 dark:border-slate-800 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
                       Switch System Role (RBAC)
                     </div>
@@ -514,7 +514,7 @@ export const Header: React.FC<HeaderProps> = ({
           {showLangMenu && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowLangMenu(false)} />
-              <div className="fixed inset-x-4 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 mt-2 sm:w-44 max-w-xs mx-auto sm:mx-0 bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-1.5 z-50 space-y-0.5 animate-fadeIn font-sans">
+              <div className="fixed inset-x-4 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 mt-2 sm:w-44 max-w-xs mx-auto sm:mx-0 bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-1.5 z-50 space-y-0.5 animate-dropdownIn font-sans">
                 <div className="px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-slate-800 mb-1">
                   {t('header.language') || 'Language'}
                 </div>
@@ -595,7 +595,7 @@ export const Header: React.FC<HeaderProps> = ({
           {showNotifications && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-              <div className="fixed inset-x-3 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 mt-2 sm:w-80 max-w-sm mx-auto sm:mx-0 bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-4 z-50 space-y-3 animate-fadeIn">
+              <div className="fixed inset-x-3 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 mt-2 sm:w-80 max-w-sm mx-auto sm:mx-0 bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-4 z-50 space-y-3 animate-dropdownIn">
                 <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
                   <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase font-mono tracking-wider flex items-center gap-2">
                     <Bell className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />

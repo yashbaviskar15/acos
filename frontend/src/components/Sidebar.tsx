@@ -133,7 +133,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Sidebar Container */}
       <aside
-        className={`w-64 bg-white dark:bg-[#0F2038] border-r border-slate-200 dark:border-slate-800 flex flex-col h-screen fixed md:sticky top-0 left-0 transition-transform duration-300 shadow-xl z-[95] md:z-30 shrink-0 ${
+        className={`w-64 bg-white dark:bg-[#0F2038] border-r border-slate-200 dark:border-slate-800 flex flex-col h-[100dvh] fixed md:sticky top-0 left-0 transition-transform duration-300 shadow-xl z-[95] md:z-30 shrink-0 pb-safe ${
           isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
@@ -146,7 +146,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {onClose && (
             <button
               onClick={onClose}
-              className="md:hidden text-slate-400 hover:text-slate-900 dark:hover:text-white p-1.5 rounded-lg"
+              className="md:hidden text-slate-400 hover:text-slate-900 dark:hover:text-white w-11 h-11 flex items-center justify-center rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors btn-press cursor-pointer"
+              title="Close Menu"
             >
               <X className="w-5 h-5" />
             </button>
@@ -169,7 +170,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <button
                       key={item.id}
                       onClick={() => handleTabClick(item.id)}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer group ${
+                      className={`w-full flex items-center justify-between px-3 min-h-[44px] sm:min-h-0 py-2.5 sm:py-2 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer group btn-press ${
                         isActive
                           ? 'bg-[#C6923B] text-white shadow-md shadow-[#C6923B]/30'
                           : isPermitted
@@ -241,7 +242,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button 
               onClick={onLogout}
               title="Logout"
-              className="text-slate-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
+              className="text-slate-400 hover:text-red-600 p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer btn-press"
             >
               <LogOut className="w-4 h-4" />
             </button>

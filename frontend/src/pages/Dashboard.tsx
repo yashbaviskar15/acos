@@ -363,7 +363,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, onNavigate, searchT
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full min-w-[680px] text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase font-bold text-slate-400">
                   <th className="pb-2.5">Service Name</th>

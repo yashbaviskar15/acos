@@ -362,46 +362,82 @@
   }
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+/* ── Smooth momentum scrolling & safe areas ── */
+.overflow-x-auto, .overflow-y-auto {
+  -webkit-overflow-scrolling: touch;
 }
 
-.animate-fadeIn {
-  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+.touch-manipulation {
+  touch-action: manipulation;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *,
-  ::before,
-  ::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* ── Purposeful restrained micro-interactions ── */
+.btn-press {
+  transition: transform 150ms cubic-bezier(0.16, 1, 0.3, 1), background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.btn-press:active {
+  transform: scale(0.97);
+}
+
+.card-hover {
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1), border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+}
+
+@keyframes dropdownIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
-/* ── Shimmer progress bar (Storage upload & global skeleton shimmer) ── */
-.shimmer-progress {
-  background: linear-gradient(
-    90deg,
-    rgba(198, 146, 59, 0) 0%,
-    #C6923B 50%,
-    rgba(198, 146, 59, 0) 100%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.2s linear infinite;
+.animate-dropdownIn {
+  animation: dropdownIn 160ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-@keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+@keyframes modalSpringIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-modalSpringIn {
+  animation: modalSpringIn 220ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .shimmer-progress {
-    background: #C6923B;
+  .btn-press:active {
+    transform: none;
+  }
+  .card-hover:hover {
+    transform: none;
+  }
+  .animate-dropdownIn,
+  .animate-modalSpringIn {
     animation: none;
+    opacity: 1;
+    transform: none;
   }
 }
+

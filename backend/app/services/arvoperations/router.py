@@ -84,8 +84,10 @@ class DeploymentTrigger(BaseModel):
 class IncidentCreate(BaseModel):
     title: str = Field(..., example="Database replication latency degradation")
     severity: str = Field("P2", example="P2")
-    affected_service: str = Field(..., example="postgres-primary")
-    commander: str = Field("Yash Baviskar", example="Yash Baviskar")
+    affected_service: Optional[str] = Field(None, example="postgres-primary")
+    affected_services: Optional[List[str]] = Field(None, example=["postgres-primary"])
+    commander: Optional[str] = Field("Yash Baviskar", example="Yash Baviskar")
+    summary: Optional[str] = None
     initial_note: Optional[str] = "Degraded write performance observed across secondary nodes"
 
 class IncidentTransition(BaseModel):
@@ -725,10 +727,21 @@ def declare_incident(
     now_dt = datetime.utcnow()
     ws_id = current_user.workspace_id or workspace_id or "default"
     
+    # Support either affected_service string or affected_services list
+    if body.affected_service:
+        service_val = body.affected_service
+    elif body.affected_services:
+        service_val = ", ".join(body.affected_services)
+    else:
+        service_val = "platform-core"
+
+    summary_note = body.summary or body.initial_note or body.title
+
     initial_event = {
         "timestamp": now_dt.isoformat() + "Z",
-        "event": f"Incident declared: {body.initial_note or body.title}",
-        "note": body.initial_note or body.title,
+        "time": now_dt.strftime("%H:%M UTC"),
+        "event": f"Incident declared: {summary_note}",
+        "note": summary_note,
         "author": body.commander or current_user.full_name or "Commander",
         "type": "INITIAL"
     }
@@ -740,7 +753,7 @@ def declare_incident(
         title=body.title,
         severity=body.severity,
         status="Detected",
-        affected_service=body.affected_service,
+        affected_service=service_val,
         commander=body.commander or current_user.full_name or "Platform Commander",
         detected_at=now_dt,
         resolved_at=None,
@@ -754,8 +767,8 @@ def declare_incident(
     emit_notification(
         db,
         title=f"Incident Declared [{body.severity}]",
-        message=f"{body.title} - Affected: {body.affected_service}",
-        severity="CRITICAL" if body.severity in ["P1", "critical"] else "WARNING",
+        message=f"{body.title} - Affected: {service_val}",
+        severity="CRITICAL" if body.severity in ["P1", "critical", "P1 - Critical"] else "WARNING",
         source="ArvOperations",
         user_id=current_user.id,
         workspace_id=ws_id,
@@ -809,6 +822,16 @@ def transition_incident(
     )
 
     return inc.to_dict()
+
+@router.patch("/incidents/{incident_id}", summary="Update incident status")
+def update_incident_status(
+    incident_id: str, 
+    body: IncidentTransition,
+    workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator"])),
+):
+    return transition_incident(incident_id, body, workspace_id, db, current_user)
 
 @router.post("/incidents/{incident_id}/timeline", summary="Post event to incident war-room timeline")
 def post_incident_timeline(

@@ -345,17 +345,22 @@ class IncidentRecord(Base):
             tl = json.loads(self.timeline) if self.timeline else []
         except Exception:
             tl = []
+        services = [s.strip() for s in self.affected_service.split(",") if s.strip()] if self.affected_service else []
+        first_note = tl[0].get("note") if tl and isinstance(tl[0], dict) else ""
         return {
             "id": self.id,
+            "number": self.id.upper(),
             "title": self.title,
             "severity": self.severity,
             "status": self.status,
             "affected_service": self.affected_service,
+            "affected_services": services,
             "commander": self.commander,
+            "summary": first_note or self.title,
             "detected_at": self.detected_at.isoformat() + "Z" if self.detected_at else datetime.datetime.utcnow().isoformat() + "Z",
             "resolved_at": self.resolved_at.isoformat() + "Z" if self.resolved_at else None,
             "timeline": tl,
-            "rca_notes": self.rca_notes,
+            "rca_notes": self.rca_notes or "",
         }
 
 

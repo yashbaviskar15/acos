@@ -50,7 +50,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(({
       ref={ref}
       disabled={isDisabled}
       className={[
-        'inline-flex items-center justify-center font-semibold transition-all duration-200',
+        'inline-flex items-center justify-center font-semibold transition-all duration-200 btn-press cursor-pointer',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandGold-500/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-brandObsidian-950',
         'disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none',
         variantClasses[variant],

@@ -12,7 +12,8 @@ import { StatusBadge } from '../components/StatusBadge';
 import { ModalPortal } from '../components/ModalPortal';
 
 interface TimelineEntry {
-  time: string;
+  time?: string;
+  timestamp?: string;
   author: string;
   note: string;
   type: string;
@@ -87,13 +88,16 @@ export const Incidents: React.FC<{ token: string | null }> = ({ token }) => {
     e.preventDefault();
     setActionLoading(true);
     try {
+      const servicesArray = newIncidentServices ? newIncidentServices.split(',').map(s => s.trim()).filter(Boolean) : [];
       await apiFetch('/api/v1/operations/incidents', {
         method: 'POST',
         body: JSON.stringify({
           title: newIncidentTitle,
           severity: newIncidentSeverity,
-          affected_services: newIncidentServices.split(',').map(s => s.trim()),
+          affected_service: newIncidentServices,
+          affected_services: servicesArray,
           summary: newIncidentSummary,
+          initial_note: newIncidentSummary,
           commander: 'Yash Baviskar (Lead SRE)'
         }),
         token
@@ -112,15 +116,25 @@ export const Incidents: React.FC<{ token: string | null }> = ({ token }) => {
 
   const handleUpdateStatus = async (incidentId: string, newStatus: string) => {
     try {
-      await apiFetch(`/api/v1/operations/incidents/${incidentId}`, {
-        method: 'PATCH',
+      await apiFetch(`/api/v1/operations/incidents/${incidentId}/transition`, {
+        method: 'POST',
         body: JSON.stringify({ status: newStatus }),
         token
       });
       showToast(`Incident status updated to '${newStatus}'`);
       fetchIncidents();
-    } catch (err: any) {
-      showToast(`Update failed: ${err.message}`);
+    } catch {
+      try {
+        await apiFetch(`/api/v1/operations/incidents/${incidentId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status: newStatus }),
+          token
+        });
+        showToast(`Incident status updated to '${newStatus}'`);
+        fetchIncidents();
+      } catch (err: any) {
+        showToast(`Update failed: ${err.message}`);
+      }
     }
   };
 
@@ -135,6 +149,7 @@ export const Incidents: React.FC<{ token: string | null }> = ({ token }) => {
           author: 'Yash Baviskar (Incident Commander)',
           event: timelineNote,
           note: timelineNote,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           type: 'UPDATE'
         }),
         token
@@ -231,7 +246,7 @@ export const Incidents: React.FC<{ token: string | null }> = ({ token }) => {
 
             <button
               onClick={() => setIsCreateOpen(true)}
-              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-mono font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-mono font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer btn-press"
             >
               <ShieldAlert className="w-4 h-4" /> Declare Incident
             </button>
@@ -239,7 +254,7 @@ export const Incidents: React.FC<{ token: string | null }> = ({ token }) => {
             <button
               onClick={fetchIncidents}
               disabled={loading}
-              className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl transition-colors cursor-pointer"
+              className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl transition-colors cursor-pointer btn-press"
               title="Refresh incidents"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -249,7 +264,7 @@ export const Incidents: React.FC<{ token: string | null }> = ({ token }) => {
 
         {/* Incidents Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs font-mono">
+          <table className="w-full min-w-[720px] text-left text-xs font-mono">
             <thead>
               <tr className="border-b border-slate-200 dark:border-slate-800 font-bold text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-900/50">
                 <th className="py-3 px-4">Incident #</th>
@@ -283,15 +298,15 @@ export const Incidents: React.FC<{ token: string | null }> = ({ token }) => {
                     onClick={() => setSelectedIncident(inc)}
                   >
                     <td className="py-3.5 px-4 font-bold text-rose-600 dark:text-rose-400">
-                      {inc.number}
+                      {inc.number || (inc.id ? inc.id.toUpperCase() : 'INC-2026')}
                     </td>
 
                     <td className="py-3.5 px-4 max-w-[300px]">
                       <div className="font-bold text-slate-900 dark:text-white group-hover:text-blue-500 transition-colors">
                         {inc.title}
                       </div>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5" title={inc.summary}>
-                        {inc.summary}
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5" title={inc.summary || inc.title}>
+                        {inc.summary || inc.title}
                       </p>
                     </td>
 
@@ -307,11 +322,18 @@ export const Incidents: React.FC<{ token: string | null }> = ({ token }) => {
 
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-1 flex-wrap">
-                        {(inc.affected_services || []).map((s, idx) => (
-                          <span key={s || idx} className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[10px] text-slate-600 dark:text-slate-300">
-                            {s}
-                          </span>
-                        ))}
+                        {(() => {
+                          const services = Array.isArray(inc.affected_services) && inc.affected_services.length > 0
+                            ? inc.affected_services
+                            : typeof (inc as any).affected_service === 'string'
+                            ? (inc as any).affected_service.split(',').map((s: string) => s.trim()).filter(Boolean)
+                            : ['platform'];
+                          return services.map((s: string, idx: number) => (
+                            <span key={`${s}-${idx}`} className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[10px] text-slate-600 dark:text-slate-300">
+                              {s}
+                            </span>
+                          ));
+                        })()}
                       </div>
                     </td>
 
@@ -425,7 +447,7 @@ export const Incidents: React.FC<{ token: string | null }> = ({ token }) => {
             <div className="flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-base font-black text-rose-600 dark:text-rose-400">{selectedIncident.number}</span>
+                  <span className="text-base font-black text-rose-600 dark:text-rose-400">{selectedIncident.number || (selectedIncident.id ? selectedIncident.id.toUpperCase() : 'INC-2026')}</span>
                   <h3 className="text-base font-bold text-slate-900 dark:text-white">{selectedIncident.title}</h3>
                   <StatusBadge status={selectedIncident.status} size="sm" />
                 </div>
@@ -451,7 +473,7 @@ export const Incidents: React.FC<{ token: string | null }> = ({ token }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1">
                 <span className="font-bold text-slate-400 uppercase text-[10px]">Observed Impact</span>
-                <p className="text-slate-800 dark:text-slate-200 leading-relaxed">{selectedIncident.summary}</p>
+                <p className="text-slate-800 dark:text-slate-200 leading-relaxed">{selectedIncident.summary || selectedIncident.title}</p>
               </div>
               <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1">
                 <span className="font-bold text-slate-400 uppercase text-[10px]">Identified Root Cause</span>
@@ -472,7 +494,7 @@ export const Incidents: React.FC<{ token: string | null }> = ({ token }) => {
                       </div>
                       <p className="text-slate-300">{item.note}</p>
                     </div>
-                    <span className="text-[10px] text-slate-500 shrink-0">{item.time}</span>
+                    <span className="text-[10px] text-slate-500 shrink-0">{item.time || item.timestamp || 'Just now'}</span>
                   </div>
                 ))}
               </div>

@@ -345,22 +345,29 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               animate={mounted ? 'show' : 'hidden'}
               className="relative z-10 max-w-3xl mx-auto text-center space-y-6"
             >
+              {/* Dynamic ambient floating orbs */}
+              <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] sm:w-[600px] h-[260px] sm:h-[340px] bg-gradient-to-r from-brandGold-500/20 via-amber-500/15 to-transparent rounded-full blur-[90px] pointer-events-none -z-10 animate-pulse" />
+
               <motion.div variants={fadeUp} className="flex justify-center">
-                <div className="inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-1.5 px-3.5 py-1.5 sm:px-4 sm:py-1.5 rounded-full border border-brandGold-500/30 bg-brandGold-500/10 text-brandGold-600 dark:text-brandGold-400 text-xs sm:text-xs font-semibold tracking-wide uppercase shadow-sm max-w-full">
+                <motion.div
+                  animate={{ y: [0, -3, 0] }}
+                  transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+                  className="inline-flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 px-4 py-1.5 rounded-full border border-brandGold-500/40 bg-brandGold-500/10 text-brandGold-700 dark:text-brandGold-300 text-xs font-semibold tracking-wide uppercase shadow-sm max-w-full backdrop-blur-md"
+                >
                   <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
                     <span className="w-2 h-2 rounded-full bg-brandGold-500 animate-pulse" />
                     <span>Unified Cloud Control Plane</span>
                   </span>
                   <span className="opacity-40 hidden sm:inline">•</span>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-brandGold-500/20 text-brandGold-700 dark:text-brandGold-300 font-bold whitespace-nowrap text-[11px] sm:text-xs">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-brandGold-500/20 text-brandGold-800 dark:text-brandGold-200 font-bold whitespace-nowrap text-[11px]">
                     v1.0 GA
                   </span>
                   <span className="opacity-40 hidden sm:inline">•</span>
-                  <span className="inline-flex items-center gap-1.5 opacity-95 whitespace-nowrap">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping inline-block" />
+                  <span className="inline-flex items-center gap-1.5 opacity-95 whitespace-nowrap text-slate-700 dark:text-slate-300">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping inline-block" />
                     <span>ap-south-1 Mumbai</span>
                   </span>
-                </div>
+                </motion.div>
               </motion.div>
 
               <motion.h1
@@ -368,10 +375,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tighter leading-[1.02] text-slate-900 dark:text-white"
               >
                 Aravanta{' '}
-                <span className="bg-gradient-to-br from-brandGold-400 via-brandGold-500 to-brandGold-600 bg-clip-text text-transparent">
+                <span className="bg-gradient-to-br from-brandGold-500 via-amber-500 to-brandGold-600 bg-clip-text text-transparent filter drop-shadow-xs">
                   Cloud OS
                 </span>
-                <span className="block text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold text-slate-700 dark:text-slate-300 mt-2">
+                <span className="block text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold text-slate-800 dark:text-slate-200 mt-2.5 tracking-tight">
                   The Unified Multi-Cloud Operating System
                 </span>
               </motion.h1>
@@ -392,8 +399,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   size="xl"
                   variant="primary"
                   onClick={onGoToRegister}
-                  className="bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold shadow-lg shadow-brandGold-500/25 min-h-[48px]"
-                  rightIcon={<ArrowRight className="w-5 h-5" />}
+                  className="bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold shadow-lg shadow-brandGold-500/25 hover:shadow-brandGold-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all min-h-[48px] btn-press cursor-pointer"
+                  rightIcon={<ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />}
                 >
                   Get Started Free
                 </Button>
@@ -401,7 +408,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   size="xl"
                   variant="outline"
                   onClick={() => onNavigate?.('documentation')}
-                  className="min-h-[48px] hover:border-brandGold-500/50 hover:text-brandGold-600 dark:hover:text-brandGold-400"
+                  className="min-h-[48px] border-slate-300 dark:border-brandObsidian-700 hover:border-brandGold-500 hover:bg-brandGold-500/10 hover:text-brandGold-600 dark:hover:text-brandGold-400 hover:scale-[1.02] active:scale-[0.98] transition-all btn-press cursor-pointer"
                   leftIcon={<BookOpen className="w-4 h-4 text-brandGold-500" />}
                 >
                   Explore Platform
@@ -413,19 +420,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-6 max-w-3xl mx-auto"
               >
                 {[
-                  { value: '99.99%', label: 'Uptime SLA', icon: HeartPulse },
-                  { value: '< 10ms', label: 'Telemetry Latency', icon: Activity },
-                  { value: '100+', label: 'Cloud Integrations', icon: Cloud },
-                  { value: 'SOC 2 Type II', label: 'Enterprise Ready', icon: ShieldCheck },
+                  { value: '99.99%', label: 'Uptime SLA', icon: HeartPulse, tone: 'emerald' },
+                  { value: '< 10ms', label: 'Telemetry Latency', icon: Activity, tone: 'gold' },
+                  { value: '100+', label: 'Cloud Integrations', icon: Cloud, tone: 'sky' },
+                  { value: 'SOC 2 Type II', label: 'Enterprise Ready', icon: ShieldCheck, tone: 'purple' },
                 ].map((stat) => {
                   const StatIcon = stat.icon;
                   return (
-                    <div
+                    <motion.div
                       key={stat.label}
-                      className="p-3.5 rounded-2xl border border-slate-200 dark:border-brandObsidian-700/80 bg-white/70 dark:bg-brandObsidian-900/60 backdrop-blur-sm text-center shadow-sm"
+                      whileHover={{ y: -4, scale: 1.02 }}
+                      transition={{ duration: 0.2 }}
+                      className="p-3.5 rounded-2xl border border-slate-200 dark:border-brandObsidian-700 bg-white/80 dark:bg-brandObsidian-900/80 hover:border-brandGold-500/60 hover:shadow-card-hover backdrop-blur-sm text-center shadow-xs transition-all duration-300 group cursor-default"
                     >
                       <div className="flex items-center justify-center gap-1.5 text-brandGold-500 dark:text-brandGold-400 mb-1">
-                        <StatIcon className="w-4 h-4" />
+                        <StatIcon className="w-4 h-4 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300" />
                         <span className="text-xl font-black text-slate-900 dark:text-white tabular-nums">
                           {stat.value}
                         </span>
@@ -433,7 +442,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider font-mono">
                         {stat.label}
                       </div>
-                    </div>
+                    </motion.div>
                   );
                 })}
               </motion.div>

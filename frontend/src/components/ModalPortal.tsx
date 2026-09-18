@@ -33,7 +33,7 @@ export const ModalPortal: React.FC<ModalPortalProps> = ({ isOpen, onClose, child
       />
 
       {/* Modal content */}
-      <div className={`relative z-10 w-full ${maxWidth} max-h-[90vh] overflow-y-auto bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 lg:p-8 shadow-2xl shadow-black/40 animate-fadeIn`}>
+      <div className={`relative z-10 w-full ${maxWidth} max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 lg:p-8 shadow-2xl shadow-black/40 animate-modalSpringIn`}>
         {children}
       </div>
     </div>,

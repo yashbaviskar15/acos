@@ -140,7 +140,7 @@ export const AuditLogs: React.FC<{ token: string | null }> = ({ token }) => {
 
         {/* Audit Log Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full min-w-[700px] text-left text-xs">
             <thead>
               <tr className="border-b border-slate-200 dark:border-slate-800 font-bold text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-900/50">
                 <th className="py-3 px-4">Timestamp (UTC)</th>

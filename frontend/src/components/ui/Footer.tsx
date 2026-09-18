@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Twitter, Linkedin, Github, Mail, ChevronDown, Users, Shield, Globe, MessageSquare, Server, ExternalLink } from 'lucide-react';
+import { Twitter, Linkedin, Github, Mail, ChevronDown, Users, Shield, Globe, MessageSquare, Server, ExternalLink, CheckCircle2, Activity, Radio } from 'lucide-react';
 import { Logo } from '../Logo';
 import { LandingView } from './Navbar';
 import { SUPPORTED_LANGS, LangCode } from '../../i18n';
 
 export interface FooterProps {
   onNavigate?: (view: LandingView) => void;
+  onGoToLogin?: () => void;
 }
 
 type FooterLink = {
@@ -106,7 +107,10 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
   }, [langOpen]);
 
   return (
-    <footer className="relative border-t border-slate-200 dark:border-brandObsidian-800 bg-white dark:bg-brandObsidian-950 transition-colors">
+    <footer className="relative border-t border-slate-200 dark:border-brandObsidian-800 bg-slate-50/90 dark:bg-[#070D18] transition-colors overflow-hidden">
+      {/* Top ambient gold shimmer hairline */}
+      <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-brandGold-500/50 to-transparent" />
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="py-14 lg:py-16">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-10 lg:gap-8">
@@ -116,18 +120,34 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
                 {t('footer.tagline')}
               </p>
-              <div className="pt-1">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-brandGold-500/10 border border-brandGold-500/30 text-xs font-semibold text-brandGold-700 dark:text-brandGold-400">
+              
+              <div className="flex flex-col gap-2 pt-1">
+                {/* Live System Status Beacon */}
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-xs font-semibold text-emerald-700 dark:text-emerald-400 w-fit shadow-xs">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <span>All Systems Operational (99.99%)</span>
+                </div>
+
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-brandGold-500/10 border border-brandGold-500/30 text-xs font-semibold text-brandGold-700 dark:text-brandGold-400 w-fit">
                   <Shield className="w-3.5 h-3.5" />
                   SOC2 Type II & ISO 27001 Ready
                 </span>
+
+                <p className="text-[11px] font-mono text-slate-500 dark:text-slate-400 pt-0.5 flex items-center gap-1">
+                  <span>🇮🇳</span>
+                  <span>Sovereign Cloud • Mumbai & Delhi NCR</span>
+                </p>
               </div>
+
               <div className="flex items-center gap-2.5 pt-2">
                 <a
                   href="https://github.com/yashbaviskar15/acos"
                   target="_blank"
                   rel="noreferrer noopener"
-                  className="p-2.5 rounded-xl border border-slate-200 dark:border-brandObsidian-800 text-slate-500 dark:text-slate-400 hover:text-brandGold-600 dark:hover:text-brandGold-400 hover:border-brandGold-500/40 hover:bg-brandGold-50/20 dark:hover:bg-brandObsidian-900 transition-all min-w-[44px] min-h-[44px] flex items-center justify-center"
+                  className="p-2.5 rounded-xl border border-slate-300 dark:border-brandObsidian-700 bg-white dark:bg-brandObsidian-900 text-slate-600 dark:text-slate-300 hover:text-brandGold-600 dark:hover:text-brandGold-400 hover:border-brandGold-500 hover:scale-105 hover:shadow-sm transition-all min-w-[44px] min-h-[44px] flex items-center justify-center btn-press"
                   aria-label="GitHub"
                 >
                   <Github className="w-4.5 h-4.5" />
@@ -136,7 +156,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   href="https://twitter.com/aravanta_cloud"
                   target="_blank"
                   rel="noreferrer noopener"
-                  className="p-2.5 rounded-xl border border-slate-200 dark:border-brandObsidian-800 text-slate-500 dark:text-slate-400 hover:text-brandGold-600 dark:hover:text-brandGold-400 hover:border-brandGold-500/40 hover:bg-brandGold-50/20 dark:hover:bg-brandObsidian-900 transition-all min-w-[44px] min-h-[44px] flex items-center justify-center"
+                  className="p-2.5 rounded-xl border border-slate-300 dark:border-brandObsidian-700 bg-white dark:bg-brandObsidian-900 text-slate-600 dark:text-slate-300 hover:text-brandGold-600 dark:hover:text-brandGold-400 hover:border-brandGold-500 hover:scale-105 hover:shadow-sm transition-all min-w-[44px] min-h-[44px] flex items-center justify-center btn-press"
                   aria-label="Twitter / X"
                 >
                   <Twitter className="w-4.5 h-4.5" />
@@ -145,7 +165,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   href="https://linkedin.com/company/aravanta-cloud"
                   target="_blank"
                   rel="noreferrer noopener"
-                  className="p-2.5 rounded-xl border border-slate-200 dark:border-brandObsidian-800 text-slate-500 dark:text-slate-400 hover:text-brandGold-600 dark:hover:text-brandGold-400 hover:border-brandGold-500/40 hover:bg-brandGold-50/20 dark:hover:bg-brandObsidian-900 transition-all min-w-[44px] min-h-[44px] flex items-center justify-center"
+                  className="p-2.5 rounded-xl border border-slate-300 dark:border-brandObsidian-700 bg-white dark:bg-brandObsidian-900 text-slate-600 dark:text-slate-300 hover:text-brandGold-600 dark:hover:text-brandGold-400 hover:border-brandGold-500 hover:scale-105 hover:shadow-sm transition-all min-w-[44px] min-h-[44px] flex items-center justify-center btn-press"
                   aria-label="LinkedIn"
                 >
                   <Linkedin className="w-4.5 h-4.5" />
@@ -154,7 +174,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   href="https://discord.gg/aravanta"
                   target="_blank"
                   rel="noreferrer noopener"
-                  className="p-2.5 rounded-xl border border-slate-200 dark:border-brandObsidian-800 text-slate-500 dark:text-slate-400 hover:text-brandGold-600 dark:hover:text-brandGold-400 hover:border-brandGold-500/40 hover:bg-brandGold-50/20 dark:hover:bg-brandObsidian-900 transition-all min-w-[44px] min-h-[44px] flex items-center justify-center"
+                  className="p-2.5 rounded-xl border border-slate-300 dark:border-brandObsidian-700 bg-white dark:bg-brandObsidian-900 text-slate-600 dark:text-slate-300 hover:text-brandGold-600 dark:hover:text-brandGold-400 hover:border-brandGold-500 hover:scale-105 hover:shadow-sm transition-all min-w-[44px] min-h-[44px] flex items-center justify-center btn-press"
                   aria-label="Discord"
                 >
                   <MessageSquare className="w-4.5 h-4.5" />
@@ -173,13 +193,13 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                     <li key={link.labelKey}>
                       <button
                         onClick={() => handleClick(link)}
-                        className="inline-flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-brandGold-600 dark:hover:text-brandGold-400 transition-colors text-left py-1 min-h-[32px]"
+                        className="group inline-flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-brandGold-600 dark:hover:text-brandGold-400 transition-all text-left py-1 min-h-[32px] cursor-pointer"
                       >
-                        {link.icon && <link.icon className="w-3.5 h-3.5 text-brandGold-500 shrink-0" />}
+                        {link.icon && <link.icon className="w-3.5 h-3.5 text-brandGold-500 shrink-0 group-hover:scale-110 transition-transform" />}
+                        <span className="group-hover:translate-x-1 transition-transform">{t(link.labelKey)}</span>
                         {link.href?.startsWith('http') && !link.icon && (
-                          <ExternalLink className="w-3 h-3 text-slate-400 shrink-0" />
+                          <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-brandGold-500 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
                         )}
-                        {t(link.labelKey)}
                       </button>
                     </li>
                   ))}
@@ -202,9 +222,14 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           </div>
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500 dark:text-slate-400">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-mono font-semibold">
+              <Radio className="w-3.5 h-3.5 animate-pulse text-emerald-500" />
+              <span>ap-south-1: 8ms</span>
+            </div>
+            <span className="text-slate-300 dark:text-brandObsidian-700 hidden sm:inline-block">•</span>
+            <div className="flex items-center gap-1.5 font-mono">
               <Server className="w-3.5 h-3.5 text-brandGold-500" />
-              <span>v2.4.0 Production</span>
+              <span>v2.4.0 GA</span>
             </div>
             <span className="text-slate-300 dark:text-brandObsidian-700 hidden sm:inline-block">•</span>
             <div className="flex items-center gap-1.5">

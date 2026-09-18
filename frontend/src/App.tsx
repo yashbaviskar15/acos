@@ -43,6 +43,7 @@ import { TermsOfUsePage } from './pages/TermsOfUsePage';
 import { ContactUsPage } from './pages/ContactUsPage';
 import { FAQPage } from './pages/FAQPage';
 import { SitemapPage } from './pages/SitemapPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 import type { LandingView } from './components/ui/Navbar';
 import { CookieConsent } from './components/ui/CookieConsent';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -114,6 +115,7 @@ export default function App() {
         'components',
         'patterns',
         'resources',
+        'not-found',
       ];
       if (saved && validViews.includes(saved)) {
         return saved;
@@ -173,6 +175,7 @@ export default function App() {
       'components',
       'patterns',
       'resources',
+      'not-found',
     ];
 
     if (validLandingViews.includes(target as LandingView)) {
@@ -424,8 +427,11 @@ export default function App() {
       case 'resources':
         PageComponent = DocumentationPage;
         break;
+      case 'not-found':
+        PageComponent = NotFoundPage;
+        break;
       default:
-        PageComponent = LandingPage;
+        PageComponent = NotFoundPage;
         break;
     }
 
@@ -481,7 +487,7 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-slate-100 dark:bg-[#0A1628] text-slate-900 dark:text-slate-100 flex font-sans transition-colors duration-300">
+    <div className="h-[100dvh] w-full max-w-[100vw] overflow-hidden bg-slate-100 dark:bg-[#0A1628] text-slate-900 dark:text-slate-100 flex font-sans transition-colors duration-300">
       {/* Fixed Sidebar */}
       <Sidebar
         activeTab={activeTab}
@@ -493,7 +499,7 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-screen min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col h-[100dvh] min-w-0 overflow-hidden">
         <Header
           title={getTabTitle()}
           subtitle={getTabSubtitle()}
@@ -511,7 +517,7 @@ export default function App() {
         />
 
         {/* Dynamic Route Pages with Error Boundary Protection */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 xs:p-4 sm:p-6 space-y-4 sm:space-y-6 min-w-0">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 xs:p-4 sm:p-6 space-y-4 sm:space-y-6 min-w-0 pb-safe">
           <ErrorBoundary onReset={() => setActiveTab('dashboard')}>
             {!canAccessTab(activeTab, user?.role || user?.roles?.[0] || 'SuperAdmin') ? (
               <AccessDenied
@@ -591,7 +597,7 @@ export default function App() {
         {!isCopilotOpen && (
           <button
             onClick={() => setIsCopilotOpen(true)}
-            className="fixed bottom-5 right-5 z-40 flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-gradient-to-r from-brandGold-600 to-brandGold-500 hover:from-brandGold-500 hover:to-brandGold-600 text-white font-mono font-bold text-xs shadow-xl shadow-brandGold-500/25 border border-brandGold-400/40 hover:scale-105 active:scale-95 transition-all cursor-pointer group"
+            className="fixed bottom-5 right-5 z-40 flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-gradient-to-r from-brandGold-600 to-brandGold-500 hover:from-brandGold-500 hover:to-brandGold-600 text-white font-mono font-bold text-xs shadow-xl shadow-brandGold-500/25 border border-brandGold-400/40 btn-press cursor-pointer group mb-[env(safe-area-inset-bottom,0px)]"
             title="Ask Console Copilot AI (Ctrl+J)"
           >
             <span className="relative flex h-2.5 w-2.5">

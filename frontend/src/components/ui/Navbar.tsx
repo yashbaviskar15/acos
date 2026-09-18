@@ -38,7 +38,8 @@ export type LandingView =
   | 'sitemap'
   | 'privacy'
   | 'disclaimer'
-  | 'terms';
+  | 'terms'
+  | 'not-found';
 
 export interface NavbarProps {
   onGoToLogin: () => void;
@@ -233,13 +234,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="flex items-center gap-2 sm:gap-3">
               <button
                 onClick={onOpenCommandPalette}
-                className="hidden md:flex items-center gap-2.5 h-10 px-3.5 rounded-xl border border-slate-200 dark:border-brandObsidian-700 bg-slate-50/90 dark:bg-brandObsidian-900/80 text-slate-500 dark:text-slate-400 text-xs sm:text-sm hover:border-brandGold-500/50 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white dark:hover:bg-brandObsidian-800 transition-all group shadow-sm cursor-pointer shrink-0"
-                title="Search or press ⌘K"
+                className="hidden md:flex items-center justify-between gap-2.5 h-10 w-44 sm:w-52 lg:w-60 px-3.5 rounded-xl border border-slate-300 dark:border-brandObsidian-700 bg-slate-100/90 dark:bg-brandObsidian-900/90 text-slate-700 dark:text-slate-200 text-xs sm:text-sm hover:border-brandGold-500 hover:bg-white dark:hover:bg-brandObsidian-800 shadow-sm transition-all duration-200 group cursor-pointer shrink-0 focus:outline-none focus:ring-2 focus:ring-brandGold-500/30 btn-press"
+                title="Search console or documentation (⌘K)"
               >
-                <Search className="w-4 h-4 text-slate-400 group-hover:text-brandGold-500 transition-colors shrink-0" />
-                <span className="inline font-medium text-slate-600 dark:text-slate-300">{t('common.search')}...</span>
-                <span className="ml-2 flex items-center gap-0.5">
-                  <kbd className="flex items-center justify-center px-1.5 py-0.5 text-[10px] font-mono font-semibold rounded border border-slate-200 dark:border-brandObsidian-700 bg-white dark:bg-brandObsidian-950 shadow-sm text-slate-500 dark:text-slate-400">
+                <span className="flex items-center gap-2 min-w-0">
+                  <Search className="w-4 h-4 text-brandGold-600 dark:text-brandGold-400 group-hover:scale-110 transition-transform shrink-0" />
+                  <span className="truncate font-semibold text-slate-700 dark:text-slate-200">{t('common.search')}...</span>
+                </span>
+                <span className="flex items-center gap-1 shrink-0">
+                  <kbd className="flex items-center justify-center px-2 py-0.5 text-[10px] font-mono font-bold rounded-md border border-slate-300 dark:border-brandObsidian-600 bg-white dark:bg-brandObsidian-950 text-slate-600 dark:text-slate-300 shadow-xs group-hover:border-brandGold-500/50 group-hover:text-brandGold-600 dark:group-hover:text-brandGold-400 transition-colors">
                     ⌘K
                   </kbd>
                 </span>
@@ -247,11 +250,11 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               <button
                 onClick={onOpenCommandPalette}
-                className="md:hidden flex items-center justify-center w-11 h-11 rounded-xl border border-slate-200 dark:border-brandObsidian-700 bg-slate-50/90 dark:bg-brandObsidian-900/80 text-slate-600 dark:text-slate-300 hover:text-brandGold-500 transition-colors"
+                className="md:hidden flex items-center justify-center w-10 h-10 rounded-xl border border-slate-300 dark:border-brandObsidian-700 bg-slate-100 dark:bg-brandObsidian-900 text-slate-700 dark:text-slate-200 hover:text-brandGold-600 hover:border-brandGold-500 transition-colors shadow-sm btn-press"
                 aria-label="Search"
                 title="Search or press ⌘K"
               >
-                <Search className="w-5 h-5" />
+                <Search className="w-4.5 h-4.5 text-brandGold-600 dark:text-brandGold-400" />
               </button>
 
               <div className="hidden sm:flex items-center gap-2">
@@ -318,11 +321,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                         setMobileOpen(false);
                         onOpenCommandPalette?.();
                       }}
-                      className="w-full min-h-[44px] flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-brandObsidian-700 bg-slate-50 dark:bg-brandObsidian-900/80 text-slate-600 dark:text-slate-300 text-sm hover:border-brandGold-500/50 hover:bg-brandGold-50/20 transition-all text-left shadow-sm"
+                      className="w-full min-h-[44px] flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-brandObsidian-700 bg-slate-100 dark:bg-brandObsidian-900 text-slate-800 dark:text-slate-100 text-sm hover:border-brandGold-500 hover:bg-white dark:hover:bg-brandObsidian-800 transition-all text-left shadow-sm btn-press"
                     >
-                      <Search className="w-4 h-4 text-brandGold-500 shrink-0" />
-                      <span className="flex-1 font-medium text-xs sm:text-sm">{t('common.search')}...</span>
-                      <kbd className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-slate-200 dark:bg-brandObsidian-800 border border-slate-300 dark:border-brandObsidian-700 text-slate-600 dark:text-slate-300">⌘K</kbd>
+                      <Search className="w-4 h-4 text-brandGold-600 dark:text-brandGold-400 shrink-0" />
+                      <span className="flex-1 font-semibold text-xs sm:text-sm">{t('common.search')}...</span>
+                      <kbd className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-white dark:bg-brandObsidian-800 border border-slate-300 dark:border-brandObsidian-600 text-slate-700 dark:text-slate-200">⌘K</kbd>
                     </button>
                   </div>
 
