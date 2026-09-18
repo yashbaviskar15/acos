@@ -297,8 +297,8 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-        {/* Interactive Desktop Search Input */}
-        <div className="hidden md:flex items-center relative">
+        {/* Interactive Desktop Search Input (>= lg only, perfectly sized, no squishing) */}
+        <div className="hidden lg:flex items-center relative shrink-0">
           <Search className="w-3.5 h-3.5 absolute left-2.5 text-slate-400 pointer-events-none" />
           <input
             type="text"
@@ -310,7 +310,7 @@ export const Header: React.FC<HeaderProps> = ({
               }
             }}
             placeholder="Search services, logs... (Ctrl+K)"
-            className="w-44 lg:w-60 pl-8 pr-14 py-1.5 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200/60 dark:hover:bg-slate-800/80 focus:bg-white dark:focus:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-brandGold-500/50 dark:focus:border-brandGold-500/50 rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-brandGold-500/30 transition-all font-sans"
+            className="w-52 xl:w-64 pl-8 pr-14 py-1.5 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200/60 dark:hover:bg-slate-800/80 focus:bg-white dark:focus:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-brandGold-500/50 dark:focus:border-brandGold-500/50 rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-brandGold-500/30 transition-all font-sans"
           />
           <div className="absolute right-1.5 flex items-center gap-1">
             {searchTerm ? (
@@ -334,10 +334,10 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Mobile Search Button (< md) */}
+        {/* Responsive Mobile/Tablet Search Button (< lg) */}
         <button
           onClick={() => setIsMobileSearchOpen(true)}
-          className="md:hidden flex items-center justify-center p-2 text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-colors shrink-0"
+          className="lg:hidden flex items-center justify-center w-9 h-9 text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-colors shrink-0 cursor-pointer"
           title="Search console"
         >
           <Search className="w-4 h-4" />
@@ -346,7 +346,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Desktop System Notification Toggle */}
         <button
           onClick={handleRequestNotification}
-          className={`hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-bold transition-all cursor-pointer ${
+          className={`hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-bold transition-all cursor-pointer shrink-0 ${
             hasNotificationPermission
               ? 'bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400'
               : 'bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20'
@@ -368,13 +368,13 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
 
         {/* RBAC Role Indicator / Admin Role Switcher */}
-        <div className="relative">
+        <div className="relative shrink-0">
           {canSwitchRole ? (
             <>
               <button
                 onClick={() => setShowRoleMenu(!showRoleMenu)}
                 disabled={switchingRole}
-                className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl text-[10px] sm:text-xs font-mono font-bold uppercase transition-all cursor-pointer shadow-sm border ${
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-mono font-bold uppercase transition-all cursor-pointer shadow-sm border shrink-0 ${
                   activeRole === 'SuperAdmin'
                     ? 'bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-500/30 hover:bg-purple-100 dark:hover:bg-purple-500/25'
                     : activeRole === 'Admin'
@@ -386,7 +386,7 @@ export const Header: React.FC<HeaderProps> = ({
                 title="Admin Role Controls — Click to switch active role"
               >
                 <Shield className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate max-w-[55px] xs:max-w-[80px] sm:max-w-none">{switchingRole ? '...' : activeRole}</span>
+                <span className="font-mono font-bold whitespace-nowrap">{switchingRole ? '...' : activeRole}</span>
                 <ChevronDown className="w-3 h-3 opacity-60 shrink-0" />
               </button>
 
@@ -423,7 +423,7 @@ export const Header: React.FC<HeaderProps> = ({
             </>
           ) : (
             <div
-              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl text-[10px] sm:text-xs font-mono font-bold uppercase shadow-sm border ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-mono font-bold uppercase shadow-sm border shrink-0 ${
                 activeRole === 'Developer'
                   ? 'bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30'
                   : activeRole === 'Operator'
@@ -433,7 +433,7 @@ export const Header: React.FC<HeaderProps> = ({
               title={`Assigned RBAC Role: ${activeRole} (Managed by Workspace Administrator)`}
             >
               <Shield className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate max-w-[55px] xs:max-w-[80px] sm:max-w-none">{activeRole}</span>
+              <span className="font-mono font-bold whitespace-nowrap">{activeRole}</span>
             </div>
           )}
         </div>

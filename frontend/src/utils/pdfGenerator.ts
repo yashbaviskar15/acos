@@ -276,8 +276,8 @@ export const generateInvoicePDF = (data: InvoiceData): void => {
     body: tableData,
     margin: { left: M, right: M },
     styles: {
-      fontSize: 8,
-      cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 },
+      fontSize: 8.5,
+      cellPadding: { top: 4.5, bottom: 4.5, left: 3.5, right: 3.5 },
       lineColor: [...BORDER_COLOR],
       lineWidth: 0.3,
       textColor: [...DARK_TEXT],
@@ -285,10 +285,10 @@ export const generateInvoicePDF = (data: InvoiceData): void => {
     headStyles: {
       fillColor: [...PRIMARY_NAVY],
       textColor: [...WHITE],
-      fontSize: 7.2,
+      fontSize: 7.5,
       fontStyle: 'bold',
       halign: 'left',
-      cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 }
+      cellPadding: { top: 4, bottom: 4, left: 3.5, right: 3.5 }
     },
     columnStyles: {
       0: { cellWidth: 10, halign: 'center' },
@@ -407,41 +407,85 @@ export const generateInvoicePDF = (data: InvoiceData): void => {
   doc.text(`Amount in words: Indian Rupees ${numberToWords(data.total)}`, summaryRightX + 4, y + 39.5, { maxWidth: rightW - 8 });
 
   // ═══════════════════════════════════════════════════════════
-  // 6. TERMS & CONDITIONS (Statutory GST Notice)
+  // 5C. Enterprise Infrastructure SLA & FinOps Entitlements
   // ═══════════════════════════════════════════════════════════
-  y += summaryBoxH + 5;
-
+  y += summaryBoxH + 4;
+  const slaBoxH = 22;
+  doc.setFillColor(...LIGHT_BG);
   doc.setDrawColor(...BORDER_COLOR);
   doc.setLineWidth(0.3);
-  doc.line(M, y, W - M, y);
-  y += 4;
+  doc.roundedRect(M, y, W - 2 * M, slaBoxH, 2, 2, 'FD');
 
-  doc.setFontSize(7.5);
+  doc.setFontSize(7.2);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...BLUE_TEXT);
+  doc.text('\u25C6 ENTERPRISE INFRASTRUCTURE & SLA COMPLIANCE GUARANTEE', M + 4, y + 5);
+
+  const slaColW = (W - 2 * M - 12) / 3;
+
+  doc.setFontSize(6.6);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...DARK_TEXT);
-  doc.text('TERMS & CONDITIONS \u2022 STATUTORY NOTICE', M, y);
-  y += 4.5;
+  doc.text('High-Availability Commitment:', M + 4, y + 10.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...MUTED_TEXT);
+  doc.text('99.95% Enterprise SLA Uptime Guaranteed', M + 4, y + 14.5);
+  doc.text('Multi-cloud failover & zero data loss RPO', M + 4, y + 18.5);
+
+  const col2X = M + 4 + slaColW + 4;
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...DARK_TEXT);
+  doc.text('Security & Governance Alignment:', col2X, y + 10.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...MUTED_TEXT);
+  doc.text('ISO 27001 & SOC2 Type II Cloud Controls', col2X, y + 14.5);
+  doc.text('Dedicated workspace tenant namespace', col2X, y + 18.5);
+
+  const col3X = col2X + slaColW + 4;
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...DARK_TEXT);
+  doc.text('FinOps & Tax Credit (ITC):', col3X, y + 10.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...MUTED_TEXT);
+  doc.text('100% Eligible GST Input Tax Credit (ITC)', col3X, y + 14.5);
+  doc.text('SAC 998313 \u2022 IT SaaS Infrastructure', col3X, y + 18.5);
+
+  // ═══════════════════════════════════════════════════════════
+  // 6. TERMS & CONDITIONS (Statutory GST Notice)
+  // ═══════════════════════════════════════════════════════════
+  y += slaBoxH + 4;
+  const termsBoxH = 30;
+  doc.setFillColor(...WHITE);
+  doc.setDrawColor(...BORDER_COLOR);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(M, y, W - 2 * M, termsBoxH, 2, 2, 'FD');
+
+  doc.setFontSize(7.2);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...DARK_TEXT);
+  doc.text('TERMS & CONDITIONS \u2022 STATUTORY NOTICE & GOVERNING LAW', M + 4, y + 5);
 
   const terms = [
     '1. This is an electronically generated Tax Invoice issued under Section 31 of the CGST Act, 2017. Physical signature is not required under Rule 46.',
-    '2. Cloud infrastructure services are provisioned on an active SaaS model and backed by a 99.95% enterprise uptime SLA.',
-    '3. Tax is paid under regular provisions; Reverse Charge Mechanism (RCM) is Not Applicable. SAC: 998313 (IT SaaS Infrastructure).',
-    '4. Disputes regarding service or billing must be communicated in writing within 15 calendar days. Subject to Jalgaon / Maharashtra jurisdiction.'
+    '2. Cloud infrastructure services are provisioned on an active SaaS model and backed by a 99.95% enterprise uptime SLA commitment.',
+    '3. Tax is paid under regular forward charge provisions; Reverse Charge Mechanism (RCM) is Not Applicable. SAC: 998313 (IT SaaS Infrastructure).',
+    '4. Supply of online information & database access / retrieval (OIDAR) services. Place of Supply: 27 - Maharashtra (Intra-State GST Compliant).',
+    '5. Disputes regarding service or billing must be communicated in writing within 15 calendar days. Subject to Jalgaon / Maharashtra jurisdiction.'
   ];
 
+  let termY = y + 9.5;
   terms.forEach((t) => {
-    doc.setFontSize(6.5);
+    doc.setFontSize(6.2);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...MUTED_TEXT);
-    doc.text(t, M, y);
-    y += 3.8;
+    doc.text(t, M + 4, termY);
+    termY += 4;
   });
 
   // ═══════════════════════════════════════════════════════════
-  // 7. FOOTER (Directly following Terms — No Blank Void)
+  // 7. FOOTER (Anchored cleanly at bottom of page)
   // ═══════════════════════════════════════════════════════════
-  y += 5;
-  const footerY = y;
+  const footerY = 273;
   doc.setDrawColor(...BORDER_COLOR);
   doc.setLineWidth(0.3);
   doc.line(M, footerY, W - M, footerY);
@@ -452,7 +496,7 @@ export const generateInvoicePDF = (data: InvoiceData): void => {
   }) + ' IST';
 
   // Left Footer — clearly split lines with zero chance of collision
-  doc.setFontSize(6.5);
+  doc.setFontSize(6.4);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(148, 163, 184);
   doc.text('This is an authorized system-generated tax document. Physical signature is not required under Rule 46 of CGST Rules, 2017.', M, footerY + 4.5);
@@ -465,11 +509,17 @@ export const generateInvoicePDF = (data: InvoiceData): void => {
   doc.setTextColor(...BLUE_TEXT);
   doc.text('Digitally Signed & Authorized', W - M, footerY + 4.5, { align: 'right' });
 
-  doc.setFontSize(6);
+  doc.setFontSize(6.2);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(148, 163, 184);
   doc.text('Aravanta FinOps Billing Engine', W - M, footerY + 8.5, { align: 'right' });
-  doc.text('Page 1 of 1', W - M, footerY + 12.5, { align: 'right' });
+  doc.text('Page 1 of 1 \u2022 Official Tax Document', W - M, footerY + 12.5, { align: 'right' });
+
+  // ═══════════════════════════════════════════════════════════
+  // 8. LUXURY BOTTOM BRAND STRIP (Frames the page bottom)
+  // ═══════════════════════════════════════════════════════════
+  doc.setFillColor(...PRIMARY_NAVY);
+  doc.rect(0, 294, W, 3, 'F');
 
   // ─── Save & Download ─────────────────────────────────────
   doc.save(`Aravanta_Invoice_${data.invoice_id}.pdf`);
