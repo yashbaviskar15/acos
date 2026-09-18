@@ -336,9 +336,15 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Responsive Mobile/Tablet Search Button (< lg) */}
         <button
-          onClick={() => setIsMobileSearchOpen(true)}
+          onClick={() => {
+            if (onOpenCommandPalette) {
+              onOpenCommandPalette();
+            } else {
+              setIsMobileSearchOpen(true);
+            }
+          }}
           className="lg:hidden flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-colors shrink-0 cursor-pointer"
-          title="Search console"
+          title="Search console (Ctrl+K)"
         >
           <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
         </button>
@@ -391,34 +397,37 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
 
               {showRoleMenu && (
-                <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-2.5 z-50 space-y-1 animate-fadeIn font-sans">
-                  <div className="px-2.5 py-1.5 border-b border-slate-100 dark:border-slate-800 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
-                    Switch System Role (RBAC)
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowRoleMenu(false)} />
+                  <div className="fixed inset-x-3 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 mt-2 sm:w-64 max-w-sm mx-auto sm:mx-0 bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-2.5 z-50 space-y-1 animate-fadeIn font-sans">
+                    <div className="px-2.5 py-1.5 border-b border-slate-100 dark:border-slate-800 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
+                      Switch System Role (RBAC)
+                    </div>
+                    {[
+                      { role: 'SuperAdmin', desc: 'Infrastructure Owner — Full Rights', color: 'purple' },
+                      { role: 'Admin', desc: 'Resource Operator & Maintenance', color: 'amber' },
+                      { role: 'Operator', desc: 'SRE & Workload Orchestrator', color: 'cyan' },
+                      { role: 'Developer', desc: 'Deploy Workloads & Manage Apps', color: 'blue' },
+                      { role: 'Viewer', desc: 'Telemetry Observer & Read-only', color: 'slate' },
+                    ].map((item) => (
+                      <button
+                        key={item.role}
+                        onClick={() => handleRoleSwitch(item.role)}
+                        className={`w-full flex items-center justify-between p-2 rounded-xl text-left text-xs transition-colors cursor-pointer ${
+                          activeRole === item.role
+                            ? 'bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 font-bold'
+                            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                        }`}
+                      >
+                        <div>
+                          <p className="font-bold">{item.role}</p>
+                          <p className="text-[10px] text-slate-400 font-mono font-normal">{item.desc}</p>
+                        </div>
+                        {activeRole === item.role && <Check className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />}
+                      </button>
+                    ))}
                   </div>
-                  {[
-                    { role: 'SuperAdmin', desc: 'Infrastructure Owner — Full Rights', color: 'purple' },
-                    { role: 'Admin', desc: 'Resource Operator & Maintenance', color: 'amber' },
-                    { role: 'Operator', desc: 'SRE & Workload Orchestrator', color: 'cyan' },
-                    { role: 'Developer', desc: 'Deploy Workloads & Manage Apps', color: 'blue' },
-                    { role: 'Viewer', desc: 'Telemetry Observer & Read-only', color: 'slate' },
-                  ].map((item) => (
-                    <button
-                      key={item.role}
-                      onClick={() => handleRoleSwitch(item.role)}
-                      className={`w-full flex items-center justify-between p-2 rounded-xl text-left text-xs transition-colors cursor-pointer ${
-                        activeRole === item.role
-                          ? 'bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 font-bold'
-                          : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60'
-                      }`}
-                    >
-                      <div>
-                        <p className="font-bold">{item.role}</p>
-                        <p className="text-[10px] text-slate-400 font-mono font-normal">{item.desc}</p>
-                      </div>
-                      {activeRole === item.role && <Check className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />}
-                    </button>
-                  ))}
-                </div>
+                </>
               )}
             </>
           ) : (
@@ -503,28 +512,31 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
 
           {showLangMenu && (
-            <div className="absolute right-0 mt-2 w-44 bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-1.5 z-50 space-y-0.5 animate-fadeIn font-sans">
-              <div className="px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-slate-800 mb-1">
-                {t('header.language') || 'Language'}
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowLangMenu(false)} />
+              <div className="fixed inset-x-4 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 mt-2 sm:w-44 max-w-xs mx-auto sm:mx-0 bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-1.5 z-50 space-y-0.5 animate-fadeIn font-sans">
+                <div className="px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-slate-800 mb-1">
+                  {t('header.language') || 'Language'}
+                </div>
+                {SUPPORTED_LANGS.map((lang) => {
+                  const isSelected = lang.code === currentLangCode;
+                  return (
+                    <button
+                      key={lang.code}
+                      onClick={() => handleLanguageChange(lang.code)}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs transition-colors cursor-pointer ${
+                        isSelected
+                          ? 'bg-brandGold-500/10 text-brandGold-700 dark:text-brandGold-400 font-bold'
+                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                      }`}
+                    >
+                      <span>{lang.label}</span>
+                      {isSelected && <Check className="w-3.5 h-3.5 text-brandGold-600 dark:text-brandGold-400" />}
+                    </button>
+                  );
+                })}
               </div>
-              {SUPPORTED_LANGS.map((lang) => {
-                const isSelected = lang.code === currentLangCode;
-                return (
-                  <button
-                    key={lang.code}
-                    onClick={() => handleLanguageChange(lang.code)}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs transition-colors cursor-pointer ${
-                      isSelected
-                        ? 'bg-brandGold-500/10 text-brandGold-700 dark:text-brandGold-400 font-bold'
-                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60'
-                    }`}
-                  >
-                    <span>{lang.label}</span>
-                    {isSelected && <Check className="w-3.5 h-3.5 text-brandGold-600 dark:text-brandGold-400" />}
-                  </button>
-                );
-              })}
-            </div>
+            </>
           )}
         </div>
 
@@ -581,64 +593,67 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Notifications Dropdown */}
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-4 z-50 space-y-3 animate-fadeIn">
-              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
-                <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase font-mono tracking-wider flex items-center gap-2">
-                  <Bell className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                  Notifications
-                  {unreadCount > 0 && (
-                    <span className="px-1.5 py-0.5 text-[9px] font-bold bg-blue-600 text-white rounded-md">{unreadCount}</span>
-                  )}
-                </h4>
-                <div className="flex items-center gap-2">
-                  {unreadCount > 0 && (
-                    <button 
-                      onClick={markAllRead}
-                      className="text-[10px] text-blue-600 dark:text-blue-400 font-bold hover:underline cursor-pointer"
-                    >
-                      Mark all read
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
+              <div className="fixed inset-x-3 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 mt-2 sm:w-80 max-w-sm mx-auto sm:mx-0 bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-4 z-50 space-y-3 animate-fadeIn">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+                  <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase font-mono tracking-wider flex items-center gap-2">
+                    <Bell className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                    Notifications
+                    {unreadCount > 0 && (
+                      <span className="px-1.5 py-0.5 text-[9px] font-bold bg-blue-600 text-white rounded-md">{unreadCount}</span>
+                    )}
+                  </h4>
+                  <div className="flex items-center gap-2">
+                    {unreadCount > 0 && (
+                      <button 
+                        onClick={markAllRead}
+                        className="text-[10px] text-blue-600 dark:text-blue-400 font-bold hover:underline cursor-pointer"
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                    <button onClick={() => setShowNotifications(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer">
+                      <X className="w-4 h-4" />
                     </button>
-                  )}
-                  <button onClick={() => setShowNotifications(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer">
-                    <X className="w-4 h-4" />
-                  </button>
+                  </div>
                 </div>
-              </div>
 
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {notifications.length === 0 ? (
-                  <p className="text-xs text-slate-500 text-center py-4 font-mono">No notifications</p>
-                ) : (
-                  notifications.map((n) => (
-                    <div 
-                      key={n.id} 
-                      className={`p-2.5 rounded-xl border text-xs space-y-1 transition-all ${
-                        n.read 
-                          ? 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 opacity-70' 
-                          : getTypeBg(n.type)
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className={`font-bold ${n.read ? 'text-slate-600 dark:text-slate-400' : getTypeColor(n.type)}`}>{n.title}</span>
-                        <span className="text-[10px] text-slate-400 font-mono">{n.time}</span>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <p className="text-xs text-slate-500 text-center py-4 font-mono">No notifications</p>
+                  ) : (
+                    notifications.map((n) => (
+                      <div 
+                        key={n.id} 
+                        className={`p-2.5 rounded-xl border text-xs space-y-1 transition-all ${
+                          n.read 
+                            ? 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 opacity-70' 
+                            : getTypeBg(n.type)
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className={`font-bold ${n.read ? 'text-slate-600 dark:text-slate-400' : getTypeColor(n.type)}`}>{n.title}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">{n.time}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-tight">{n.desc}</p>
                       </div>
-                      <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-tight">{n.desc}</p>
-                    </div>
-                  ))
+                    ))
+                  )}
+                </div>
+
+                {/* Enable Notifications CTA if not granted */}
+                {!hasNotificationPermission && (
+                  <button
+                    onClick={handleRequestNotification}
+                    className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <BellRing className="w-3.5 h-3.5" />
+                    Enable Desktop Notifications
+                  </button>
                 )}
               </div>
-
-              {/* Enable Notifications CTA if not granted */}
-              {!hasNotificationPermission && (
-                <button
-                  onClick={handleRequestNotification}
-                  className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2"
-                >
-                  <BellRing className="w-3.5 h-3.5" />
-                  Enable Desktop Notifications
-                </button>
-              )}
-            </div>
+            </>
           )}
         </div>
       </div>

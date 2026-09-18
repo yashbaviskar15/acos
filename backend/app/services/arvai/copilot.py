@@ -166,6 +166,26 @@ class ConsoleCopilotEngine:
         if any(w in msg for w in ["pool exhaustion", "max_connections", "pool saturated", "too many connections", "connection pool exhaustion", "pool exhausted"]):
             return self._synthesize_db_pool_triage(inv, docs)
 
+        # 1D. Common Error Diagnostics (502, 504, 403, CORS)
+        if any(w in msg for w in ["troubleshoot", "error guide", "fix error", "solve error", "error 502", "error 504", "error 403", "cors error"]):
+            return self._synthesize_troubleshoot_guide()
+
+        # 1E. Step-by-Step Deployment Guides
+        if any(w in msg for w in ["how to deploy", "how do i deploy", "steps to deploy", "deploy step", "deploy guide", "release guide"]):
+            return self._synthesize_deploy_guide()
+
+        # 1F. Step-by-Step Invoice & Billing Download Guides
+        if any(w in msg for w in ["how to download invoice", "download invoice", "invoice step", "invoice guide", "get invoice", "tax invoice", "pdf invoice"]):
+            return self._synthesize_invoice_guide()
+
+        # 1G. Step-by-Step VM Creation Guide
+        if any(w in msg for w in ["how to create vm", "create vm", "launch vm", "create instance", "launch instance", "steps to create instance", "provision vm"]):
+            return self._synthesize_vm_creation_guide()
+
+        # 1H. AI Training & Step-by-Step Help
+        if any(w in msg for w in ["help me", "how can you help", "what can you do", "give step", "steps to help", "step to helping", "train", "training"]):
+            return self._synthesize_general_help_guide()
+
         # -------------------------------------------------------------
         # Branch 2: Live Infrastructure Telemetry Queries
         # -------------------------------------------------------------
@@ -380,6 +400,153 @@ class ConsoleCopilotEngine:
                 "What is the connection pool status on our databases?",
                 "How does Patroni automated failover work?",
                 "When was the last automated PITR backup completed?"
+            ]
+        }
+
+    def _synthesize_troubleshoot_guide(self) -> Dict[str, Any]:
+        content = (
+            "### 🛠️ Step-by-Step Guide: Troubleshooting Common Cloud Errors\n\n"
+            "Follow these verified runbook steps to triage and resolve platform incidents:\n\n"
+            "1. **Triage HTTP 502 / 504 (Bad Gateway / Gateway Timeout)**:\n"
+            "   - Indicates upstream container crashed or PgBouncer connection pool saturated.\n"
+            "   - Run: `kubectl get pods -n production` to check unhealthy replicas.\n"
+            "   - Run: `arv db pool-status aravanta-core-db` to inspect database connection slots.\n\n"
+            "2. **Triage Exit Code 137 (OOMKilled)**:\n"
+            "   - Linux cgroup memory limit was breached.\n"
+            "   - Inspect previous container state: `kubectl describe pod <pod-name> | grep 'Last State'`.\n"
+            "   - Increase `resources.limits.memory` from `1Gi` to `2Gi` in deployment YAML.\n\n"
+            "3. **Triage HTTP 403 Forbidden / Permission Denied**:\n"
+            "   - Active user role lacks sufficient RBAC privileges (e.g. Developer trying to decommission nodes).\n"
+            "   - Check current role in top navbar badge, or request role elevation in **[Security & RBAC](/security)**.\n\n"
+            "4. **Triage CORS (Cross-Origin Resource Sharing) Errors**:\n"
+            "   - Verify allowed origins in backend configuration.\n"
+            "   - Check preflight OPTIONS response headers (`Access-Control-Allow-Origin: *` or frontend domain).\n\n"
+            "5. **Emergency Rollback**:\n"
+            "   ```bash\n"
+            "   arv cicd rollback <service-name> --target=previous\n"
+            "   ```"
+        )
+        return {
+            "intent": "runbook_triage",
+            "content": content,
+            "metric_cards": [
+                {"label": "Runbook Health", "value": "SOP Active", "status": "healthy"},
+                {"label": "Canary Rollback", "value": "1.2s Latency", "status": "healthy"},
+                {"label": "Triage Speed", "value": "< 30s MTTR", "status": "healthy"}
+            ],
+            "followups": [
+                "How do I fix Exit Code 137 OOMKilled?",
+                "How do I triage a CrashLoopBackOff error?",
+                "Summarize root cause analysis for the active incident"
+            ]
+        }
+
+    def _synthesize_deploy_guide(self) -> Dict[str, Any]:
+        content = (
+            "### 🚀 Step-by-Step Guide: Deploying Applications on Aravanta\n\n"
+            "Follow these verified steps to deploy and manage services with zero-downtime Canary safeguards:\n\n"
+            "1. **Build & Push Container Image**:\n"
+            "   ```bash\n"
+            "   docker build -t registry.aravanta.com/workspaces/api-gateway:v1.2.0 .\n"
+            "   docker push registry.aravanta.com/workspaces/api-gateway:v1.2.0\n"
+            "   ```\n"
+            "2. **Trigger Deployment**:\n"
+            "   - **Web Console**: Open the **[Deployments Console](/deployments)**, select your app, click **Deploy Version**, and select `v1.2.0`.\n"
+            "   - **CLI**: Execute:\n"
+            "     ```bash\n"
+            "     arv cicd deploy api-gateway --version=v1.2.0 --strategy=canary --canary-weight=25\n"
+            "     ```\n"
+            "3. **Canary Verification Gate**:\n"
+            "   Envoy routes 25% traffic to the new revision for 30 seconds while monitoring Prometheus P95 latency and HTTP 5xx error rate.\n\n"
+            "4. **Automated Promotion or Rollback**:\n"
+            "   - If error rate < 1%: Traffic automatically scales to 100%.\n"
+            "   - If anomalies detected: Automatic 1.2-second rollback reverts traffic to the previous healthy revision."
+        )
+        return {
+            "intent": "deployment_status",
+            "content": content,
+            "followups": [
+                "What is the procedure for an emergency rollback?",
+                "Show recent deployment errors in the Loki log stream",
+                "Check Kubernetes pods"
+            ]
+        }
+
+    def _synthesize_invoice_guide(self) -> Dict[str, Any]:
+        content = (
+            "### 📄 Step-by-Step Guide: Downloading Official GST Invoices\n\n"
+            "Aravanta Cloud OS generates certified, tax-compliant PDF invoices with digital verification and zero-egress FinOps breakdown:\n\n"
+            "1. **Open Billing Console**:\n"
+            "   Navigate to **[Billing & FinOps](/billing)** from the sidebar navigation.\n\n"
+            "2. **View Recent Invoices**:\n"
+            "   Scroll down to the **Recent Invoices & GST Tax Receipts** table.\n\n"
+            "3. **Download Verified PDF**:\n"
+            "   Click the **Download PDF** button on any monthly statement row (e.g. `INV-2026-001`).\n\n"
+            "4. **Invoice Verification & Contents**:\n"
+            "   - 18% GST (CGST + SGST / IGST) itemized tax breakdown\n"
+            "   - FinOps Entitlements verification card\n"
+            "   - Per-second compute, storage, and zero-egress audit ledger\n"
+            "   - Cryptographic invoice hash and official corporate navy seal."
+        )
+        return {
+            "intent": "billing_status",
+            "content": content,
+            "followups": [
+                "How much have we spent on billing this month?",
+                "Explain our zero egress fee policy compared to AWS",
+                "How do I update my payment method?"
+            ]
+        }
+
+    def _synthesize_vm_creation_guide(self) -> Dict[str, Any]:
+        content = (
+            "### 🖥️ Step-by-Step Guide: Launching Virtual Machines on ArvCompute\n\n"
+            "Follow these steps to spin up high-performance cloud compute instances in under 8 seconds:\n\n"
+            "1. **Open ArvCompute Console**:\n"
+            "   Go to **[ArvCompute Console](/compute)** from the navigation bar.\n\n"
+            "2. **Click Create Instance**:\n"
+            "   Click the **Create Instance** button in the top right corner.\n\n"
+            "3. **Configure Instance Specs**:\n"
+            "   - **Name**: e.g., `api-worker-01`\n"
+            "   - **Instance Type**: General Purpose (`g1.medium`: 2 vCPU, 4GB RAM) or Compute Optimized (`c2.xlarge`).\n"
+            "   - **Region**: Select sovereign Indian zone (`ap-south-1` Mumbai, `ap-south-2` Hyderabad, `ap-south-3` Bangalore).\n"
+            "   - **OS Image**: Ubuntu 22.04 LTS, Debian 12, or AlmaLinux 9.\n\n"
+            "4. **Launch & Connect**:\n"
+            "   Click **Launch Instance**. Connect immediately via built-in Web-SSH terminal or local CLI:\n"
+            "   ```bash\n"
+            "   arv compute ssh api-worker-01\n"
+            "   ```"
+        )
+        return {
+            "intent": "compute_status",
+            "content": content,
+            "followups": [
+                "What instance types are available?",
+                "What is our current monthly VM compute cost?",
+                "Check Kubernetes clusters"
+            ]
+        }
+
+    def _synthesize_general_help_guide(self) -> Dict[str, Any]:
+        content = (
+            "### 🤖 Aravanta Copilot: How I Can Help You\n\n"
+            "I am your dedicated infrastructure co-pilot, trained to give **precise, step-by-step guidance** across the entire Aravanta Cloud OS platform:\n\n"
+            "1. **Deployments & CI/CD**: Step-by-step app release, canary gating, and 1.2s instant rollbacks.\n"
+            "2. **Incident Triage & Diagnostics**: Immediate steps for OOMKilled (Exit Code 137), CrashLoopBackOff, 502 Bad Gateway, and DB pool saturation.\n"
+            "3. **Billing & Invoices**: Step-by-step download of official GST tax PDF invoices and live spend tracking.\n"
+            "4. **Kubernetes & Compute**: Cluster health checks, node status, and VM provisioning guides.\n"
+            "5. **Databases & Storage**: Patroni HA failover steps, connection pooling (PgBouncer), and S3 bucket setup.\n"
+            "6. **Security & RBAC**: Instructions to switch or assign roles and configure TOTP MFA.\n\n"
+            "**Ask me any question or click a suggested prompt below to get instant step-by-step help!**"
+        )
+        return {
+            "intent": "platform_knowledge",
+            "content": content,
+            "followups": [
+                "Show me steps to deploy an application",
+                "How do I troubleshoot cloud errors?",
+                "How do I download my GST tax invoice?",
+                "What is the status of my virtual machines?"
             ]
         }
 

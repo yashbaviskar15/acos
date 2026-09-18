@@ -28,55 +28,64 @@ interface CommandPaletteProps {
   isOpen: boolean;
   onClose: () => void;
   onNavigate: (tab: string) => void;
+  initialQuery?: string;
 }
 
-export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onNavigate }) => {
-  const [query, setQuery] = useState('');
+export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onNavigate, initialQuery = '' }) => {
+  const [query, setQuery] = useState(initialQuery);
+
+  useEffect(() => {
+    if (isOpen) {
+      setQuery(initialQuery);
+    }
+  }, [isOpen, initialQuery]);
 
   const commands = [
     // Public & Docs Navigation
-    { id: 'page-home', label: 'Home — Unified Control Plane Landing', category: 'Public Pages', icon: BookOpen, tab: 'home' },
-    { id: 'page-docs', label: 'Documentation — Guides, Tutorials & References', category: 'Public Pages', icon: BookOpen, tab: 'documentation' },
-    { id: 'page-features', label: 'Features — Capability Matrix & Platform Specs', category: 'Public Pages', icon: Zap, tab: 'features' },
-    { id: 'page-developers', label: 'Developers — CLI, SDK & OpenAPI Schemas', category: 'Public Pages', icon: Terminal, tab: 'developers' },
-    { id: 'page-pricing', label: 'Pricing — Flexible Cloud Tiers & Cost Calculator', category: 'Public Pages', icon: CreditCard, tab: 'pricing' },
-    { id: 'page-about', label: 'Company — About Aravanta CloudOS', category: 'Public Pages', icon: ShieldCheck, tab: 'about' },
-    { id: 'page-login', label: 'Sign In to Control Plane Console', category: 'Account', icon: User, tab: 'login' },
-    { id: 'page-register', label: 'Create Workspace — Start Free Trial', category: 'Account', icon: Zap, tab: 'register' },
+    { id: 'page-home', label: 'Home — Unified Control Plane Landing', category: 'Public Pages', icon: BookOpen, tab: 'home', keywords: 'landing website main' },
+    { id: 'page-docs', label: 'Documentation — Guides, Tutorials & References', category: 'Public Pages', icon: BookOpen, tab: 'documentation', keywords: 'manual api reference docs' },
+    { id: 'page-features', label: 'Features — Capability Matrix & Platform Specs', category: 'Public Pages', icon: Zap, tab: 'features', keywords: 'specs capabilities overview' },
+    { id: 'page-developers', label: 'Developers — CLI, SDK & OpenAPI Schemas', category: 'Public Pages', icon: Terminal, tab: 'developers', keywords: 'sdk rest api cli swagger' },
+    { id: 'page-pricing', label: 'Pricing — Flexible Cloud Tiers & Cost Calculator', category: 'Public Pages', icon: CreditCard, tab: 'pricing', keywords: 'plans tiers estimate calculator' },
+    { id: 'page-about', label: 'Company — About Aravanta CloudOS', category: 'Public Pages', icon: ShieldCheck, tab: 'about', keywords: 'company info mission' },
+    { id: 'page-login', label: 'Sign In to Control Plane Console', category: 'Account', icon: User, tab: 'login', keywords: 'auth login signin' },
+    { id: 'page-register', label: 'Create Workspace — Start Free Trial', category: 'Account', icon: Zap, tab: 'register', keywords: 'signup register trial new account' },
 
     // Operations & Control Plane Console
-    { id: 'dashboard', label: 'Dashboard & SRE Operations Console', category: 'Operations', icon: Activity, tab: 'dashboard' },
-    { id: 'infrastructure', label: 'Infrastructure — Multi-Cloud Resource Inventory', category: 'Operations', icon: Server, tab: 'infrastructure' },
-    { id: 'applications', label: 'Applications — Microservices Catalog & Scaling', category: 'Operations', icon: Layers, tab: 'applications' },
-    { id: 'deployments', label: 'Deployments — GitOps Pipeline & Rollback Engine', category: 'Operations', icon: GitBranch, tab: 'deployments' },
-    { id: 'containers', label: 'Containers — Kubernetes Pods & Live Logs', category: 'Operations', icon: Box, tab: 'containers' },
+    { id: 'dashboard', label: 'Dashboard & SRE Operations Console', category: 'Operations', icon: Activity, tab: 'dashboard', keywords: 'home overview fleet health services' },
+    { id: 'infrastructure', label: 'Infrastructure — Multi-Cloud Resource Inventory', category: 'Operations', icon: Server, tab: 'infrastructure', keywords: 'nodes cloud vms servers hardware' },
+    { id: 'applications', label: 'Applications — Microservices Catalog & Scaling', category: 'Operations', icon: Layers, tab: 'applications', keywords: 'apps services microservices deploy workloads' },
+    { id: 'deployments', label: 'Deployments — GitOps Pipeline & Rollback Engine', category: 'Operations', icon: GitBranch, tab: 'deployments', keywords: 'git release rollbacks continuous delivery' },
+    { id: 'containers', label: 'Containers — Kubernetes Pods & Live Logs', category: 'Operations', icon: Box, tab: 'containers', keywords: 'docker k8s pods images containers' },
     
-    { id: 'monitoring', label: 'Monitoring — Observability & Telemetry Gauges', category: 'Observability', icon: Activity, tab: 'monitoring' },
-    { id: 'logs', label: 'Log Explorer — Real-Time Stdout/Stderr Stream', category: 'Observability', icon: FileText, tab: 'logs' },
-    { id: 'alerts', label: 'Alertmanager — Firing Alerts & Triage Rules', category: 'Observability', icon: Bell, tab: 'alerts' },
-    { id: 'incidents', label: 'Incidents — War-Room Command & RCA Notes', category: 'Observability', icon: ShieldAlert, tab: 'incidents' },
+    { id: 'monitoring', label: 'Monitoring — Observability & Telemetry Gauges', category: 'Observability', icon: Activity, tab: 'monitoring', keywords: 'cpu ram grafana metrics stats telemetry' },
+    { id: 'logs', label: 'Log Explorer — Real-Time Stdout/Stderr Stream', category: 'Observability', icon: FileText, tab: 'logs', keywords: 'loki stdout stderr traces streaming' },
+    { id: 'alerts', label: 'Alertmanager — Firing Alerts & Triage Rules', category: 'Observability', icon: Bell, tab: 'alerts', keywords: 'notifications firing pagerduty incidents triage' },
+    { id: 'incidents', label: 'Incidents — War-Room Command & RCA Notes', category: 'Observability', icon: ShieldAlert, tab: 'incidents', keywords: 'outage rca postmortem warroom critical' },
     
-    { id: 'automation', label: 'Automation — Self-Healing Runbooks & Workflows', category: 'Reliability', icon: Zap, tab: 'automation' },
-    { id: 'backups', label: 'Backups — Disaster Recovery & 1-Click Restore', category: 'Reliability', icon: HardDrive, tab: 'backups' },
-    { id: 'cicd', label: 'CI/CD Pipelines & Container Builds', category: 'Reliability', icon: GitBranch, tab: 'cicd' },
+    { id: 'automation', label: 'Automation — Self-Healing Runbooks & Workflows', category: 'Reliability', icon: Zap, tab: 'automation', keywords: 'playbooks scripts cron jobs autoheal' },
+    { id: 'backups', label: 'Backups — Disaster Recovery & 1-Click Restore', category: 'Reliability', icon: HardDrive, tab: 'backups', keywords: 'snapshots dr restore s3 retention' },
+    { id: 'cicd', label: 'CI/CD Pipelines & Container Builds', category: 'Reliability', icon: GitBranch, tab: 'cicd', keywords: 'builds github actions pipelines automated' },
 
-    { id: 'compute', label: 'ArvCompute — Virtual Machines', category: 'Cloud Resources', icon: Server, tab: 'compute' },
-    { id: 'kubernetes', label: 'ArvKube — Managed Kubernetes Clusters', category: 'Cloud Resources', icon: Boxes, tab: 'kubernetes' },
-    { id: 'storage', label: 'ArvStore — S3 Object Storage', category: 'Cloud Resources', icon: HardDrive, tab: 'storage' },
-    { id: 'database', label: 'ArvDB — Managed Database Engines', category: 'Cloud Resources', icon: Database, tab: 'database' },
+    { id: 'compute', label: 'ArvCompute — Virtual Machines', category: 'Cloud Resources', icon: Server, tab: 'compute', keywords: 'ec2 vm instances compute cpu virtual' },
+    { id: 'kubernetes', label: 'ArvKube — Managed Kubernetes Clusters', category: 'Cloud Resources', icon: Boxes, tab: 'kubernetes', keywords: 'k8s clusters controlplane nodes pods' },
+    { id: 'storage', label: 'ArvStore — S3 Object Storage', category: 'Cloud Resources', icon: HardDrive, tab: 'storage', keywords: 's3 buckets volumes blob storage' },
+    { id: 'database', label: 'ArvDB — Managed Database Engines', category: 'Cloud Resources', icon: Database, tab: 'database', keywords: 'postgres sql mysql patroni redis db database' },
 
-    { id: 'security', label: 'Security & RBAC Permission Matrix', category: 'Governance', icon: ShieldCheck, tab: 'security' },
-    { id: 'audit', label: 'Audit Logs — Tamper-Evident Security Log', category: 'Governance', icon: FileCheck, tab: 'audit' },
-    { id: 'billing', label: 'Billing & FinOps Cost Analytics (INR ₹)', category: 'Governance', icon: CreditCard, tab: 'billing' },
-    { id: 'settings', label: 'Platform Settings & SRE Microservice Health', category: 'Governance', icon: SettingsIcon, tab: 'settings' },
-    { id: 'profile', label: 'User Profile & API Credentials', category: 'Governance', icon: User, tab: 'profile' },
-    { id: 'guide', label: 'Operations Guide & SOP Documentation', category: 'Help', icon: BookOpen, tab: 'guide' },
+    { id: 'security', label: 'Security & RBAC Permission Matrix', category: 'Governance', icon: ShieldCheck, tab: 'security', keywords: 'rbac roles access iam permissions' },
+    { id: 'audit', label: 'Audit Logs — Tamper-Evident Security Log', category: 'Governance', icon: FileCheck, tab: 'audit', keywords: 'compliance security events history audit' },
+    { id: 'billing', label: 'Billing & FinOps Cost Analytics (INR ₹)', category: 'Governance', icon: CreditCard, tab: 'billing', keywords: 'invoice receipts plan pricing cost finops payment tax gst' },
+    { id: 'settings', label: 'Platform Settings & SRE Microservice Health', category: 'Governance', icon: SettingsIcon, tab: 'settings', keywords: 'config workspace preferences system' },
+    { id: 'profile', label: 'User Profile & API Credentials', category: 'Governance', icon: User, tab: 'profile', keywords: 'account password keys role api credentials' },
+    { id: 'guide', label: 'Operations Guide & SOP Documentation', category: 'Help', icon: BookOpen, tab: 'guide', keywords: 'docs tutorial help manual sop' },
+    { id: 'community', label: 'Community Forum & Architecture Discussions', category: 'Help', icon: BookOpen, tab: 'community', keywords: 'forum posts discussion help runbooks community' },
   ];
 
   const filtered = commands.filter(c =>
     c.label.toLowerCase().includes(query.toLowerCase()) ||
     c.category.toLowerCase().includes(query.toLowerCase()) ||
-    c.tab.toLowerCase().includes(query.toLowerCase())
+    c.tab.toLowerCase().includes(query.toLowerCase()) ||
+    ((c as any).keywords && (c as any).keywords.toLowerCase().includes(query.toLowerCase()))
   );
 
   useEffect(() => {
@@ -110,6 +119,12 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && filtered.length > 0) {
+                onNavigate(filtered[0].tab);
+                onClose();
+              }
+            }}
             placeholder="Type a command or jump to page (e.g. 'incidents', 'logs', 'deploy', 'backups')..."
             className="w-full bg-transparent text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none font-mono"
           />
