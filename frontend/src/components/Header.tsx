@@ -276,19 +276,19 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       )}
 
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 mr-2">
+      <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
         {/* Mobile Hamburger Drawer Trigger */}
         {onMobileMenuToggle && (
           <button
             onClick={onMobileMenuToggle}
-            className="p-2 md:hidden text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-colors shrink-0"
+            className="p-1.5 sm:p-2 md:hidden text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-colors shrink-0 cursor-pointer"
             title="Toggle Menu"
           >
-            <Menu className="w-5 h-5" />
+            <Menu className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         )}
 
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 overflow-hidden">
           <h2 className="text-xs sm:text-base md:text-lg font-black text-slate-900 dark:text-white tracking-tight truncate">
             {title}
           </h2>
@@ -296,7 +296,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
         {/* Interactive Desktop Search Input (>= lg only, perfectly sized, no squishing) */}
         <div className="hidden lg:flex items-center relative shrink-0">
           <Search className="w-3.5 h-3.5 absolute left-2.5 text-slate-400 pointer-events-none" />
@@ -337,10 +337,10 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Responsive Mobile/Tablet Search Button (< lg) */}
         <button
           onClick={() => setIsMobileSearchOpen(true)}
-          className="lg:hidden flex items-center justify-center w-9 h-9 text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-colors shrink-0 cursor-pointer"
+          className="lg:hidden flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-colors shrink-0 cursor-pointer"
           title="Search console"
         >
-          <Search className="w-4 h-4" />
+          <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
         </button>
 
         {/* Desktop System Notification Toggle */}
@@ -374,7 +374,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 onClick={() => setShowRoleMenu(!showRoleMenu)}
                 disabled={switchingRole}
-                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-mono font-bold uppercase transition-all cursor-pointer shadow-sm border shrink-0 ${
+                className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl text-xs font-mono font-bold uppercase transition-all cursor-pointer shadow-sm border shrink-0 ${
                   activeRole === 'SuperAdmin'
                     ? 'bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-500/30 hover:bg-purple-100 dark:hover:bg-purple-500/25'
                     : activeRole === 'Admin'
@@ -383,10 +383,10 @@ export const Header: React.FC<HeaderProps> = ({
                     ? 'bg-cyan-50 dark:bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-500/30 hover:bg-cyan-100'
                     : 'bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30 hover:bg-blue-100'
                 }`}
-                title="Admin Role Controls — Click to switch active role"
+                title={`Admin Role Controls — Active: ${activeRole}`}
               >
                 <Shield className="w-3.5 h-3.5 shrink-0" />
-                <span className="font-mono font-bold whitespace-nowrap">{switchingRole ? '...' : activeRole}</span>
+                <span className="hidden sm:inline font-mono font-bold whitespace-nowrap">{switchingRole ? '...' : activeRole}</span>
                 <ChevronDown className="w-3 h-3 opacity-60 shrink-0" />
               </button>
 
@@ -423,7 +423,7 @@ export const Header: React.FC<HeaderProps> = ({
             </>
           ) : (
             <div
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-mono font-bold uppercase shadow-sm border shrink-0 ${
+              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl text-xs font-mono font-bold uppercase shadow-sm border shrink-0 ${
                 activeRole === 'Developer'
                   ? 'bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30'
                   : activeRole === 'Operator'
@@ -433,7 +433,7 @@ export const Header: React.FC<HeaderProps> = ({
               title={`Assigned RBAC Role: ${activeRole} (Managed by Workspace Administrator)`}
             >
               <Shield className="w-3.5 h-3.5 shrink-0" />
-              <span className="font-mono font-bold whitespace-nowrap">{activeRole}</span>
+              <span className="hidden sm:inline font-mono font-bold whitespace-nowrap">{activeRole}</span>
             </div>
           )}
         </div>
@@ -477,11 +477,11 @@ export const Header: React.FC<HeaderProps> = ({
           );
         })()}
 
-        {/* Console Copilot AI Trigger Button */}
+        {/* Console Copilot AI Trigger Button (Desktop/Tablet >= md, mobile uses floating Copilot widget) */}
         {onToggleCopilot && (
           <button
             onClick={onToggleCopilot}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-brandGold-500/15 via-brandGold-600/15 to-brandGold-500/15 hover:from-brandGold-500/25 hover:to-brandGold-600/25 text-brandGold-700 dark:text-brandGold-300 border border-brandGold-500/30 hover:border-brandGold-500/50 text-xs font-mono font-bold transition-all shadow-xs cursor-pointer group"
+            className="hidden md:flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-brandGold-500/15 via-brandGold-600/15 to-brandGold-500/15 hover:from-brandGold-500/25 hover:to-brandGold-600/25 text-brandGold-700 dark:text-brandGold-300 border border-brandGold-500/30 hover:border-brandGold-500/50 text-xs font-mono font-bold transition-all shadow-xs cursor-pointer group shrink-0"
             title="Open Console Copilot AI (Ctrl+K)"
           >
             <Bot className="w-4 h-4 text-brandGold-500 group-hover:rotate-12 transition-transform shrink-0" />
@@ -491,15 +491,15 @@ export const Header: React.FC<HeaderProps> = ({
         )}
 
         {/* Language Switcher */}
-        <div className="relative">
+        <div className="relative shrink-0">
           <button
             onClick={() => setShowLangMenu(!showLangMenu)}
-            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-all shadow-sm cursor-pointer text-xs font-medium"
+            className="flex items-center gap-1 px-1.5 sm:px-2.5 py-1.5 text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-all shadow-sm cursor-pointer text-xs font-medium shrink-0"
             title={t('header.select_language') || 'Select Language'}
           >
-            <Globe className="w-3.5 h-3.5 text-brandGold-600 dark:text-brandGold-400 shrink-0" />
-            <span className="font-bold text-[11px] uppercase tracking-wider">{currentLang.code}</span>
-            <ChevronDown className="w-3 h-3 opacity-60 shrink-0" />
+            <Globe className="w-3.5 h-3.5 text-brandGold-600 dark:text-brandGold-400 shrink-0 hidden xs:block" />
+            <span className="font-bold text-[10px] sm:text-[11px] uppercase tracking-wider">{currentLang.code}</span>
+            <ChevronDown className="w-2.5 h-2.5 sm:w-3 sm:h-3 opacity-60 shrink-0" />
           </button>
 
           {showLangMenu && (
@@ -531,13 +531,13 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Theme Toggle Button (Light/Dark Switcher) */}
         <button
           onClick={toggleTheme}
-          className="p-2 text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-all shadow-sm flex items-center justify-center cursor-pointer"
+          className="w-8 h-8 sm:w-9 sm:h-9 text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-all shadow-sm flex items-center justify-center cursor-pointer shrink-0"
           title={`Switch to ${theme === 'dark' ? 'White/Light' : 'Dark'} Theme`}
         >
           {theme === 'dark' ? (
-            <Sun className="w-4 h-4 text-amber-400 hover:rotate-45 transition-transform" />
+            <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 hover:rotate-45 transition-transform" />
           ) : (
-            <Moon className="w-4 h-4 text-indigo-600 hover:-rotate-12 transition-transform" />
+            <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-600 hover:-rotate-12 transition-transform" />
           )}
         </button>
 
@@ -545,10 +545,10 @@ export const Header: React.FC<HeaderProps> = ({
         {onNavigateToProfile && (
           <button
             onClick={onNavigateToProfile}
-            className="p-2 text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-colors cursor-pointer"
+            className="w-8 h-8 sm:w-9 sm:h-9 text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-colors cursor-pointer flex items-center justify-center shrink-0"
             title="User Profile & Settings"
           >
-            <User className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400" />
           </button>
         )}
 
