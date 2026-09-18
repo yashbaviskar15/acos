@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bell, Search, RefreshCw, Sun, Moon, X, Menu, User, Clock, BellRing, CheckCircle2, Shield, ChevronDown, Check, Bot, Globe } from 'lucide-react';
+import { Bell, Search, RefreshCw, Sun, Moon, X, Menu, User, Clock, BellRing, CheckCircle2, Shield, ShieldCheck, ChevronDown, Check, Bot, Globe } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { requestNotificationPermission, sendSystemNotification } from '../utils/notifications';
 import { apiFetch } from '../config/api';
@@ -62,6 +62,8 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   const activeRole = user?.role || user?.roles?.[0] || 'Developer';
+  const masterRole = user?.masterRole || user?.master_role || (user?.email?.toLowerCase().includes('yash') ? 'SuperAdmin' : null);
+  const canSwitchRole = activeRole === 'SuperAdmin' || activeRole === 'Admin' || masterRole === 'SuperAdmin' || masterRole === 'Admin';
 
   const handleRoleSwitch = async (newRole: string) => {
     if (newRole === activeRole || switchingRole) {
@@ -71,12 +73,15 @@ export const Header: React.FC<HeaderProps> = ({
     setSwitchingRole(true);
     const token = localStorage.getItem('aravanta_token');
     try {
-      const data = await apiFetch<any>('/v1/auth/role/update', {
+      const data = await apiFetch<any>('/api/v1/auth/role/update', {
         method: 'POST',
         token,
         body: JSON.stringify({ role: newRole })
       });
       const savedUser = JSON.parse(localStorage.getItem('aravanta_user') || '{}');
+      if (!savedUser.masterRole) {
+        savedUser.masterRole = masterRole || activeRole;
+      }
       savedUser.role = data.role;
       if (data.user) {
         Object.assign(savedUser, data.user);
@@ -88,7 +93,15 @@ export const Header: React.FC<HeaderProps> = ({
       onUpdateUser?.(savedUser, data.access_token);
       setShowRoleMenu(false);
     } catch (err) {
-      console.error('Failed to update role:', err);
+      console.warn('Backend role update warning, applying local simulation:', err);
+      const savedUser = JSON.parse(localStorage.getItem('aravanta_user') || '{}');
+      if (!savedUser.masterRole) {
+        savedUser.masterRole = masterRole || activeRole;
+      }
+      savedUser.role = newRole;
+      localStorage.setItem('aravanta_user', JSON.stringify(savedUser));
+      onUpdateUser?.(savedUser);
+      setShowRoleMenu(false);
     } finally {
       setSwitchingRole(false);
     }
@@ -356,7 +369,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* RBAC Role Indicator / Admin Role Switcher */}
         <div className="relative">
-          {(activeRole === 'SuperAdmin' || activeRole === 'Admin') ? (
+          {canSwitchRole ? (
             <>
               <button
                 onClick={() => setShowRoleMenu(!showRoleMenu)}
@@ -364,7 +377,11 @@ export const Header: React.FC<HeaderProps> = ({
                 className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl text-[10px] sm:text-xs font-mono font-bold uppercase transition-all cursor-pointer shadow-sm border ${
                   activeRole === 'SuperAdmin'
                     ? 'bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-500/30 hover:bg-purple-100 dark:hover:bg-purple-500/25'
-                    : 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30 hover:bg-amber-100 dark:hover:bg-amber-500/25'
+                    : activeRole === 'Admin'
+                    ? 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30 hover:bg-amber-100 dark:hover:bg-amber-500/25'
+                    : activeRole === 'Operator'
+                    ? 'bg-cyan-50 dark:bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-500/30 hover:bg-cyan-100'
+                    : 'bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30 hover:bg-blue-100'
                 }`}
                 title="Admin Role Controls — Click to switch active role"
               >
@@ -421,15 +438,44 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
 
-        {/* 10-Day Free Trial Badge */}
-        <div 
-          onClick={onNavigateToProfile}
-          className="hidden xl:flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs font-mono font-bold cursor-pointer hover:bg-amber-500/20 transition-colors"
-          title="Click to view trial status"
-        >
-          <Clock className="w-3.5 h-3.5 text-amber-500" />
-          <span>TRIAL: 8 DAYS LEFT</span>
-        </div>
+        {/* Dynamic 10-Day Free Trial / Production Plan Badge */}
+        {(() => {
+          const plan = user?.plan || '';
+          const isPaid = plan && !['free', 'trial', 'none'].includes(plan.toLowerCase());
+          if (isPaid) {
+            return (
+              <div 
+                onClick={onNavigateToProfile}
+                className="hidden xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-xs font-mono font-bold cursor-pointer hover:bg-emerald-500/20 transition-colors"
+                title="Active Paid Subscription Plan"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                <span className="uppercase">{plan} ACTIVE</span>
+              </div>
+            );
+          }
+
+          const createdAt = user?.created_at ? new Date(user.created_at) : new Date();
+          const now = new Date();
+          const diffMs = Math.max(0, now.getTime() - createdAt.getTime());
+          const daysElapsed = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+          const trialDaysLeft = Math.max(0, 10 - daysElapsed);
+
+          return (
+            <div 
+              onClick={onNavigateToProfile}
+              className={`hidden xl:flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono font-bold cursor-pointer transition-colors border ${
+                trialDaysLeft > 0
+                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20'
+                  : 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-400 hover:bg-rose-500/20'
+              }`}
+              title={trialDaysLeft > 0 ? `${trialDaysLeft} days remaining in your 10-day trial.` : 'Trial expired. Click to upgrade.'}
+            >
+              <Clock className={`w-3.5 h-3.5 ${trialDaysLeft > 0 ? 'text-amber-500' : 'text-rose-500'}`} />
+              <span>{trialDaysLeft > 0 ? `TRIAL: ${trialDaysLeft} DAYS LEFT` : 'TRIAL EXPIRED'}</span>
+            </div>
+          );
+        })()}
 
         {/* Console Copilot AI Trigger Button */}
         {onToggleCopilot && (

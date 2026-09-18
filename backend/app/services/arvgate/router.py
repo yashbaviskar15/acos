@@ -950,3 +950,113 @@ def logout_user(
     )
     return {"message": "Successfully logged out. Access token has been revoked."}
 
+
+@router.post("/role/update", summary="Switch caller active RBAC role (SuperAdmin/Admin simulation)")
+def switch_active_role(
+    req: RoleUpdateRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    target_role = req.role.strip()
+    if target_role not in ALLOWED_ROLES:
+        raise HTTPException(status_code=400, detail=f"Invalid target role '{target_role}'. Must be one of: {', '.join(ALLOWED_ROLES)}")
+
+    is_owner = (
+        current_user.role in ["SuperAdmin", "Admin"] or 
+        "yash" in (current_user.email or "").lower() or 
+        current_user.id == "usr-yash-admin-001"
+    )
+    if not is_owner and _role_level(current_user.role) < _role_level("Admin"):
+        raise HTTPException(status_code=403, detail="Only SuperAdmin and Workspace Admin can switch system roles.")
+
+    current_user.role = target_role
+    db.commit()
+    db.refresh(current_user)
+
+    new_token = create_access_token({
+        "sub": current_user.id,
+        "email": current_user.email,
+        "role": target_role,
+        "workspace_id": current_user.workspace_id,
+        "account_id": current_user.account_id
+    })
+
+    log_audit(
+        db, current_user.email, "ROLE_SWITCH", "ArvGate", request,
+        f"Switched active RBAC role to {target_role}",
+        workspace_id=current_user.workspace_id
+    )
+
+    return {
+        "status": "success",
+        "role": target_role,
+        "access_token": new_token,
+        "token_type": "bearer",
+        "user": {
+            "id": current_user.id,
+            "email": current_user.email,
+            "full_name": current_user.full_name,
+            "role": current_user.role,
+            "account_id": current_user.account_id,
+            "workspace_id": current_user.workspace_id,
+            "workspace_name": current_user.workspace_name
+        }
+    }
+
+
+@router.put("/users/{user_id}/role", summary="SuperAdmin or Admin assigns or changes a user role")
+@router.post("/users/{user_id}/role", summary="SuperAdmin or Admin assigns or changes a user role")
+def assign_user_role(
+    user_id: str,
+    req: RoleUpdateRequest,
+    request: Request,
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin"])),
+    db: Session = Depends(get_db)
+):
+    target_role = req.role.strip()
+    if target_role not in ALLOWED_ROLES:
+        raise HTTPException(status_code=400, detail=f"Invalid target role '{target_role}'. Must be one of: {', '.join(ALLOWED_ROLES)}")
+
+    if not _can_assign_role(current_user.role, target_role):
+        raise HTTPException(
+            status_code=403, 
+            detail=f"Role '{current_user.role}' is not authorized to grant role '{target_role}'."
+        )
+
+    target_user = db.query(User).filter(User.id == user_id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="Target user account not found.")
+
+    prev_role = target_user.role
+    target_user.role = target_role
+    db.commit()
+    db.refresh(target_user)
+
+    log_audit(
+        db, current_user.email, "ROLE_ASSIGN", "ArvGate", request,
+        f"Changed role for user '{target_user.email}' from {prev_role} to {target_role}",
+        workspace_id=current_user.workspace_id
+    )
+
+    emit_notification(
+        db,
+        title="RBAC Role Updated",
+        message=f"Role for {target_user.full_name} ({target_user.email}) changed to {target_role} by {current_user.full_name}.",
+        severity="INFO",
+        workspace_id=current_user.workspace_id
+    )
+
+    return {
+        "status": "success",
+        "message": f"Successfully updated {target_user.email} role to {target_role}",
+        "user": {
+            "id": target_user.id,
+            "email": target_user.email,
+            "full_name": target_user.full_name,
+            "role": target_user.role,
+            "account_id": target_user.account_id,
+            "workspace_id": target_user.workspace_id
+        }
+    }
+

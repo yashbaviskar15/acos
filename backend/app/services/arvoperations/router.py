@@ -25,6 +25,7 @@ except Exception:
     YPos = None
 
 import json
+from app.services.arvoperations.logo_base64 import ARAVANTA_LOGO_BASE64, ARAVANTA_LOGO_PNG_BYTES
 from app.core.database import get_db
 from app.services.arvgate.models import User
 from app.services.arvgate.dependencies import get_current_user, require_roles, get_current_user_optional
@@ -1375,6 +1376,15 @@ def get_billing_summary(
 
     return {
         "workspace_name": current_user.workspace_name or f"{current_user.full_name}'s Workspace",
+        "user": {
+            "id": current_user.id,
+            "account_id": current_user.account_id or f"ARV-ACC-{abs(hash(current_user.id)) % 900000 + 100000}",
+            "email": current_user.email,
+            "full_name": current_user.full_name,
+            "workspace_id": current_user.workspace_id or ws_id,
+            "workspace_name": current_user.workspace_name or f"{current_user.full_name}'s Workspace",
+            "role": current_user.role,
+        },
         "usage": {
             "plan_name": plan_name,
             "plan_code": plan_code,
@@ -1392,6 +1402,8 @@ def get_billing_summary(
                 "storage_gb_limit": 5000 if plan_code == "team" else (500 if plan_code == "developer" else 25000),
                 "bandwidth_gb_used": 142,
                 "bandwidth_gb_limit": 2000,
+                "deployments_month": max(4, app_count * 4 + 12),
+                "deployments_limit": 100 if plan_code == "developer" else (500 if plan_code == "team" else 2000),
                 "api_calls_current": 184520,
                 "api_calls_limit": 5000000,
             }
@@ -1476,32 +1488,40 @@ class InvoicePDF(_FPDF_BASE):
         self.set_line_width(1.5)
         self.line(0, 42, 210, 42)
         
+        # White card for official brand logo
+        self.set_fill_color(255, 255, 255)
+        self.rect(14, 10, 20, 20, 'F')
+        try:
+            import io
+            self.image(io.BytesIO(ARAVANTA_LOGO_PNG_BYTES), x=15.5, y=11.5, w=17, h=17)
+        except Exception:
+            pass
+        
         self.set_text_color(255, 255, 255)
-        self.set_font('Helvetica', 'B', 18)
-        self.set_xy(14, 11)
-        self.cell(100, 8, 'ARAVANTA CLOUDOS', new_x=XPos.RIGHT, new_y=YPos.TOP)
+        self.set_font('Helvetica', 'B', 17)
+        self.set_xy(38, 14)
+        self.cell(85, 7, 'ARAVANTA CLOUDOS', new_x=XPos.RIGHT, new_y=YPos.TOP)
         
         self.set_text_color(198, 146, 59)
-        self.set_font('Helvetica', 'B', 18)
-        self.set_xy(110, 11)
-        self.cell(86, 8, 'TAX INVOICE', align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        self.set_font('Helvetica', 'B', 20)
+        self.set_xy(120, 13)
+        self.cell(76, 8, 'TAX INVOICE', align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         
         self.set_text_color(180, 200, 230)
         self.set_font('Helvetica', '', 8)
-        self.set_xy(14, 21)
-        self.cell(100, 5, 'Enterprise Cloud Infrastructure Platform', new_x=XPos.RIGHT, new_y=YPos.TOP)
+        self.set_xy(38, 22)
+        self.cell(85, 4, 'Enterprise Cloud Infrastructure Platform • FinOps Control Plane', new_x=XPos.RIGHT, new_y=YPos.TOP)
         
-        self.set_xy(110, 21)
-        self.cell(86, 5, 'Original for Recipient (GST Compliant)', align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        self.set_xy(120, 22)
+        self.cell(76, 4, 'ORIGINAL FOR RECIPIENT • GST COMPLIANT', align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         
         self.set_text_color(148, 163, 184)
         self.set_font('Helvetica', '', 7)
-        self.set_xy(14, 28)
-        self.cell(100, 4, 'Aravanta CloudOS Inc. | CIN: U72200MH2026PTC000001', new_x=XPos.RIGHT, new_y=YPos.TOP)
-        
-        self.set_xy(110, 28)
-        self.cell(86, 4, 'GSTIN: 27AAAAA0000A1Z5 | SAC: 998313', align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        self.ln(20)
+        self.set_xy(38, 27.5)
+        self.cell(85, 4, 'Aravanta CloudOS Technologies Inc. • Jalgaon, Maharashtra, India - 425001', new_x=XPos.RIGHT, new_y=YPos.TOP)
+        self.set_xy(38, 32)
+        self.cell(85, 4, 'CIN: U72200MH2026PTC000001 • GSTIN: 27AAAAA0000A1Z5 • SAC: 998313', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        self.ln(18)
 
     def footer(self):
         if not HAS_FPDF:
@@ -1515,13 +1535,13 @@ class InvoicePDF(_FPDF_BASE):
         self.set_font('Helvetica', '', 7)
         self.set_text_color(148, 163, 184)
         self.cell(0, 4, 'This is an authorized computer-generated tax invoice and requires no physical signature.', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        self.cell(0, 4, 'Aravanta CloudOS Inc. - BKC, Mumbai 400051 - Support: billing@aravanta.cloud', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        self.cell(0, 4, 'Aravanta CloudOS Inc. - Jalgaon, Maharashtra, India - 425001 - Support: billing@aravanta.cloud', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         now_utc = datetime.utcnow().strftime("%d %b %Y %H:%M UTC")
         self.cell(120, 4, f'Digitally signed & verified by Aravanta FinOps Engine on {now_utc}', new_x=XPos.RIGHT, new_y=YPos.TOP)
         self.cell(62, 4, f'Page {self.page_no()}', align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
 
-def generate_invoice_pdf_bytes(inv: InvoiceRecord, user_email: str, user_name: str, ws_id: str) -> bytes:
+def generate_invoice_pdf_bytes(inv: InvoiceRecord, user_email: str, user_name: str, ws_id: str, account_id: str = "", workspace_name: str = "") -> bytes:
     if not HAS_FPDF or FPDF is None:
         raise RuntimeError("fpdf2 library is not available in the runtime environment")
     pdf = InvoicePDF('P', 'mm', 'A4')
@@ -1531,7 +1551,7 @@ def generate_invoice_pdf_bytes(inv: InvoiceRecord, user_email: str, user_name: s
     pdf.set_fill_color(248, 250, 252)
     pdf.set_draw_color(226, 232, 240)
     
-    # From Box
+    # From Box (Supplier)
     pdf.rect(14, 48, 88, 38, 'DF')
     pdf.set_xy(18, 51)
     pdf.set_font('Helvetica', 'B', 7.5)
@@ -1550,11 +1570,11 @@ def generate_invoice_pdf_bytes(inv: InvoiceRecord, user_email: str, user_name: s
     pdf.set_x(18)
     pdf.cell(80, 4, 'GSTIN: 27AAAAA0000A1Z5 | SAC: 998313', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_x(18)
-    pdf.cell(80, 4, 'Bandra Kurla Complex, Mumbai 400051', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(80, 4, 'Jalgaon, Maharashtra, India - 425001', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_x(18)
     pdf.cell(80, 4, 'Email: billing@aravanta.cloud', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     
-    # Bill To Box
+    # Bill To Box (Customer)
     pdf.rect(108, 48, 88, 38, 'DF')
     pdf.set_xy(112, 51)
     pdf.set_font('Helvetica', 'B', 7.5)
@@ -1564,72 +1584,73 @@ def generate_invoice_pdf_bytes(inv: InvoiceRecord, user_email: str, user_name: s
     pdf.set_x(112)
     pdf.set_font('Helvetica', 'B', 9)
     pdf.set_text_color(15, 23, 42)
-    pdf.cell(80, 5, user_name or 'Aravanta Cloud Developer', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(80, 5, user_name or 'Aravanta Cloud Customer', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     
     pdf.set_x(112)
     pdf.set_font('Helvetica', '', 7.5)
     pdf.set_text_color(100, 116, 139)
-    pdf.cell(80, 4, f'Email: {user_email or "developer@aravanta.cloud"}', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    if account_id:
+        pdf.cell(80, 4, f'Account ID: {account_id}', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.set_x(112)
+    pdf.cell(80, 4, f'Email: {user_email or "customer@aravanta.cloud"}', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_x(112)
-    pdf.cell(80, 4, f'Workspace: {ws_id}', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(80, 4, f'Workspace: {workspace_name or ws_id}', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_x(112)
-    pdf.cell(80, 4, 'Region: ap-south-1 (Mumbai, India)', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.set_x(112)
-    pdf.cell(80, 4, 'Place of Supply: 27 - Maharashtra', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(80, 4, 'Place of Supply: 27 - Maharashtra, India', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     
     # Metadata 4-Column Box
     pdf.ln(10)
     pdf.set_fill_color(255, 255, 255)
     pdf.set_draw_color(226, 232, 240)
-    pdf.rect(14, 91, 182, 20, 'DF')
+    pdf.rect(14, 91, 182, 17, 'DF')
     
     pdf.set_xy(18, 93)
     pdf.set_font('Helvetica', 'B', 7)
     pdf.set_text_color(100, 116, 139)
-    pdf.cell(42, 4, 'INVOICE NUMBER', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(40, 4, 'INVOICE NUMBER', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_x(18)
-    pdf.set_font('Helvetica', 'B', 9)
+    pdf.set_font('Helvetica', 'B', 8.5)
     pdf.set_text_color(15, 23, 42)
-    pdf.cell(42, 6, inv.id, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(40, 5.5, inv.id, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     
-    pdf.set_xy(62, 93)
+    pdf.set_xy(60, 93)
     pdf.set_font('Helvetica', 'B', 7)
     pdf.set_text_color(100, 116, 139)
-    pdf.cell(42, 4, 'INVOICE DATE', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.set_x(62)
-    pdf.set_font('Helvetica', 'B', 9)
+    pdf.cell(34, 4, 'INVOICE DATE', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_x(60)
+    pdf.set_font('Helvetica', 'B', 8.5)
     pdf.set_text_color(15, 23, 42)
-    pdf.cell(42, 6, inv.date or datetime.utcnow().strftime('%Y-%m-%d'), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(34, 5.5, inv.date or datetime.utcnow().strftime('%Y-%m-%d'), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     
-    pdf.set_xy(106, 93)
+    pdf.set_xy(96, 93)
     pdf.set_font('Helvetica', 'B', 7)
     pdf.set_text_color(100, 116, 139)
-    pdf.cell(42, 4, 'BILLING PERIOD', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.set_x(106)
-    pdf.set_font('Helvetica', 'B', 9)
+    pdf.cell(56, 4, 'BILLING PERIOD', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_x(96)
+    pdf.set_font('Helvetica', 'B', 8.5)
     pdf.set_text_color(15, 23, 42)
-    pdf.cell(42, 6, (inv.period or 'Monthly Subscription')[:22], new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(56, 5.5, (inv.period or 'Monthly Subscription')[:28], new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     
-    pdf.set_xy(150, 93)
+    pdf.set_xy(154, 93)
     pdf.set_font('Helvetica', 'B', 7)
     pdf.set_text_color(100, 116, 139)
-    pdf.cell(42, 4, 'PAYMENT STATUS', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.set_x(150)
-    pdf.set_font('Helvetica', 'B', 9)
+    pdf.cell(40, 4, 'PAYMENT STATUS', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_x(154)
+    pdf.set_font('Helvetica', 'B', 8.5)
     pdf.set_text_color(5, 150, 105)
-    pdf.cell(42, 6, 'PAID & SETTLED', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(40, 5.5, '[PAID] SETTLED', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     
     # Items Table
-    pdf.set_xy(14, 116)
+    pdf.set_xy(14, 114)
     pdf.set_fill_color(15, 32, 56)
     pdf.set_text_color(255, 255, 255)
-    pdf.set_font('Helvetica', 'B', 8)
-    pdf.cell(12, 8, '#', new_x=XPos.RIGHT, new_y=YPos.TOP, align='C', fill=True)
-    pdf.cell(88, 8, 'Service Description & Specification', new_x=XPos.RIGHT, new_y=YPos.TOP, align='L', fill=True)
+    pdf.set_font('Helvetica', 'B', 7.5)
+    pdf.cell(10, 8, '#', new_x=XPos.RIGHT, new_y=YPos.TOP, align='C', fill=True)
+    pdf.cell(86, 8, 'Service Description & Technical Specifications', new_x=XPos.RIGHT, new_y=YPos.TOP, align='L', fill=True)
     pdf.cell(20, 8, 'HSN/SAC', new_x=XPos.RIGHT, new_y=YPos.TOP, align='C', fill=True)
     pdf.cell(14, 8, 'Qty', new_x=XPos.RIGHT, new_y=YPos.TOP, align='C', fill=True)
-    pdf.cell(24, 8, 'Unit Rate', new_x=XPos.RIGHT, new_y=YPos.TOP, align='R', fill=True)
-    pdf.cell(24, 8, 'Amount (INR)', new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='R', fill=True)
+    pdf.cell(26, 8, 'Unit Price (INR)', new_x=XPos.RIGHT, new_y=YPos.TOP, align='R', fill=True)
+    pdf.cell(26, 8, 'Taxable Value', new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='R', fill=True)
     
     amount_inr = float(inv.amount_inr or 2499.0)
     subtotal = round(amount_inr / 1.18, 2)
@@ -1640,12 +1661,12 @@ def generate_invoice_pdf_bytes(inv: InvoiceRecord, user_email: str, user_name: s
     pdf.set_fill_color(255, 255, 255)
     pdf.set_text_color(15, 23, 42)
     pdf.set_font('Helvetica', '', 8)
-    pdf.cell(12, 8, '1', border='B', new_x=XPos.RIGHT, new_y=YPos.TOP, align='C', fill=True)
-    pdf.cell(88, 8, f'Aravanta CloudOS Subscription - {inv.period or "Cloud Operations"}', border='B', new_x=XPos.RIGHT, new_y=YPos.TOP, align='L', fill=True)
+    pdf.cell(10, 8, '1', border='B', new_x=XPos.RIGHT, new_y=YPos.TOP, align='C', fill=True)
+    pdf.cell(86, 8, f'Aravanta CloudOS Subscription - {inv.period or "Cloud Operations"}', border='B', new_x=XPos.RIGHT, new_y=YPos.TOP, align='L', fill=True)
     pdf.cell(20, 8, '998313', border='B', new_x=XPos.RIGHT, new_y=YPos.TOP, align='C', fill=True)
     pdf.cell(14, 8, '1', border='B', new_x=XPos.RIGHT, new_y=YPos.TOP, align='C', fill=True)
-    pdf.cell(24, 8, f'Rs. {subtotal:,.2f}', border='B', new_x=XPos.RIGHT, new_y=YPos.TOP, align='R', fill=True)
-    pdf.cell(24, 8, f'Rs. {subtotal:,.2f}', border='B', new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='R', fill=True)
+    pdf.cell(26, 8, f'Rs. {subtotal:,.2f}', border='B', new_x=XPos.RIGHT, new_y=YPos.TOP, align='R', fill=True)
+    pdf.cell(26, 8, f'Rs. {subtotal:,.2f}', border='B', new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='R', fill=True)
     
     # Totals & Tax Breakdown
     pdf.ln(4)
@@ -1709,12 +1730,12 @@ def generate_invoice_pdf_bytes(inv: InvoiceRecord, user_email: str, user_name: s
     pdf.cell(182, 3.5, '1. This is a computer-generated tax invoice issued pursuant to Section 31 of the CGST Act, 2017.', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.cell(182, 3.5, '2. Cloud infrastructure services are backed by 99.95% enterprise uptime SLA. Support available 24/7 at support@aravanta.cloud.', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.cell(182, 3.5, '3. Supply of online information and database access or retrieval (OIDAR) services under SAC 998313.', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.cell(182, 3.5, '4. Any invoice dispute must be notified in writing within 15 calendar days. Subject to Mumbai, Maharashtra jurisdiction.', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(182, 3.5, '4. Any invoice dispute must be notified in writing within 15 calendar days. Subject to Jalgaon / Maharashtra, India jurisdiction.', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     
     return bytes(pdf.output())
 
 
-def generate_invoice_html(inv: InvoiceRecord, user_email: str, user_name: str, ws_id: str) -> str:
+def generate_invoice_html(inv: InvoiceRecord, user_email: str, user_name: str, ws_id: str, account_id: str = "", workspace_name: str = "") -> str:
     amount_inr = float(inv.amount_inr or 2499.0)
     subtotal = round(amount_inr / 1.18, 2)
     tax = round(amount_inr - subtotal, 2)
@@ -2115,7 +2136,7 @@ def generate_invoice_html(inv: InvoiceRecord, user_email: str, user_name: str, w
       <span class="status-badge">&check; Certified Tax Invoice</span>
     </div>
     <div class="action-right">
-      <a href="?download=1" class="btn-raw">Download PDF File</a>
+      <a href="?download=1" class="btn-raw" onclick="if(window.location.search.includes('download=1')){{window.print();return false;}}">Download PDF File</a>
       <button onclick="window.print()" class="btn-print">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="6 9 6 2 18 2 18 9"></polyline>
@@ -2129,17 +2150,17 @@ def generate_invoice_html(inv: InvoiceRecord, user_email: str, user_name: str, w
 
   <div class="invoice-card">
     <div class="invoice-header">
-      <div>
-        <div class="brand-title">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#C6923B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path>
-          </svg>
-          ARAVANTA CLOUDOS
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div style="width: 52px; height: 52px; background: #ffffff; border-radius: 12px; display: flex; align-items: center; justify-content: center; padding: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.18); flex-shrink: 0;">
+          <img src="{ARAVANTA_LOGO_BASE64}" alt="Aravanta CloudOS" style="width: 100%; height: 100%; object-fit: contain;" />
         </div>
-        <div class="brand-tagline">Enterprise Cloud Infrastructure Platform &bull; FinOps Control Plane</div>
-        <div class="company-reg">
-          CIN: U72200MH2026PTC000001 &bull; GSTIN: 27AAAAA0000A1Z5 &bull; SAC: 998313<br>
-          Bandra Kurla Complex, Mumbai, Maharashtra 400051, India
+        <div>
+          <div class="brand-title">ARAVANTA CLOUDOS</div>
+          <div class="brand-tagline">Enterprise Cloud Infrastructure Platform &bull; FinOps Control Plane</div>
+          <div class="company-reg">
+            Aravanta CloudOS Technologies Inc. &bull; Jalgaon, Maharashtra, India - 425001<br>
+            CIN: U72200MH2026PTC000001 &bull; GSTIN: 27AAAAA0000A1Z5 &bull; SAC: 998313
+          </div>
         </div>
       </div>
       <div class="tax-title">
@@ -2155,10 +2176,11 @@ def generate_invoice_html(inv: InvoiceRecord, user_email: str, user_name: str, w
           <div class="panel-header">Issued By (Supplier)</div>
           <div class="panel-title">Aravanta CloudOS Technologies Inc.</div>
           <div class="panel-desc">
-            CIN: U72200MH2026PTC000001<br>
-            GSTIN / State: 27AAAAA0000A1Z5 (Maharashtra - 27)<br>
-            Service Accounting Code: 998313 (IT SaaS Infrastructure)<br>
-            Email: billing@aravanta.cloud &bull; Support: 24/7 Available
+            <strong>Address:</strong> Jalgaon, Maharashtra, India - 425001<br>
+            <strong>CIN:</strong> U72200MH2026PTC000001<br>
+            <strong>GSTIN / State:</strong> 27AAAAA0000A1Z5 (Maharashtra - 27)<br>
+            <strong>SAC Code:</strong> 998313 (Cloud Computing &amp; IT Infrastructure SaaS)<br>
+            <strong>Email:</strong> billing@aravanta.cloud &bull; <strong>Support:</strong> 24/7 Available
           </div>
         </div>
 
@@ -2166,10 +2188,11 @@ def generate_invoice_html(inv: InvoiceRecord, user_email: str, user_name: str, w
           <div class="panel-header">Billed To (Customer)</div>
           <div class="panel-title">{user_name}</div>
           <div class="panel-desc">
-            Email: {user_email}<br>
-            Workspace Cluster: {ws_id}<br>
-            Deployment Region: ap-south-1 (Mumbai, India)<br>
-            Place of Supply: 27 - Maharashtra (Intra-State Supply)
+            <strong>Account ID:</strong> {account_id or 'ARV-ACC-PRIMARY'}<br>
+            <strong>Email:</strong> {user_email}<br>
+            <strong>Workspace:</strong> {workspace_name or ws_id} ({ws_id})<br>
+            <strong>Deployment Region:</strong> ap-south-1 (Mumbai, India)<br>
+            <strong>Place of Supply:</strong> 27 - Maharashtra, India (Intra-State Supply)
           </div>
         </div>
       </div>
@@ -2233,7 +2256,7 @@ def generate_invoice_html(inv: InvoiceRecord, user_email: str, user_name: str, w
           <div class="bank-box">
             <strong>Direct NEFT/RTGS Corporate Settlement:</strong><br>
             A/C Name: Aravanta CloudOS Technologies Inc. &bull; Bank: HDFC Bank Ltd.<br>
-            A/C No: 50200088921045 &bull; IFSC: HDFC0000123 &bull; BKC Mumbai
+            A/C No: 50200088921045 &bull; IFSC: HDFC0000123 &bull; Jalgaon, Maharashtra 425001
           </div>
         </div>
 
@@ -2271,14 +2294,14 @@ def generate_invoice_html(inv: InvoiceRecord, user_email: str, user_name: str, w
           <li>This is an electronically generated Tax Invoice issued under Section 31 of the Central Goods and Services Tax (CGST) Act, 2017. Physical signature is not required under Rule 46 of CGST Rules, 2017.</li>
           <li>Cloud infrastructure services are provisioned on an active SaaS model and backed by a 99.95% uptime Service Level Agreement.</li>
           <li>Tax is paid under regular provisions; Reverse Charge Mechanism is Not Applicable.</li>
-          <li>Disputes regarding service or billing must be communicated in writing within 15 calendar days. Subject to the exclusive jurisdiction of courts in Mumbai, Maharashtra.</li>
+          <li>Disputes regarding service or billing must be communicated in writing within 15 calendar days. Subject to the exclusive jurisdiction of courts in Jalgaon / Maharashtra, India.</li>
         </ol>
       </div>
 
       <div class="invoice-footer">
         <div class="footer-left">
           This is an authorized system-generated tax document.<br>
-          Aravanta CloudOS Inc. &bull; support@aravanta.cloud &bull; Generated on {now_full}
+          Aravanta CloudOS Inc. &bull; Jalgaon, Maharashtra, India - 425001 &bull; support@aravanta.cloud &bull; Generated on {now_full}
         </div>
         <div class="signature-badge">
           <div class="signature-title">Digitally Signed &amp; Authorized</div>
@@ -2298,6 +2321,10 @@ def download_invoice_pdf(
     invoice_id: str,
     download: bool = Query(False, description="Force raw binary PDF download"),
     format: str = Query("html", description="Output format: 'html' for print preview or 'pdf' for binary download"),
+    customer_name: Optional[str] = Query(None, description="Customer full name override"),
+    customer_email: Optional[str] = Query(None, description="Customer email override"),
+    customer_account: Optional[str] = Query(None, description="Customer account ID override"),
+    workspace_name: Optional[str] = Query(None, description="Workspace name override"),
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
@@ -2311,13 +2338,27 @@ def download_invoice_pdf(
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice record not found")
         
-    user_email = current_user.email if current_user else "developer@aravanta.cloud"
-    user_name = current_user.full_name if current_user else "Aravanta Cloud Developer"
-    ws_id = inv.workspace_id or (current_user.workspace_id if current_user else "ws-enterprise-default")
+    # Resolve actual customer from DB record or session
+    inv_user = None
+    if inv.user_id:
+        inv_user = db.query(User).filter(User.id == inv.user_id).first()
+
+    # Fallback to the primary active administrator/developer if unauthenticated tab view
+    if not current_user and not inv_user:
+        inv_user = db.query(User).filter(
+            (User.email.ilike('%yash%')) | (User.full_name.ilike('%Yash%'))
+        ).first() or db.query(User).first()
+
+    actual_user = current_user or inv_user
+    user_email = customer_email or (actual_user.email if actual_user else "yashbaviskar83@gmail.com")
+    user_name = customer_name or (actual_user.full_name if actual_user else "Yash Baviskar")
+    account_id = customer_account or (getattr(actual_user, "account_id", "") if actual_user else "ARV-ACC-100001")
+    resolved_workspace = workspace_name or (getattr(actual_user, "workspace_name", "") if actual_user else "speedyswap")
+    ws_id = inv.workspace_id or resolved_workspace or (actual_user.workspace_id if actual_user else "speedyswap")
     
     if download or format.lower() == "pdf":
         try:
-            pdf_content = generate_invoice_pdf_bytes(inv, user_email, user_name, ws_id)
+            pdf_content = generate_invoice_pdf_bytes(inv, user_email, user_name, ws_id, account_id, resolved_workspace)
             return Response(
                 content=pdf_content,
                 media_type="application/pdf",
@@ -2329,7 +2370,7 @@ def download_invoice_pdf(
         except Exception:
             pass  # Fall back to HTML preview if binary PDF rendering fails
             
-    html = generate_invoice_html(inv, user_email, user_name, ws_id)
+    html = generate_invoice_html(inv, user_email, user_name, ws_id, account_id, resolved_workspace)
     return Response(content=html, media_type="text/html")
 
 @router.get("/billing/invoices/{invoice_id}", summary="Get invoice details")
@@ -2404,7 +2445,7 @@ def add_payment_method(
         user_id=current_user.id,
         workspace_id=ws_id,
         brand=body.brand.lower(),
-        last4=body.last4[-4:],
+        last4=body.last4[:60] if body.brand.lower() in ["upi", "netbanking"] else body.last4[-4:],
         exp_month=body.exp_month,
         exp_year=body.exp_year,
         holder_name=body.holder_name,

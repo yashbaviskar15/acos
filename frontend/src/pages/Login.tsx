@@ -477,7 +477,7 @@ export const Login: React.FC<LoginProps> = ({
 
       {/* ── RIGHT PANE: Full-Bleed Authentication Form ── */}
       <div className="flex-1 h-full bg-slate-50 dark:bg-[#0B0F17] flex flex-col justify-between p-6 sm:p-10 lg:p-14 overflow-y-auto">
-        <div className="w-full max-w-md mx-auto space-y-6 my-auto">
+        <div className="w-full max-w-[440px] mx-auto space-y-6 my-auto min-h-[520px] flex flex-col justify-center transition-all duration-300">
           
           {/* Top Bar: Back to Landing & Mobile Logo */}
           <div className="flex items-center justify-between gap-4">
@@ -546,7 +546,7 @@ export const Login: React.FC<LoginProps> = ({
           )}
 
           {/* Feedback Messages — dismissible, inline, user-safe */}
-          {sessionInvalidatedReason && (
+          {typeof sessionInvalidatedReason === 'string' && sessionInvalidatedReason && (
             <div
               role="alert"
               className="p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 rounded-xl text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5 font-mono animate-fadeIn"
@@ -608,7 +608,7 @@ export const Login: React.FC<LoginProps> = ({
 
           {/* ── 1. SIGN IN FORM ── */}
           {activeTab === 'signin' && (
-            <form onSubmit={handleSignIn} className="space-y-4 font-mono text-xs touch-manipulation">
+            <form key="signin-form" onSubmit={handleSignIn} className="space-y-4 font-mono text-xs touch-manipulation animate-fadeIn">
               <div>
                 <label htmlFor="signin-email" className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
                   Work Email or Account ID
@@ -705,7 +705,7 @@ export const Login: React.FC<LoginProps> = ({
 
           {/* ── 2. CREATE ACCOUNT FORM ── */}
           {activeTab === 'register' && (
-            <form onSubmit={handleRegister} className="space-y-3 font-mono text-xs">
+            <form key="register-form" onSubmit={handleRegister} className="space-y-3 font-mono text-xs animate-fadeIn">
               <div>
                 <label htmlFor="reg-name" className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Full Name</label>
                 <input id="reg-name" name="name" type="text" autoComplete="name" aria-label="Full name" value={regFullName}

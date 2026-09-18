@@ -318,7 +318,7 @@ export default function App() {
     return () => window.removeEventListener('acos:session-invalidated', handleInvalidation);
   }, [token]);
 
-  const handleLogout = (reason?: string) => {
+  const handleLogout = (reason?: unknown) => {
     if (token) {
       apiFetch('/api/v1/auth/logout', { method: 'POST', token }).catch(() => {});
     }
@@ -329,8 +329,8 @@ export default function App() {
       localStorage.removeItem('aravanta_user');
       localStorage.removeItem('aravanta_active_tab');
     } catch {}
-    if (reason) {
-      setSessionInvalidatedReason(reason);
+    if (typeof reason === 'string' && reason.trim().length > 0) {
+      setSessionInvalidatedReason(reason.trim());
       setAuthViewState('login');
     } else {
       setSessionInvalidatedReason(null);
@@ -486,7 +486,7 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         user={user}
-        onLogout={handleLogout}
+        onLogout={() => handleLogout()}
         isOpen={isMobileMenuOpen}
         onClose={() => setIsMobileMenuOpen(false)}
       />

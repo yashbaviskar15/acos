@@ -213,6 +213,54 @@ class ConsoleCopilotEngine:
         if any(w in msg for w in ["region", "regions", "zone", "mumbai", "hyderabad", "bangalore", "delhi", "datacenter"]):
             return self._synthesize_regions_guidance(docs)
 
+        # 2L: Conversational Greetings & AI Introductions
+        greeting_words = ["hi", "hello", "hey", "good morning", "good evening", "greetings", "sup", "howdy", "who are you", "what are you", "help me"]
+        if any(msg.strip() == w or msg.startswith(w + " ") or msg.startswith(w + ",") or msg.startswith(w + "!") for w in greeting_words):
+            return {
+                "intent": "conversational_greeting",
+                "content": (
+                    "### 👋 Hello! I'm your Aravanta Console Copilot\n\n"
+                    "I am directly connected to your active multi-cloud infrastructure, real-time Prometheus telemetry, Loki log streams, and platform operational runbooks.\n\n"
+                    "**How I can assist you**:\n"
+                    "- 📊 **Live Telemetry & Fleet Status**: Check CPU, RAM, error rates, and active Kubernetes pods.\n"
+                    "- 💰 **FinOps Accrued Costs**: View real-time infrastructure spend and per-second billing in INR.\n"
+                    "- 🔒 **RBAC & Security**: Learn how to assign roles, switch between SuperAdmin/Admin, or configure TOTP MFA.\n"
+                    "- 📄 **Invoices & Billing**: Inquire about downloading official GST invoices or setting payment methods.\n"
+                    "- 🛠️ **Runbook Diagnostics**: Triage OOMKilled (Exit Code 137), CrashLoopBackOff, or database pool saturation.\n\n"
+                    "*What would you like to explore or troubleshoot?*"
+                ),
+                "followups": [
+                    "What is the status of my virtual machines?",
+                    "How much have we spent on billing this month?",
+                    "How do I switch or assign RBAC roles?",
+                    "Check Kubernetes cluster health"
+                ]
+            }
+
+        # 2M: Role Assignment & RBAC Switching Guidance
+        if any(w in msg for w in ["switch role", "change role", "assign role", "become admin", "superadmin role"]):
+            return {
+                "intent": "role_guidance",
+                "content": (
+                    "### 🛡️ RBAC Role Management Guidance\n\n"
+                    "Aravanta CloudOS enforces a **5-tier Role-Based Access Control matrix**:\n"
+                    "- **SuperAdmin**: Full infrastructure ownership, tenant creation, and unrestricted system administration.\n"
+                    "- **Admin**: Resource operator and cluster management within the authorized workspace.\n"
+                    "- **Operator**: SRE and workload orchestrator with deployment and runbook execution rights.\n"
+                    "- **Developer**: Application deployment and service management permissions.\n"
+                    "- **Viewer**: Read-only telemetry and log observer.\n\n"
+                    "**To switch or assign roles**:\n"
+                    "1. **Quick Switch (Simulation)**: Click the **Role Badge** in the top navigation bar (e.g. `SUPERADMIN` or `ADMIN`) to open the dropdown and simulate another role.\n"
+                    "2. **Assign Team Roles**: Navigate to **[User Profile & Team](/profile)** &rarr; **Workspace & Team Tab**, where SuperAdmins and Admins can assign or change roles for any team member.\n"
+                    "3. **Security Matrix**: Review full granular permissions under **[Security & RBAC](/security)**."
+                ),
+                "followups": [
+                    "What permissions does each RBAC role have?",
+                    "How do I invite a new team member?",
+                    "Check active security audit logs"
+                ]
+            }
+
         # -------------------------------------------------------------
         # Branch 3: General Document / Runbook RAG Fallback
         # -------------------------------------------------------------
@@ -751,10 +799,11 @@ class ConsoleCopilotEngine:
         Optional bridge to an external LLM (OpenAI, Anthropic, Ollama, Gemini) if API keys exist.
         Falls back to local synthesis if no keys are found or if an error occurs.
         """
+        gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         openai_key = os.getenv("OPENAI_API_KEY")
         ollama_url = os.getenv("OLLAMA_BASE_URL")
 
-        if not openai_key and not ollama_url:
+        if not gemini_key and not openai_key and not ollama_url:
             return None
 
         try:
@@ -768,6 +817,43 @@ class ConsoleCopilotEngine:
                 f"Provide a clear, accurate, technical response with markdown formatting, code snippets where applicable, and citations."
             )
 
+            # 1. Google Gemini API Bridge
+            if gemini_key:
+                async with httpx.AsyncClient(timeout=12.0) as client:
+                    gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
+                    res = await client.post(
+                        gemini_url,
+                        headers={"Content-Type": "application/json"},
+                        json={
+                            "contents": [
+                                {
+                                    "role": "user",
+                                    "parts": [{"text": f"{prompt_context}\n\nPlease answer the user's inquiry thoroughly:"}]
+                                }
+                            ],
+                            "generationConfig": {
+                                "temperature": 0.2,
+                                "maxOutputTokens": 1024
+                            }
+                        }
+                    )
+                    if res.status_code == 200:
+                        data = res.json()
+                        candidates = data.get("candidates", [])
+                        if candidates and "content" in candidates[0]:
+                            parts = candidates[0]["content"].get("parts", [])
+                            if parts and "text" in parts[0]:
+                                return {
+                                    "intent": "gemini_grounded_response",
+                                    "content": parts[0]["text"],
+                                    "followups": [
+                                        "What is the status of my virtual machines?",
+                                        "Check active Kubernetes health",
+                                        "Show current monthly billing"
+                                    ]
+                                }
+
+            # 2. OpenAI API Bridge
             if openai_key:
                 async with httpx.AsyncClient(timeout=10.0) as client:
                     res = await client.post(

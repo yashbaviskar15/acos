@@ -73,6 +73,15 @@ def get_billing_summary(
         "mtd_spend_usd": round(total_spend, 2),
         "projected_spend_usd": round(total_spend * 1.3, 2),
         "currency": "USD",
+        "user": {
+            "id": current_user.id,
+            "account_id": current_user.account_id or f"ARV-ACC-{abs(hash(current_user.id)) % 900000 + 100000}",
+            "email": current_user.email,
+            "full_name": current_user.full_name,
+            "workspace_id": current_user.workspace_id or ws_id,
+            "workspace_name": current_user.workspace_name or f"{current_user.full_name}'s Workspace",
+            "role": current_user.role,
+        },
         "updated_at": datetime.utcnow().isoformat() + "Z"
     }
 
@@ -223,3 +232,16 @@ def verify_payment(
         "amount_inr": amt_inr,
         "message": "Payment verified successfully and recorded in persistent ledger"
     }
+
+
+@router.get("/invoices/{invoice_id}/pdf", summary="Download official tax invoice PDF or print preview")
+@router.get("/invoices/{invoice_id}/download", summary="Download official tax invoice PDF")
+def download_billing_invoice_pdf(
+    invoice_id: str,
+    download: bool = False,
+    format: str = "html",
+    db: Session = Depends(get_db),
+):
+    from app.services.arvoperations.router import download_invoice_pdf
+    return download_invoice_pdf(invoice_id, download=download, format=format, db=db, current_user=None)
+

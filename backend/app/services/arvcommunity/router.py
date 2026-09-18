@@ -29,95 +29,74 @@ def ensure_community_tables(db: Session):
     global _tables_initialized
     if _tables_initialized:
         return
+    from app.core.database import engine
+    from sqlalchemy import text
     try:
-        from app.core.database import engine
-        from .models import CommunityPost, CommunityComment, CommunityLike
-        CommunityPost.__table__.create(bind=engine, checkfirst=True)
-        CommunityComment.__table__.create(bind=engine, checkfirst=True)
-        CommunityLike.__table__.create(bind=engine, checkfirst=True)
+        with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS community_posts (
+                    id VARCHAR(36) PRIMARY KEY,
+                    user_id VARCHAR(36) NOT NULL,
+                    workspace_id VARCHAR(50),
+                    author_name VARCHAR(255) NOT NULL,
+                    author_email VARCHAR(255) NOT NULL,
+                    author_role VARCHAR(50) DEFAULT 'Developer' NOT NULL,
+                    author_avatar VARCHAR(500),
+                    title VARCHAR(255) NOT NULL,
+                    content TEXT NOT NULL,
+                    category VARCHAR(50) DEFAULT 'general' NOT NULL,
+                    tags TEXT DEFAULT '[]' NOT NULL,
+                    images TEXT DEFAULT '[]',
+                    likes_count INTEGER DEFAULT 0 NOT NULL,
+                    comments_count INTEGER DEFAULT 0 NOT NULL,
+                    views_count INTEGER DEFAULT 0 NOT NULL,
+                    is_pinned BOOLEAN DEFAULT FALSE NOT NULL,
+                    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+                );
+                ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS images TEXT DEFAULT '[]';
+                ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS workspace_id VARCHAR(50);
+                ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS author_avatar VARCHAR(500);
 
-        # Seed initial production discussions if table is newly created and empty
-        existing = db.query(CommunityPost).first()
+                CREATE TABLE IF NOT EXISTS community_comments (
+                    id VARCHAR(36) PRIMARY KEY,
+                    post_id VARCHAR(36) NOT NULL,
+                    user_id VARCHAR(36) NOT NULL,
+                    parent_id VARCHAR(36),
+                    author_name VARCHAR(255) NOT NULL,
+                    author_email VARCHAR(255) NOT NULL,
+                    author_role VARCHAR(50) DEFAULT 'Developer' NOT NULL,
+                    author_avatar VARCHAR(500),
+                    content TEXT NOT NULL,
+                    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS community_likes (
+                    id VARCHAR(36) PRIMARY KEY,
+                    post_id VARCHAR(36) NOT NULL,
+                    user_id VARCHAR(36) NOT NULL,
+                    author_name VARCHAR(255),
+                    author_role VARCHAR(50) DEFAULT 'Developer',
+                    author_avatar VARCHAR(500),
+                    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                    CONSTRAINT uq_community_like_post_user UNIQUE (post_id, user_id)
+                );
+                ALTER TABLE community_likes ADD COLUMN IF NOT EXISTS author_name VARCHAR(255);
+                ALTER TABLE community_likes ADD COLUMN IF NOT EXISTS author_role VARCHAR(50) DEFAULT 'Developer';
+                ALTER TABLE community_likes ADD COLUMN IF NOT EXISTS author_avatar VARCHAR(500);
+            """))
+    except Exception as exc:
+        logger.warning(f"ensure_community_tables migration warning: {exc}")
+
+    try:
+        existing = db.query(CommunityPost.id).first()
         if not existing:
             _seed_community_data(db)
-        # Run schema migrations for PostgreSQL / SQLite
-        try:
-            from app.core.database import engine
-            from sqlalchemy import text
-            with engine.begin() as conn:
-                try:
-                    conn.execute(text("ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS images TEXT DEFAULT '[]'"))
-                except Exception:
-                    pass
-                try:
-                    conn.execute(text("ALTER TABLE community_likes ADD COLUMN IF NOT EXISTS author_name VARCHAR(255)"))
-                except Exception:
-                    pass
-                try:
-                    conn.execute(text("ALTER TABLE community_likes ADD COLUMN IF NOT EXISTS author_role VARCHAR(50) DEFAULT 'Developer'"))
-                except Exception:
-                    pass
-                try:
-                    conn.execute(text("ALTER TABLE community_likes ADD COLUMN IF NOT EXISTS author_avatar VARCHAR(500)"))
-                except Exception:
-                    pass
-        except Exception as mig_exc:
-            logger.warning(f"Schema migration warning: {mig_exc}")
-
         _tables_initialized = True
     except Exception as exc:
-        logger.warning(f"ensure_community_tables primary create: {exc}")
-        try:
-            from app.core.database import engine
-            from sqlalchemy import text
-            with engine.begin() as conn:
-                conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS community_posts (
-                        id VARCHAR(36) PRIMARY KEY,
-                        user_id VARCHAR(36) NOT NULL,
-                        workspace_id VARCHAR(50),
-                        author_name VARCHAR(255) NOT NULL,
-                        author_email VARCHAR(255) NOT NULL,
-                        author_role VARCHAR(50) DEFAULT 'Developer' NOT NULL,
-                        author_avatar VARCHAR(500),
-                        title VARCHAR(255) NOT NULL,
-                        content TEXT NOT NULL,
-                        category VARCHAR(50) DEFAULT 'general' NOT NULL,
-                        tags TEXT DEFAULT '[]' NOT NULL,
-                        likes_count INTEGER DEFAULT 0 NOT NULL,
-                        comments_count INTEGER DEFAULT 0 NOT NULL,
-                        views_count INTEGER DEFAULT 0 NOT NULL,
-                        is_pinned BOOLEAN DEFAULT FALSE NOT NULL,
-                        created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-                        updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
-                    );
-                    CREATE TABLE IF NOT EXISTS community_comments (
-                        id VARCHAR(36) PRIMARY KEY,
-                        post_id VARCHAR(36) NOT NULL,
-                        user_id VARCHAR(36) NOT NULL,
-                        parent_id VARCHAR(36),
-                        author_name VARCHAR(255) NOT NULL,
-                        author_email VARCHAR(255) NOT NULL,
-                        author_role VARCHAR(50) DEFAULT 'Developer' NOT NULL,
-                        author_avatar VARCHAR(500),
-                        content TEXT NOT NULL,
-                        created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-                        updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
-                    );
-                    CREATE TABLE IF NOT EXISTS community_likes (
-                        id VARCHAR(36) PRIMARY KEY,
-                        post_id VARCHAR(36) NOT NULL,
-                        user_id VARCHAR(36) NOT NULL,
-                        created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-                        CONSTRAINT uq_community_like_post_user UNIQUE (post_id, user_id)
-                    );
-                """))
-                _tables_initialized = True
-                existing = db.query(CommunityPost).first()
-                if not existing:
-                    _seed_community_data(db)
-        except Exception as raw_exc:
-            logger.error(f"ensure_community_tables raw create failed: {raw_exc}")
+        db.rollback()
+        logger.warning(f"ensure_community_tables seed check: {exc}")
 
 
 def _seed_community_data(db: Session):
@@ -259,67 +238,82 @@ def list_posts(
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
-    ensure_community_tables(db)
-    """
-    List community discussions with pagination, category filter, search, and sorting.
-    Returns has_liked flag when user is authenticated.
-    """
-    query = db.query(CommunityPost)
+    try:
+        ensure_community_tables(db)
+    except Exception as exc:
+        db.rollback()
+        logger.warning(f"ensure_community_tables error: {exc}")
 
-    # Filter by category
-    if category and category.lower() != "all":
-        query = query.filter(func.lower(CommunityPost.category) == category.lower())
+    try:
+        query = db.query(CommunityPost)
 
-    # Search filter (title, content, tags)
-    if search and search.strip():
-        term = f"%{search.strip().lower()}%"
-        query = query.filter(
-            or_(
-                func.lower(CommunityPost.title).like(term),
-                func.lower(CommunityPost.content).like(term),
-                func.lower(CommunityPost.tags).like(term),
-                func.lower(CommunityPost.author_name).like(term)
+        # Filter by category
+        if category and category.lower() != "all":
+            query = query.filter(func.lower(CommunityPost.category) == category.lower())
+
+        # Search filter (title, content, tags)
+        if search and search.strip():
+            term = f"%{search.strip().lower()}%"
+            query = query.filter(
+                or_(
+                    func.lower(CommunityPost.title).like(term),
+                    func.lower(CommunityPost.content).like(term),
+                    func.lower(CommunityPost.tags).like(term),
+                    func.lower(CommunityPost.author_name).like(term)
+                )
             )
-        )
 
-    # Sorting
-    if sort == "popular":
-        query = query.order_by(desc(CommunityPost.is_pinned), desc(CommunityPost.likes_count), desc(CommunityPost.created_at))
-    elif sort == "most_commented":
-        query = query.order_by(desc(CommunityPost.is_pinned), desc(CommunityPost.comments_count), desc(CommunityPost.created_at))
-    else:  # latest
-        query = query.order_by(desc(CommunityPost.is_pinned), desc(CommunityPost.created_at))
+        # Sorting
+        if sort == "popular":
+            query = query.order_by(desc(CommunityPost.is_pinned), desc(CommunityPost.likes_count), desc(CommunityPost.created_at))
+        elif sort == "most_commented":
+            query = query.order_by(desc(CommunityPost.is_pinned), desc(CommunityPost.comments_count), desc(CommunityPost.created_at))
+        else:  # latest
+            query = query.order_by(desc(CommunityPost.is_pinned), desc(CommunityPost.created_at))
 
-    total = query.count()
-    offset = (page - 1) * limit
-    posts = query.offset(offset).limit(limit).all()
+        total = query.count()
+        offset = (page - 1) * limit
+        posts = query.offset(offset).limit(limit).all()
 
-    # Determine which posts current_user has liked in a single query
-    user_liked_post_ids = set()
-    current_user_id = current_user.id if current_user else None
-    if current_user_id and posts:
-        post_ids = [p.id for p in posts]
-        likes = db.query(CommunityLike.post_id).filter(
-            CommunityLike.user_id == current_user_id,
-            CommunityLike.post_id.in_(post_ids)
-        ).all()
-        user_liked_post_ids = {l[0] for l in likes}
+        # Determine which posts current_user has liked in a single query
+        user_liked_post_ids = set()
+        current_user_id = current_user.id if current_user else None
+        if current_user_id and posts:
+            try:
+                post_ids = [p.id for p in posts]
+                likes = db.query(CommunityLike.post_id).filter(
+                    CommunityLike.user_id == current_user_id,
+                    CommunityLike.post_id.in_(post_ids)
+                ).all()
+                user_liked_post_ids = {l[0] for l in likes}
+            except Exception:
+                db.rollback()
 
-    total_pages = (total + limit - 1) // limit if total > 0 else 1
+        total_pages = (total + limit - 1) // limit if total > 0 else 1
 
-    return {
-        "posts": [
-            p.to_dict(
-                current_user_id=current_user_id,
-                has_liked=(p.id in user_liked_post_ids)
-            )
-            for p in posts
-        ],
-        "total": total,
-        "page": page,
-        "limit": limit,
-        "total_pages": total_pages
-    }
+        return {
+            "posts": [
+                p.to_dict(
+                    current_user_id=current_user_id,
+                    has_liked=(p.id in user_liked_post_ids)
+                )
+                for p in posts
+            ],
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
+    except Exception as err:
+        db.rollback()
+        logger.error(f"list_posts query error: {err}")
+        return {
+            "posts": [],
+            "total": 0,
+            "page": page,
+            "limit": limit,
+            "total_pages": 1
+        }
 
 
 @router.get("/posts/{post_id}")
@@ -332,7 +326,18 @@ def get_post(
     Fetch a single community post by ID, incrementing view count.
     Includes comments thread.
     """
-    post = db.query(CommunityPost).filter(CommunityPost.id == post_id).first()
+    try:
+        ensure_community_tables(db)
+    except Exception:
+        db.rollback()
+
+    try:
+        post = db.query(CommunityPost).filter(CommunityPost.id == post_id).first()
+    except Exception as exc:
+        db.rollback()
+        logger.error(f"get_post query failed: {exc}")
+        post = None
+
     if not post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Community post not found")
 

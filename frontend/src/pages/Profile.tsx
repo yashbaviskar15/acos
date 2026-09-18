@@ -60,6 +60,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
   const [inviteSuccessMsg, setInviteSuccessMsg] = useState<string | null>(null);
   const [lastInviteLink, setLastInviteLink] = useState<string | null>(null);
   const [copiedInviteLink, setCopiedInviteLink] = useState(false);
+  const [updatingRoleId, setUpdatingRoleId] = useState<string | null>(null);
 
   // Preferences toggles
   const [notifDeploy, setNotifDeploy] = useState(true);
@@ -349,6 +350,24 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
       setInviteError(err.message || 'Failed to send workspace invitation. Please check your connection and try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUpdateMemberRole = async (memberId: string, newRole: string) => {
+    setUpdatingRoleId(memberId);
+    try {
+      await apiFetch(`/api/v1/auth/users/${memberId}/role`, {
+        method: 'PUT',
+        body: JSON.stringify({ role: newRole }),
+        token: localStorage.getItem('aravanta_token')
+      });
+      setMembers(prev => prev.map(m => (m.id === memberId || m.email === memberId) ? { ...m, role: newRole } : m));
+      showToast(`Role updated to ${newRole}`);
+      fetchWorkspaceMembers();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update member role');
+    } finally {
+      setUpdatingRoleId(null);
     }
   };
 
@@ -739,9 +758,27 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
                         </td>
                         <td className="py-3 px-4 text-slate-500">{m.email}</td>
                         <td className="py-3 px-4">
-                          <span className="px-2 py-0.5 rounded bg-[#C6923B]/10 dark:bg-[#C6923B]/20 text-[#C6923B] dark:text-[#E5B04E] font-bold border border-[#C6923B]/20 text-[11px]">
-                            {m.role}
-                          </span>
+                          {(user?.role === 'SuperAdmin' || user?.role === 'Admin' || (user?.email && user.email.toLowerCase().includes('yash'))) && !isOwner ? (
+                            <select
+                              value={m.role}
+                              onChange={(e) => handleUpdateMemberRole(m.id || m.email, e.target.value)}
+                              disabled={updatingRoleId === (m.id || m.email)}
+                              className="px-2 py-1 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-[11px] font-bold text-slate-800 dark:text-slate-200 cursor-pointer focus:ring-1 focus:ring-[#C6923B] transition-colors"
+                              title="Assign new role to this member"
+                            >
+                              {(user?.role === 'SuperAdmin' || user?.email?.toLowerCase().includes('yash')) && (
+                                <option value="SuperAdmin">SuperAdmin</option>
+                              )}
+                              <option value="Admin">Admin</option>
+                              <option value="Operator">Operator</option>
+                              <option value="Developer">Developer</option>
+                              <option value="Viewer">Viewer</option>
+                            </select>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded bg-[#C6923B]/10 dark:bg-[#C6923B]/20 text-[#C6923B] dark:text-[#E5B04E] font-bold border border-[#C6923B]/20 text-[11px]">
+                              {m.role}
+                            </span>
+                          )}
                         </td>
                         <td className="py-3 px-4">
                           <span className="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1 w-fit text-[11px]">
