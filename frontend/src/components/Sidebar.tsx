@@ -24,7 +24,8 @@ import {
   X,
   MessageSquare,
   Home,
-  ArrowRight
+  ArrowRight,
+  Terminal
 } from 'lucide-react';
 import { Logo } from './Logo';
 import { canAccessTab } from '../utils/rbac';
@@ -105,7 +106,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'audit', label: t('sidebar.item_audit'), icon: FileCheck },
         { id: 'billing', label: t('sidebar.item_billing'), icon: CreditCard },
         { id: 'settings', label: t('sidebar.item_settings'), icon: SettingsIcon },
-        { id: 'guide', label: t('sidebar.item_guide'), icon: BookOpen },
+      ]
+    },
+    {
+      title: 'Developer Tools',
+      items: [
+        { id: 'cli', label: 'CLI & Shell', icon: Terminal, badge: 'v1.0' },
+        { id: 'guide', label: 'SDKs & Guides', icon: BookOpen },
       ]
     },
     {

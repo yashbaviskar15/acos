@@ -52,7 +52,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { apiFetch } from './config/api';
 import { canAccessTab } from './utils/rbac';
 import { AccessDenied } from './components/AccessDenied';
-import { CloudShell } from './components/CloudShell';
+import { CLIPage } from './pages/CLIPage';
 
 export default function App() {
   const [inviteToken, setInviteToken] = useState<string | null>(() => {
@@ -177,9 +177,8 @@ export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
-  const [isTerminalOpen, setIsTerminalOpen] = useState(false);
 
-  // Global Cmd+K (Command Palette), Cmd+J (Copilot), and Cmd+` (Cloud Shell CLI) shortcut listeners
+  // Global Cmd+K (Command Palette), Cmd+J (Copilot), and Cmd+` (CLI Tab) shortcut listeners
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -190,7 +189,7 @@ export default function App() {
         setIsCopilotOpen(prev => !prev);
       } else if ((e.metaKey || e.ctrlKey) && e.key === '`') {
         e.preventDefault();
-        setIsTerminalOpen(prev => !prev);
+        setActiveTab('cli');
       }
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
@@ -538,6 +537,7 @@ export default function App() {
       case 'compliance': return 'ArvGuard — Compliance-as-Infrastructure (India-First)';
       case 'pulse': return 'ArvPulse — Predictive Infrastructure Health Engine';
       case 'sandbox': return 'ArvSandbox — Ephemeral Environment Engine';
+      case 'cli': return 'Developer Tools — Aravanta CLI & Terminal';
       default: return 'Aravanta CloudOS Control Plane';
     }
   };
@@ -585,7 +585,6 @@ export default function App() {
           onNavigateToProfile={() => setActiveTab('profile')}
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
           onToggleCopilot={() => setIsCopilotOpen(prev => !prev)}
-          onToggleTerminal={() => setIsTerminalOpen(prev => !prev)}
         />
 
         {/* Dynamic Route Pages with Error Boundary Protection */}
@@ -637,6 +636,7 @@ export default function App() {
                 {activeTab === 'compliance' && <Compliance token={token} />}
                 {activeTab === 'pulse' && <Pulse token={token} />}
                 {activeTab === 'sandbox' && <Sandbox token={token} />}
+                {activeTab === 'cli' && <CLIPage token={token} user={user} />}
                 
                 {/* Fallback for unhandled tab */}
                 {![
@@ -645,7 +645,7 @@ export default function App() {
                   'automation', 'backups', 'audit', 'settings', 'compute', 
                   'kubernetes', 'storage', 'database', 'cicd', 'security', 
                   'billing', 'profile', 'guide', 'community',
-                  'costiq', 'compliance', 'pulse', 'sandbox'
+                  'costiq', 'compliance', 'pulse', 'sandbox', 'cli'
                 ].includes(activeTab) && (
                   <Dashboard token={token} onNavigate={(tab) => setActiveTab(tab)} searchTerm={searchTerm} />
                 )}
@@ -685,14 +685,6 @@ export default function App() {
           onClose={() => setIsCommandPaletteOpen(false)}
           onNavigate={handleUniversalNavigate}
           initialQuery={searchTerm}
-        />
-
-        {/* Interactive In-Browser Cloud Shell Terminal */}
-        <CloudShell
-          isOpen={isTerminalOpen}
-          onClose={() => setIsTerminalOpen(false)}
-          token={token}
-          user={user}
         />
 
         <CookieConsent />

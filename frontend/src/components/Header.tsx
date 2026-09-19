@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bell, Search, RefreshCw, Sun, Moon, X, Menu, User, Clock, BellRing, CheckCircle2, Shield, ShieldCheck, ChevronDown, Check, Bot, Globe, Terminal } from 'lucide-react';
+import { Bell, Search, RefreshCw, Sun, Moon, X, Menu, User, Clock, BellRing, CheckCircle2, Shield, ShieldCheck, ChevronDown, Check, Bot, Globe } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { requestNotificationPermission, sendSystemNotification } from '../utils/notifications';
 import { apiFetch } from '../config/api';
@@ -18,7 +18,6 @@ interface HeaderProps {
   onNavigateToProfile?: () => void;
   onOpenCommandPalette?: () => void;
   onToggleCopilot?: () => void;
-  onToggleTerminal?: () => void;
 }
 
 interface NotificationItem {
@@ -42,7 +41,6 @@ export const Header: React.FC<HeaderProps> = ({
   onNavigateToProfile,
   onOpenCommandPalette,
   onToggleCopilot,
-  onToggleTerminal,
 }) => {
   const { t, i18n } = useTranslation();
   const { theme, toggleTheme } = useTheme();
@@ -541,18 +539,6 @@ export const Header: React.FC<HeaderProps> = ({
             </>
           )}
         </div>
-
-        {/* Interactive CLI Cloud Shell Trigger */}
-        {onToggleTerminal && (
-          <button
-            onClick={onToggleTerminal}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/30 rounded-xl transition-all shadow-sm cursor-pointer text-xs font-mono font-bold shrink-0"
-            title="Open Interactive Aravanta Cloud Shell CLI"
-          >
-            <Terminal className="w-3.5 h-3.5 text-emerald-500" />
-            <span className="hidden md:inline">CLI Shell</span>
-          </button>
-        )}
 
         {/* Theme Toggle Button (Light/Dark Switcher) */}
         <button
