@@ -42,25 +42,10 @@ interface FooterSection {
 }
 
 export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const [langOpen, setLangOpen] = useState(false);
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [newsletterStatus, setNewsletterStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-
-  // Accordion state for mobile collapsible link categories
-  const [openAccordions, setOpenAccordions] = useState<Record<string, boolean>>({
-    product: true,
-    solutions: false,
-    resources: false,
-    company: false,
-  });
-
-  const toggleAccordion = (id: string) => {
-    setOpenAccordions((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
-  };
 
   const currentCode = (i18n.resolvedLanguage || 'en') as LangCode;
   const currentLang = SUPPORTED_LANGS.find((l) => l.code === currentCode) || SUPPORTED_LANGS[0];
@@ -69,7 +54,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
   const footerSections: FooterSection[] = [
     {
       id: 'product',
-      title: t('footer.product') || 'Product & Compute',
+      title: 'Product',
       links: [
         { label: 'Compute Virtual Machines', view: 'features' },
         { label: 'Managed Kubernetes (ArvK8s)', view: 'features' },
@@ -91,7 +76,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
     },
     {
       id: 'resources',
-      title: t('footer.resources') || 'Resources & Docs',
+      title: 'Resources',
       links: [
         { label: 'Documentation & API Ref', view: 'documentation' },
         { label: 'User Authentication Manual', view: 'user-manual' },
@@ -107,7 +92,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
     },
     {
       id: 'company',
-      title: t('footer.company') || 'Company & Legal',
+      title: 'Company',
       links: [
         { label: 'About Aravanta Cloud OS', view: 'about' },
         { label: 'Contact Solutions Team', view: 'contact' },
@@ -178,38 +163,35 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Main Content Area */}
         <div className="py-10 md:py-14 lg:py-16">
-          {/* DESKTOP (lg+) 5-Column Layout */}
-          <div className="hidden lg:grid lg:grid-cols-5 gap-8">
-            {/* Col 1: Brand / About */}
-            <div className="lg:col-span-1 space-y-4">
+          {/* Unified Responsive Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-8 lg:gap-12">
+            {/* Left Column: Brand, Tagline, Badges, Newsletter, Socials */}
+            <div className="md:col-span-5 lg:col-span-5 space-y-4">
               <Logo size="md" subtitle="Cloud Platform & OS" />
-              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-sans">
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed max-w-sm font-sans">
                 The Unified Multi-Cloud Operating System orchestrating sovereign Kubernetes clusters, virtual compute, and distributed NVMe object storage across India.
               </p>
 
               {/* Status & Compliance Badges */}
-              <div className="flex flex-col gap-2 pt-1">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-xs font-semibold text-emerald-800 dark:text-emerald-400 w-fit shadow-xs">
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-[11px] font-semibold text-emerald-800 dark:text-emerald-400 shadow-xs">
                   <span className="relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                   </span>
                   <span>All Systems Operational (99.99%)</span>
                 </div>
-
-                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-brandGold-500/10 border border-brandGold-500/30 text-[11px] font-mono font-semibold text-brandGold-800 dark:text-brandGold-300">
-                    <Shield className="w-3 h-3" /> SOC 2 & ISO 27001
-                  </span>
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-100 dark:bg-brandObsidian-800 border border-slate-200 dark:border-brandObsidian-700 text-[11px] font-mono text-slate-700 dark:text-slate-300">
-                    Hosted in India
-                  </span>
-                </div>
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-brandGold-500/10 border border-brandGold-500/30 text-[11px] font-mono font-semibold text-brandGold-800 dark:text-brandGold-300">
+                  <Shield className="w-3 h-3" /> SOC 2 & ISO 27001
+                </span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-100 dark:bg-brandObsidian-800 border border-slate-200 dark:border-brandObsidian-700 text-[11px] font-mono text-slate-700 dark:text-slate-300">
+                  Hosted in India
+                </span>
               </div>
 
-              {/* Newsletter Inline Form */}
-              <div className="pt-2">
-                <p className="text-xs font-bold text-slate-900 dark:text-white mb-1 font-sans">
+              {/* Newsletter Form */}
+              <div className="pt-2 max-w-sm space-y-1.5">
+                <p className="text-xs font-bold text-slate-900 dark:text-white font-sans">
                   Engineering Updates
                 </p>
                 <form onSubmit={handleNewsletterSubmit} className="space-y-1.5">
@@ -227,7 +209,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                     <button
                       type="submit"
                       disabled={newsletterStatus === 'loading'}
-                      className="px-3 py-2 rounded-xl bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold text-xs shrink-0 transition-colors shadow-xs cursor-pointer flex items-center gap-1"
+                      className="px-3.5 py-2 rounded-xl bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold text-xs shrink-0 transition-colors shadow-xs cursor-pointer flex items-center gap-1"
                     >
                       <Send className="w-3.5 h-3.5" />
                       <span>Join</span>
@@ -247,7 +229,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               </div>
 
               {/* Social Links */}
-              <div className="flex items-center gap-2 pt-2">
+              <div className="flex items-center gap-2 pt-1">
                 <a
                   href="https://github.com/yashbaviskar15/acos"
                   target="_blank"
@@ -294,227 +276,32 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               </div>
             </div>
 
-            {/* Link Columns (Cols 2-5) */}
-            {footerSections.map((section) => (
-              <div key={section.id} className="space-y-4">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white font-mono">
-                  {section.title}
-                </h4>
-                <ul className="space-y-2.5">
-                  {section.links.map((link, idx) => (
-                    <li key={idx}>
-                      <button
-                        onClick={() => handleLinkClick(link)}
-                        className="group inline-flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 hover:text-brandGold-600 dark:hover:text-brandGold-400 transition-all text-left py-0.5 cursor-pointer"
-                      >
-                        <span className="group-hover:translate-x-1 transition-transform">
-                          {link.label}
-                        </span>
-                        {link.external && (
-                          <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-brandGold-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        )}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-
-          {/* TABLET (md) 2x2 Grid Layout */}
-          <div className="hidden md:block lg:hidden space-y-10">
-            {/* Top Brand & Newsletter Banner */}
-            <div className="grid grid-cols-2 gap-8 pb-8 border-b border-slate-200 dark:border-brandObsidian-800">
-              <div className="space-y-3">
-                <Logo size="md" subtitle="Cloud Platform & OS" />
-                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                  Unified Multi-Cloud Operating System for Kubernetes, virtual compute, and distributed NVMe object storage across sovereign Indian regions.
-                </p>
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-xs font-semibold text-emerald-800 dark:text-emerald-400">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-                  </span>
-                  <span>All Systems Operational (99.99%)</span>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <p className="text-xs font-bold text-slate-900 dark:text-white">
-                  Subscribe to Engineering Updates
-                </p>
-                <form onSubmit={handleNewsletterSubmit} className="space-y-2">
-                  <div className="flex gap-2">
-                    <input
-                      type="email"
-                      value={newsletterEmail}
-                      onChange={(e) => setNewsletterEmail(e.target.value)}
-                      placeholder="you@company.com"
-                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-brandObsidian-700 bg-slate-50 dark:bg-brandObsidian-900 text-slate-900 dark:text-white focus:outline-none focus:border-brandGold-500"
-                    />
-                    <button
-                      type="submit"
-                      className="px-4 py-2 rounded-xl bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold text-xs shrink-0 cursor-pointer"
-                    >
-                      Join
-                    </button>
-                  </div>
-                  {newsletterStatus === 'success' && (
-                    <p className="text-xs text-emerald-600 dark:text-emerald-400">Subscribed successfully!</p>
-                  )}
-                </form>
-                <div className="flex items-center gap-2 pt-1">
-                  <span className="text-[11px] font-mono text-brandGold-700 dark:text-brandGold-300">
-                    SOC 2 Type II • ISO 27001 • Hosted in India
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* 2x2 Grid for Link Columns */}
-            <div className="grid grid-cols-2 gap-8">
+            {/* Right Columns: 4 Categories (2 cols on mobile, 4 cols on sm/md/lg) */}
+            <div className="md:col-span-7 lg:col-span-7 grid grid-cols-2 sm:grid-cols-4 gap-6 sm:gap-8">
               {footerSections.map((section) => (
-                <div key={section.id} className="space-y-3">
+                <div key={section.id} className="space-y-4">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white font-mono">
                     {section.title}
                   </h4>
-                  <ul className="space-y-2">
+                  <ul className="space-y-2.5">
                     {section.links.map((link, idx) => (
                       <li key={idx}>
                         <button
                           onClick={() => handleLinkClick(link)}
-                          className="text-xs text-slate-600 dark:text-slate-400 hover:text-brandGold-600 dark:hover:text-brandGold-400 transition-colors text-left py-0.5 cursor-pointer"
+                          className="group inline-flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 hover:text-brandGold-600 dark:hover:text-brandGold-400 transition-all text-left py-0.5 cursor-pointer"
                         >
-                          {link.label}
+                          <span className="group-hover:translate-x-1 transition-transform">
+                            {link.label}
+                          </span>
+                          {link.external && (
+                            <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-brandGold-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          )}
                         </button>
                       </li>
                     ))}
                   </ul>
                 </div>
               ))}
-            </div>
-          </div>
-
-          {/* MOBILE (xs/sm) Single-Column Accordion Layout */}
-          <div className="block md:hidden space-y-6">
-            {/* Mobile Brand Info */}
-            <div className="space-y-3">
-              <Logo size="md" subtitle="Cloud Platform & OS" />
-              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-sans">
-                The Unified Multi-Cloud Operating System orchestrating sovereign compute, Kubernetes, and NVMe storage in India.
-              </p>
-
-              {/* Status Pill */}
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-xs font-semibold text-emerald-800 dark:text-emerald-400 shadow-xs">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-                </span>
-                <span>All Systems Operational (99.99%)</span>
-              </div>
-
-              {/* Newsletter */}
-              <div className="pt-2">
-                <p className="text-xs font-bold text-slate-900 dark:text-white mb-1.5">
-                  Subscribe to Platform Updates
-                </p>
-                <form onSubmit={handleNewsletterSubmit} className="flex gap-2">
-                  <input
-                    type="email"
-                    value={newsletterEmail}
-                    onChange={(e) => setNewsletterEmail(e.target.value)}
-                    placeholder="you@company.com"
-                    className="flex-1 min-w-0 px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-brandObsidian-700 bg-slate-50 dark:bg-brandObsidian-900 text-slate-900 dark:text-white focus:outline-none focus:border-brandGold-500"
-                  />
-                  <button
-                    type="submit"
-                    className="px-3 py-2 rounded-xl bg-brandGold-500 text-brandObsidian-950 font-bold text-xs shrink-0 cursor-pointer"
-                  >
-                    Join
-                  </button>
-                </form>
-                {newsletterStatus === 'success' && (
-                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1">Subscribed!</p>
-                )}
-              </div>
-
-              {/* Social Links Row */}
-              <div className="flex items-center gap-2 pt-1">
-                <a
-                  href="https://github.com/yashbaviskar15/acos"
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="p-2 rounded-xl border border-slate-200 dark:border-brandObsidian-700 bg-slate-50 dark:bg-brandObsidian-900 text-slate-700 dark:text-slate-300 min-w-[36px] min-h-[36px] flex items-center justify-center"
-                  aria-label="GitHub"
-                >
-                  <Github className="w-4 h-4" />
-                </a>
-                <a
-                  href="https://twitter.com/aravanta_cloud"
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="p-2 rounded-xl border border-slate-200 dark:border-brandObsidian-700 bg-slate-50 dark:bg-brandObsidian-900 text-slate-700 dark:text-slate-300 min-w-[36px] min-h-[36px] flex items-center justify-center"
-                  aria-label="Twitter / X"
-                >
-                  <Twitter className="w-4 h-4" />
-                </a>
-                <a
-                  href="https://linkedin.com/company/aravanta-cloud"
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="p-2 rounded-xl border border-slate-200 dark:border-brandObsidian-700 bg-slate-50 dark:bg-brandObsidian-900 text-slate-700 dark:text-slate-300 min-w-[36px] min-h-[36px] flex items-center justify-center"
-                  aria-label="LinkedIn"
-                >
-                  <Linkedin className="w-4 h-4" />
-                </a>
-                <a
-                  href="https://discord.gg/aravanta"
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="p-2 rounded-xl border border-slate-200 dark:border-brandObsidian-700 bg-slate-50 dark:bg-brandObsidian-900 text-slate-700 dark:text-slate-300 min-w-[36px] min-h-[36px] flex items-center justify-center"
-                  aria-label="Discord"
-                >
-                  <MessageSquare className="w-4 h-4" />
-                </a>
-              </div>
-            </div>
-
-            {/* Collapsible Accordion Sections */}
-            <div className="border-t border-slate-200 dark:border-brandObsidian-800 divide-y divide-slate-100 dark:divide-brandObsidian-800/80">
-              {footerSections.map((section) => {
-                const isOpen = !!openAccordions[section.id];
-                return (
-                  <div key={section.id} className="py-2.5">
-                    <button
-                      onClick={() => toggleAccordion(section.id)}
-                      className="w-full flex items-center justify-between py-2 text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white font-mono text-left cursor-pointer"
-                    >
-                      <span>{section.title}</span>
-                      <ChevronDown
-                        className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${
-                          isOpen ? 'rotate-180 text-brandGold-500' : ''
-                        }`}
-                      />
-                    </button>
-
-                    {isOpen && (
-                      <ul className="pt-1.5 pb-2 space-y-2 pl-1 animate-fadeIn">
-                        {section.links.map((link, idx) => (
-                          <li key={idx}>
-                            <button
-                              onClick={() => handleLinkClick(link)}
-                              className="text-xs text-slate-600 dark:text-slate-400 hover:text-brandGold-600 dark:hover:text-brandGold-400 transition-colors text-left py-1 w-full flex items-center justify-between cursor-pointer"
-                            >
-                              <span>{link.label}</span>
-                              {link.external && <ExternalLink className="w-3 h-3 text-slate-400" />}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                );
-              })}
             </div>
           </div>
         </div>
