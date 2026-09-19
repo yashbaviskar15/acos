@@ -22,7 +22,9 @@ import {
   FileCheck,
   Lock,
   X,
-  MessageSquare
+  MessageSquare,
+  Home,
+  ArrowRight
 } from 'lucide-react';
 import { Logo } from './Logo';
 import { canAccessTab } from '../utils/rbac';
@@ -34,6 +36,7 @@ interface SidebarProps {
   onLogout: () => void;
   isOpen?: boolean;
   onClose?: () => void;
+  onGoToLanding?: () => void;
 }
 
 interface NavSection {
@@ -53,7 +56,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   user, 
   onLogout,
   isOpen = false,
-  onClose
+  onClose,
+  onGoToLanding,
 }) => {
   const { t } = useTranslation();
 
@@ -152,6 +156,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <X className="w-5 h-5" />
             </button>
           )}
+        </div>
+
+        {/* Quick Link to Landing Page / Main Website */}
+        <div className="p-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-brandObsidian-950/40">
+          <button
+            onClick={() => {
+              if (onClose) onClose();
+              if (onGoToLanding) onGoToLanding();
+              window.dispatchEvent(new CustomEvent('acos:go-to-landing'));
+            }}
+            className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-[#0F2038] hover:bg-brandGold-500/10 hover:text-brandGold-600 dark:hover:text-brandGold-400 border border-slate-200 dark:border-slate-700/80 hover:border-brandGold-500/40 transition-all cursor-pointer group shadow-2xs btn-press"
+            title="Return to Aravanta Cloud OS Landing Page"
+          >
+            <div className="flex items-center gap-2">
+              <Home className="w-4 h-4 text-brandGold-500 group-hover:scale-110 transition-transform shrink-0" />
+              <span className="font-bold">Landing Page</span>
+            </div>
+            <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-brandGold-500 group-hover:translate-x-0.5 transition-all shrink-0" />
+          </button>
         </div>
 
         {/* Categorized Navigation Menu */}

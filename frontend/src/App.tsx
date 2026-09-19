@@ -46,6 +46,7 @@ import { SitemapPage } from './pages/SitemapPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import type { LandingView } from './components/ui/Navbar';
 import { CookieConsent } from './components/ui/CookieConsent';
+import { FloatingSalesChat } from './components/landing/FloatingSalesChat';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { apiFetch } from './config/api';
 import { canAccessTab } from './utils/rbac';
@@ -134,6 +135,41 @@ export default function App() {
     }
   });
 
+  const [isConsoleMode, setIsConsoleMode] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('aravanta_is_console_mode');
+      if (saved !== null) return saved === 'true';
+      return Boolean(localStorage.getItem('aravanta_token'));
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('aravanta_is_console_mode', String(isConsoleMode));
+    } catch {}
+  }, [isConsoleMode]);
+
+  useEffect(() => {
+    const handleGoConsole = () => setIsConsoleMode(true);
+    const handleGoLanding = () => {
+      setIsConsoleMode(false);
+      setLandingView('home');
+      setAuthViewState('landing');
+      try {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch {}
+    };
+
+    window.addEventListener('acos:go-to-console', handleGoConsole);
+    window.addEventListener('acos:go-to-landing', handleGoLanding);
+    return () => {
+      window.removeEventListener('acos:go-to-console', handleGoConsole);
+      window.removeEventListener('acos:go-to-landing', handleGoLanding);
+    };
+  }, []);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -179,25 +215,30 @@ export default function App() {
     ];
 
     if (validLandingViews.includes(target as LandingView)) {
+      setIsConsoleMode(false);
       setLandingView(target as LandingView);
       setAuthViewState('landing');
       try {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } catch {}
     } else if (target === 'login') {
+      setIsConsoleMode(false);
       setAuthViewState('login');
       try {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } catch {}
     } else if (target === 'register') {
+      setIsConsoleMode(false);
       setAuthViewState('register');
       try {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } catch {}
     } else {
       if (token) {
+        setIsConsoleMode(true);
         setActiveTab(target);
       } else {
+        setIsConsoleMode(false);
         // Redirect to login if user clicks a private console tab without auth
         setAuthViewState('login');
       }
@@ -303,10 +344,12 @@ export default function App() {
       localStorage.setItem('aravanta_token', newToken);
       localStorage.setItem('aravanta_user', JSON.stringify(userData));
       localStorage.setItem('aravanta_active_tab', 'dashboard');
+      localStorage.setItem('aravanta_is_console_mode', 'true');
     } catch {}
     setToken(newToken);
     setUser(userData);
     setActiveTab('dashboard');
+    setIsConsoleMode(true);
     setAuthViewState('landing');
   };
 
@@ -327,10 +370,12 @@ export default function App() {
     }
     setToken(null);
     setUser(null);
+    setIsConsoleMode(false);
     try {
       localStorage.removeItem('aravanta_token');
       localStorage.removeItem('aravanta_user');
       localStorage.removeItem('aravanta_active_tab');
+      localStorage.setItem('aravanta_is_console_mode', 'false');
     } catch {}
     if (typeof reason === 'string' && reason.trim().length > 0) {
       setSessionInvalidatedReason(reason.trim());
@@ -341,7 +386,9 @@ export default function App() {
     }
   };
 
-  if (!token) {
+  const shouldShowConsole = Boolean(token && isConsoleMode);
+
+  if (!shouldShowConsole) {
     if (inviteToken || authViewState === 'login' || authViewState === 'register') {
       return (
         <ErrorBoundary>
@@ -374,6 +421,7 @@ export default function App() {
       currentView: landingView,
       onGoToLogin: handleGoToLogin,
       onGoToRegister: handleGoToRegister,
+      onGoToConsole: () => setIsConsoleMode(true),
       onOpenCommandPalette: () => setIsCommandPaletteOpen(true),
     };
 
@@ -438,6 +486,7 @@ export default function App() {
     return (
       <ErrorBoundary>
         <PageComponent {...sharedLandingProps} />
+        <FloatingSalesChat onOpenConsole={token ? () => setIsConsoleMode(true) : handleGoToLogin} />
         <CommandPalette
           isOpen={isCommandPaletteOpen}
           onClose={() => setIsCommandPaletteOpen(false)}
@@ -486,6 +535,15 @@ export default function App() {
     return `Environment: Production • Control Plane: Active • User: ${userName}`;
   };
 
+  const handleGoToLanding = () => {
+    setIsConsoleMode(false);
+    setLandingView('home');
+    setAuthViewState('landing');
+    try {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch {}
+  };
+
   return (
     <div className="h-[100dvh] w-full max-w-[100vw] overflow-hidden bg-slate-100 dark:bg-[#0A1628] text-slate-900 dark:text-slate-100 flex font-sans transition-colors duration-300">
       {/* Fixed Sidebar */}
@@ -496,6 +554,7 @@ export default function App() {
         onLogout={() => handleLogout()}
         isOpen={isMobileMenuOpen}
         onClose={() => setIsMobileMenuOpen(false)}
+        onGoToLanding={handleGoToLanding}
       />
 
       {/* Main Content Area */}

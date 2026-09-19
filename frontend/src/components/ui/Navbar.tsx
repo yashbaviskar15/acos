@@ -14,11 +14,18 @@ import {
   GitBranch,
   Activity,
   ArrowRight,
+  User as UserIcon,
+  LayoutDashboard,
+  Settings,
+  LogOut,
+  Shield,
+  ChevronDown,
 } from 'lucide-react';
 import { Logo } from '../Logo';
 import { Button } from './Button';
 import { Dropdown, DropdownTrigger, DropdownMenu } from './Dropdown';
 import { Badge } from './Badge';
+import { apiFetch } from '../../config/api';
 
 export type LandingView =
   | 'home'
@@ -46,7 +53,11 @@ export interface NavbarProps {
   onGoToRegister: () => void;
   onOpenCommandPalette?: () => void;
   onNavigate?: (view: LandingView) => void;
+  onGoToConsole?: () => void;
   currentView?: LandingView;
+  user?: any;
+  token?: string | null;
+  onLogout?: () => void;
 }
 
 const platformModules = [
@@ -87,11 +98,78 @@ export const Navbar: React.FC<NavbarProps> = ({
   onGoToRegister,
   onOpenCommandPalette,
   onNavigate,
+  onGoToConsole,
   currentView = 'home',
 }) => {
   const { t } = useTranslation();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(() => {
+    try {
+      const saved = localStorage.getItem('aravanta_user');
+      if (saved && saved !== 'undefined' && saved !== 'null') {
+        return JSON.parse(saved);
+      }
+    } catch {}
+    return null;
+  });
+  const [isCheckingSession, setIsCheckingSession] = useState<boolean>(() => {
+    return !!localStorage.getItem('aravanta_token');
+  });
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('aravanta_token');
+    if (!token) {
+      setCurrentUser(null);
+      setIsCheckingSession(false);
+      return;
+    }
+
+    let isMounted = true;
+    apiFetch<any>('/api/v1/auth/me', { token })
+      .then((data) => {
+        if (!isMounted) return;
+        if (data && (data.email || data.id)) {
+          setCurrentUser(data);
+          localStorage.setItem('aravanta_user', JSON.stringify(data));
+        } else {
+          setCurrentUser(null);
+          localStorage.removeItem('aravanta_token');
+          localStorage.removeItem('aravanta_user');
+        }
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        const currentToken = localStorage.getItem('aravanta_token');
+        if (!currentToken) setCurrentUser(null);
+      })
+      .finally(() => {
+        if (isMounted) setIsCheckingSession(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleLogout = () => {
+    setUserMenuOpen(false);
+    localStorage.removeItem('aravanta_token');
+    localStorage.removeItem('aravanta_user');
+    setCurrentUser(null);
+    window.location.href = '/';
+  };
+
+  const getInitials = (name?: string, email?: string) => {
+    if (name && name.trim()) {
+      const parts = name.trim().split(/\s+/);
+      if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+      return name.substring(0, 2).toUpperCase();
+    }
+    if (email) return email.substring(0, 2).toUpperCase();
+    return 'AC';
+  };
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 8);
@@ -257,24 +335,137 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <Search className="w-4.5 h-4.5 text-brandGold-600 dark:text-brandGold-400" />
               </button>
 
+              {/* Desktop Auth State */}
               <div className="hidden sm:flex items-center gap-2">
-                <Button variant="ghost" size="md" onClick={onGoToLogin} className="hover:text-brandGold-600 dark:hover:text-brandGold-400">
-                  {t('nav.login')}
-                </Button>
-                <Button
-                  variant="primary"
-                  size="md"
-                  onClick={onGoToRegister}
-                  className="bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold shadow-md shadow-brandGold-500/20"
-                  rightIcon={<ArrowRight className="w-4 h-4" />}
+                {isCheckingSession ? (
+                  <div className="flex items-center gap-2 h-10 px-3 rounded-xl border border-slate-200 dark:border-brandObsidian-800 bg-slate-50 dark:bg-brandObsidian-900/60 animate-pulse">
+                    <div className="w-7 h-7 rounded-full bg-slate-300 dark:bg-brandObsidian-700" />
+                    <div className="w-16 h-3.5 rounded bg-slate-300 dark:bg-brandObsidian-700" />
+                  </div>
+                ) : currentUser ? (
+                  <div className="relative">
+                    <button
+                      onClick={() => setUserMenuOpen(!userMenuOpen)}
+                      className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-brandObsidian-700 bg-white/90 dark:bg-brandObsidian-900/90 hover:border-brandGold-500/60 shadow-xs transition-all cursor-pointer btn-press"
+                      aria-expanded={userMenuOpen}
+                      aria-label="User profile menu"
+                    >
+                      {currentUser.avatar_url ? (
+                        <img
+                          src={currentUser.avatar_url}
+                          alt={currentUser.full_name || 'User'}
+                          className="w-7 h-7 rounded-full object-cover border border-brandGold-500/40"
+                        />
+                      ) : (
+                        <div className="w-7 h-7 rounded-full bg-[#0A1628] border border-brandGold-500/50 flex items-center justify-center text-[11px] font-bold text-brandGold-400 font-mono shadow-xs">
+                          {getInitials(currentUser.full_name, currentUser.email)}
+                        </div>
+                      )}
+                      <div className="flex flex-col text-left min-w-0 max-w-[120px]">
+                        <span className="text-xs font-bold text-slate-900 dark:text-white truncate leading-tight">
+                          {currentUser.full_name || currentUser.email?.split('@')[0]}
+                        </span>
+                        <span className="text-[10px] text-brandGold-600 dark:text-brandGold-400 font-mono font-medium truncate">
+                          {currentUser.role || 'Developer'}
+                        </span>
+                      </div>
+                      <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {userMenuOpen && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)} />
+                        <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-slate-200 dark:border-brandObsidian-700 bg-white dark:bg-[#0F2038] shadow-2xl p-2 z-50 animate-dropdownIn font-sans">
+                          <div className="px-3 py-2 border-b border-slate-100 dark:border-brandObsidian-800 mb-1">
+                            <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{currentUser.full_name || 'User'}</p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono truncate">{currentUser.email}</p>
+                            <div className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-brandGold-500/15 text-brandGold-700 dark:text-brandGold-300 border border-brandGold-500/30">
+                              <Shield className="w-3 h-3" /> {currentUser.role || 'Developer'}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setUserMenuOpen(false);
+                              if (onGoToConsole) {
+                                onGoToConsole();
+                              } else {
+                                window.dispatchEvent(new CustomEvent('acos:go-to-console'));
+                              }
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-brandObsidian-800/80 transition-colors text-left cursor-pointer"
+                          >
+                            <LayoutDashboard className="w-4 h-4 text-brandGold-500" />
+                            <span>Console Dashboard</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              setUserMenuOpen(false);
+                              onNavigate?.('contact');
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-brandObsidian-800/80 transition-colors text-left cursor-pointer"
+                          >
+                            <UserIcon className="w-4 h-4 text-blue-500" />
+                            <span>Profile & Account</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              setUserMenuOpen(false);
+                              onNavigate?.('documentation');
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-brandObsidian-800/80 transition-colors text-left cursor-pointer"
+                          >
+                            <Settings className="w-4 h-4 text-slate-400" />
+                            <span>Platform Settings</span>
+                          </button>
+                          <div className="h-px bg-slate-100 dark:bg-brandObsidian-800 my-1" />
+                          <button
+                            onClick={handleLogout}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors text-left cursor-pointer"
+                          >
+                            <LogOut className="w-4 h-4" />
+                            <span>Sign Out</span>
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <Button variant="ghost" size="md" onClick={onGoToLogin} className="hover:text-brandGold-600 dark:hover:text-brandGold-400">
+                      {t('nav.login')}
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="md"
+                      onClick={onGoToRegister}
+                      className="bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold shadow-md shadow-brandGold-500/20"
+                      rightIcon={<ArrowRight className="w-4 h-4" />}
+                    >
+                      {t('nav.register')}
+                    </Button>
+                  </>
+                )}
+              </div>
+
+              {/* Mobile Profile / Hamburger */}
+              <div className="flex sm:hidden items-center gap-1.5">
+                {currentUser && (
+                  <div className="w-8 h-8 rounded-full bg-[#0A1628] border border-brandGold-500/50 flex items-center justify-center text-[10px] font-bold text-brandGold-400 font-mono shadow-xs">
+                    {getInitials(currentUser.full_name, currentUser.email)}
+                  </div>
+                )}
+                <button
+                  onClick={() => setMobileOpen(true)}
+                  className="p-2 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-brandObsidian-800 transition-colors"
+                  aria-label="Open menu"
                 >
-                  {t('nav.register')}
-                </Button>
+                  <Menu className="w-6 h-6" />
+                </button>
               </div>
 
               <button
                 onClick={() => setMobileOpen(true)}
-                className="lg:hidden p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-brandObsidian-800 transition-colors"
+                className="hidden sm:max-lg:flex p-2.5 min-w-[44px] min-h-[44px] items-center justify-center rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-brandObsidian-800 transition-colors"
                 aria-label="Open menu"
               >
                 <Menu className="w-6 h-6" />
@@ -363,23 +554,84 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
 
                   <div className="px-5 py-5 mt-2 border-t border-slate-200 dark:border-brandObsidian-800 space-y-3">
-                    <Button
-                      variant="outline"
-                      size="lg"
-                      onClick={onGoToLogin}
-                      className="w-full min-h-[44px]"
-                    >
-                      {t('nav.login')}
-                    </Button>
-                    <Button
-                      variant="primary"
-                      size="lg"
-                      onClick={onGoToRegister}
-                      className="w-full min-h-[44px] bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold"
-                      rightIcon={<ArrowRight className="w-4 h-4" />}
-                    >
-                      {t('nav.register')}
-                    </Button>
+                    {currentUser ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-800">
+                          {currentUser.avatar_url ? (
+                            <img
+                              src={currentUser.avatar_url}
+                              alt={currentUser.full_name || 'User'}
+                              className="w-10 h-10 rounded-full object-cover border border-brandGold-500/40"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-[#0A1628] border border-brandGold-500/50 flex items-center justify-center text-xs font-bold text-brandGold-400 font-mono">
+                              {getInitials(currentUser.full_name, currentUser.email)}
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                              {currentUser.full_name || currentUser.email?.split('@')[0]}
+                            </p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 font-mono truncate">
+                              {currentUser.email}
+                            </p>
+                            <span className="inline-block mt-1 text-[10px] font-mono font-bold text-brandGold-600 dark:text-brandGold-400">
+                              {currentUser.role || 'Developer'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <Button
+                          variant="primary"
+                          size="lg"
+                          onClick={() => {
+                            setMobileOpen(false);
+                            if (onGoToConsole) {
+                              onGoToConsole();
+                            } else {
+                              window.dispatchEvent(new CustomEvent('acos:go-to-console'));
+                            }
+                          }}
+                          className="w-full min-h-[44px] bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold"
+                          leftIcon={<LayoutDashboard className="w-4 h-4" />}
+                        >
+                          Console Dashboard
+                        </Button>
+
+                        <Button
+                          variant="outline"
+                          size="lg"
+                          onClick={() => {
+                            setMobileOpen(false);
+                            handleLogout();
+                          }}
+                          className="w-full min-h-[44px] text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/40 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                          leftIcon={<LogOut className="w-4 h-4" />}
+                        >
+                          Sign Out
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="lg"
+                          onClick={onGoToLogin}
+                          className="w-full min-h-[44px]"
+                        >
+                          {t('nav.login')}
+                        </Button>
+                        <Button
+                          variant="primary"
+                          size="lg"
+                          onClick={onGoToRegister}
+                          className="w-full min-h-[44px] bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold"
+                          rightIcon={<ArrowRight className="w-4 h-4" />}
+                        >
+                          {t('nav.register')}
+                        </Button>
+                      </>
+                    )}
                     <div className="pt-2 flex items-center gap-2 px-1 text-xs text-slate-500 dark:text-slate-400">
                       <Badge variant="gold" size="sm" dot>
                         Aravanta Cloud OS Production

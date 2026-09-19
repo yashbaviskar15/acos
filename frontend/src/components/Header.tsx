@@ -40,7 +40,7 @@ export const Header: React.FC<HeaderProps> = ({
   onMobileMenuToggle,
   onNavigateToProfile,
   onOpenCommandPalette,
-  onToggleCopilot
+  onToggleCopilot,
 }) => {
   const { t, i18n } = useTranslation();
   const { theme, toggleTheme } = useTheme();

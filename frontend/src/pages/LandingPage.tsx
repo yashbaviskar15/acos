@@ -52,6 +52,7 @@ interface LandingPageProps {
   onGoToRegister: () => void;
   onOpenCommandPalette?: () => void;
   onNavigate?: (view: LandingView) => void;
+  onGoToConsole?: () => void;
 }
 
 const prefersReducedMotion = () =>
@@ -249,6 +250,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onGoToRegister,
   onOpenCommandPalette,
   onNavigate,
+  onGoToConsole,
 }) => {
   const [activeWorkflowStep, setActiveWorkflowStep] = useState(1);
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly');
@@ -282,6 +284,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         onGoToRegister={onGoToRegister}
         onOpenCommandPalette={onOpenCommandPalette}
         onNavigate={onNavigate}
+        onGoToConsole={onGoToConsole}
         currentView="home"
       />
 
