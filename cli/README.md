@@ -12,7 +12,11 @@ Operates directly against the Aravanta Control Plane REST API (`https://arv-back
 
 ### Windows (PowerShell)
 ```powershell
-irm https://aravantacos.vercel.app/install.ps1 | iex
+# Option A (Recommended - PowerShell 5.1 & Core):
+[Net.ServicePointManager]::SecurityProtocol = 3072; irm https://aravantacos.vercel.app/install.ps1 | iex
+
+# Option B (Using Windows built-in curl):
+curl.exe -fsSL https://aravantacos.vercel.app/install.ps1 | Out-String | iex
 ```
 
 ### macOS & Linux (Terminal)
@@ -20,9 +24,9 @@ irm https://aravantacos.vercel.app/install.ps1 | iex
 curl -fsSL https://aravantacos.vercel.app/install.sh | bash
 ```
 
-### Python / Pip
+### Direct Python Script (Zero Install / Any OS)
 ```bash
-pip install "git+https://github.com/yashbaviskar15/acos.git#subdirectory=cli"
+python -c "import urllib.request; urllib.request.urlretrieve('https://aravantacos.vercel.app/aravanta.py', 'aravanta.py')" && python aravanta.py status
 ```
 
 ---

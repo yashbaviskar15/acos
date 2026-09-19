@@ -669,17 +669,17 @@ Identity:
                   </label>
                   <div className="relative">
                     <pre className="p-3 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl overflow-x-auto border border-slate-800">
-                      irm https://aravantacos.vercel.app/install.ps1 | iex
+                      [Net.ServicePointManager]::SecurityProtocol = 3072; irm https://aravantacos.vercel.app/install.ps1 | iex
                     </pre>
                     <button
-                      onClick={() => copyToClipboard('irm https://aravantacos.vercel.app/install.ps1 | iex', 'w-install')}
+                      onClick={() => copyToClipboard('[Net.ServicePointManager]::SecurityProtocol = 3072; irm https://aravantacos.vercel.app/install.ps1 | iex', 'w-install')}
                       className="absolute right-2 top-2 p-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 text-xs"
                     >
                       {copiedId === 'w-install' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Alternatively with pip: <code className="text-brandGold-400 font-mono">pip install "git+https://github.com/yashbaviskar15/acos.git#subdirectory=cli"</code>
+                    Alternatively with native curl: <code className="text-brandGold-400 font-mono">curl.exe -fsSL https://aravantacos.vercel.app/install.ps1 | Out-String | iex</code>
                   </p>
                 </div>
 
