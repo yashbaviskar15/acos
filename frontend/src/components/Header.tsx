@@ -278,7 +278,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       )}
 
-      <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
+      <div className="flex items-center gap-2 min-w-[140px] sm:min-w-[180px] max-w-[280px] xl:max-w-none flex-1 mr-2">
         {/* Mobile Hamburger Drawer Trigger */}
         {onMobileMenuToggle && (
           <button
@@ -299,7 +299,7 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-        {/* Interactive Desktop Search Input (>= lg only, perfectly sized, no squishing) */}
+        {/* Interactive Desktop Search Input */}
         <div className="hidden lg:flex items-center relative shrink-0">
           <Search className="w-3.5 h-3.5 absolute left-2.5 text-slate-400 pointer-events-none" />
           <input
@@ -311,8 +311,8 @@ export const Header: React.FC<HeaderProps> = ({
                 onOpenCommandPalette();
               }
             }}
-            placeholder="Search services, logs... (Ctrl+K)"
-            className="w-52 xl:w-64 pl-8 pr-14 py-1.5 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200/60 dark:hover:bg-slate-800/80 focus:bg-white dark:focus:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-brandGold-500/50 dark:focus:border-brandGold-500/50 rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-brandGold-500/30 transition-all font-sans"
+            placeholder="Search console... (Ctrl+K)"
+            className="w-36 lg:w-44 xl:w-52 focus:w-60 pl-8 pr-14 py-1.5 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200/60 dark:hover:bg-slate-800/80 focus:bg-white dark:focus:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-brandGold-500/50 dark:focus:border-brandGold-500/50 rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-brandGold-500/30 transition-all font-sans"
           />
           <div className="absolute right-1.5 flex items-center gap-1">
             {searchTerm ? (
@@ -354,7 +354,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Desktop System Notification Toggle */}
         <button
           onClick={handleRequestNotification}
-          className={`hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-bold transition-all cursor-pointer shrink-0 ${
+          className={`hidden 2xl:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-bold transition-all cursor-pointer shrink-0 ${
             hasNotificationPermission
               ? 'bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400'
               : 'bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20'
@@ -457,7 +457,7 @@ export const Header: React.FC<HeaderProps> = ({
             return (
               <div 
                 onClick={onNavigateToProfile}
-                className="hidden xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-xs font-mono font-bold cursor-pointer hover:bg-emerald-500/20 transition-colors"
+                className="hidden 2xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-xs font-mono font-bold cursor-pointer hover:bg-emerald-500/20 transition-colors"
                 title="Active Paid Subscription Plan"
               >
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
@@ -475,7 +475,7 @@ export const Header: React.FC<HeaderProps> = ({
           return (
             <div 
               onClick={onNavigateToProfile}
-              className={`hidden xl:flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono font-bold cursor-pointer transition-colors border ${
+              className={`hidden 2xl:flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono font-bold cursor-pointer transition-colors border ${
                 trialDaysLeft > 0
                   ? 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20'
                   : 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-400 hover:bg-rose-500/20'

@@ -98,18 +98,11 @@ def init_db():
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    """Run DB schema setup only in local development or when explicitly requested via AUTO_INIT_DB.
-    On serverless (Vercel / AWS Lambda), the database tables already persist permanently in PostgreSQL,
-    so skipping synchronous init_db() keeps cold starts sub-second and prevents execution timeouts."""
-    is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
-    should_init = (not is_serverless) or (os.environ.get("AUTO_INIT_DB", "").lower() in ("true", "1"))
-    if should_init:
-        try:
-            init_db()
-        except Exception as exc:
-            logger.exception("startup: init_db failed: %s", exc)
-    else:
-        logger.info("Serverless runtime detected (VERCEL/Lambda). Skipping synchronous init_db() to ensure instant cold start.")
+    """Run DB schema setup. create_all(checkfirst=True) is idempotent and creates newly added tables."""
+    try:
+        init_db()
+    except Exception as exc:
+        logger.warning("Startup database initialization: %s", exc)
     yield
 
 

@@ -31,8 +31,19 @@ def _slugify(text: str) -> str:
     return re.sub(r"[-\s]+", "-", s)[:50]
 
 
+_tables_checked = False
+
 def ensure_default_tenant(db: Session, user: User) -> tuple[Organization, Project]:
     """Ensures that a user always has at least one default organization and project."""
+    global _tables_checked
+    if not _tables_checked:
+        try:
+            from app.core.database import Base, engine
+            Base.metadata.create_all(bind=engine, checkfirst=True)
+            _tables_checked = True
+        except Exception:
+            pass
+
     # Check if user has an existing membership or owned org
     membership = db.query(Membership).filter(Membership.user_id == user.id).first()
     if membership:
