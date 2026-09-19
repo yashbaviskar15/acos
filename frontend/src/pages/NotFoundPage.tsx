@@ -1,14 +1,10 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import {
-  Terminal,
-  ArrowLeft,
   Home,
   Compass,
-  FileCode,
   Search,
   LifeBuoy,
-  RefreshCw,
   AlertTriangle
 } from 'lucide-react';
 import { Navbar, LandingView } from '../components/ui/Navbar';

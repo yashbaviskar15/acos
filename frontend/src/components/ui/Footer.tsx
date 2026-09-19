@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Twitter, Linkedin, Github, Mail, ChevronDown, Users, Shield, Globe, MessageSquare, Server, ExternalLink, CheckCircle2, Activity, Radio } from 'lucide-react';
+import { Twitter, Linkedin, Github, Mail, ChevronDown, Users, Shield, Globe, MessageSquare, Server, ExternalLink, Radio } from 'lucide-react';
 import { Logo } from '../Logo';
 import { LandingView } from './Navbar';
 import { SUPPORTED_LANGS, LangCode } from '../../i18n';
