@@ -76,7 +76,11 @@ export const Databases: React.FC<DatabaseProps> = ({ token }) => {
         body: JSON.stringify({ name, engine, tier, region, storage_gb: Number(storageGb), multi_az: multiAz })
       });
       setShowCreateModal(false);
-      deductClientServiceCharge(3.00, `Database (${name})`);
+      deductClientServiceCharge(3.00, 'ArvDatabase', {
+        resourceId: name,
+        resourceType: 'database',
+        description: `ArvDatabase — PostgreSQL instance (${name}) provisioned @ ₹3.00/hr`
+      });
       setName('');
       fetchDatabases();
     } catch (err) {

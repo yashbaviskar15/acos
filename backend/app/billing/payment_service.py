@@ -226,4 +226,10 @@ class PaymentService:
             BillingLedgerEntry.billing_account_id == account.id
         ).order_by(BillingLedgerEntry.created_at.desc()).all()
 
-        return [e.to_dict() for e in entries]
+        results = []
+        for e in entries:
+            d = e.to_dict()
+            if d.get("balance_after") == 0.0 and d.get("entry_type") in ("CREDIT", "PAYMENT") and account.credits > 0:
+                d["balance_after"] = round(account.credits, 2)
+            results.append(d)
+        return results

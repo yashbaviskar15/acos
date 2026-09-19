@@ -71,7 +71,11 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
         })
       });
       setShowDeployWizard(false);
-      deductClientServiceCharge(1.50, `Compute VM (${config.name})`);
+      deductClientServiceCharge(1.50, 'ArvCompute', {
+        resourceId: config.name,
+        resourceType: 'compute',
+        description: `ArvCompute — Virtual Machine (${config.name}) launched @ ₹1.50/hr`
+      });
       fetchInstances();
     } catch (err) {
       console.error(err);

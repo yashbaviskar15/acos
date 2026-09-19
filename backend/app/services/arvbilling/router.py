@@ -59,6 +59,13 @@ class AddFundsRequest(BaseModel):
     payment_method: str = "SANDBOX_WALLET"
     description: str = ""
 
+class DebitFundsRequest(BaseModel):
+    amount: float = Field(..., gt=0, description="Amount in INR to debit")
+    service_name: str = Field(..., description="Service being charged (e.g. ArvCompute, ArvDatabase)")
+    resource_id: Optional[str] = None
+    resource_type: Optional[str] = "compute"
+    description: Optional[str] = None
+
 
 def _resolve_tenant_org(db: Session, user: Optional[User] = None, org_header: Optional[str] = None) -> str:
     if org_header and org_header.strip():
@@ -215,15 +222,62 @@ def add_funds(
     account.status = "ACTIVE"
     account.updated_at = now
 
+    inv_id = f"INV-TOPUP-{now.strftime('%Y%m%d')}-{uuid4().hex[:4].upper()}"
+    topup_invoice = Invoice(
+        id=inv_id,
+        organization_id=org_id,
+        billing_account_id=account.id,
+        period_start=now,
+        period_end=now,
+        subtotal=amt,
+        tax_cgst=0.0,
+        tax_sgst=0.0,
+        credits_applied=0.0,
+        total=amt,
+        currency=account.currency,
+        status="PAID",
+        payment_method=body.payment_method or "SANDBOX_WALLET",
+        paid_at=now,
+        created_at=now
+    )
+    db.add(topup_invoice)
+
+    line_item = InvoiceLineItem(
+        invoice_id=inv_id,
+        resource_id=None,
+        meter_name="wallet.topup",
+        description=f"Prepaid Wallet Balance Recharge via {body.payment_method or 'SANDBOX_WALLET'}",
+        quantity=1.0,
+        unit="recharge",
+        unit_price=amt,
+        amount=amt
+    )
+    db.add(line_item)
+
+    legacy_inv = InvoiceRecord(
+        id=inv_id,
+        user_id=current_user.id if current_user else "usr-admin",
+        workspace_id=org_id,
+        period=f"Prepaid Wallet Top-Up ({now.strftime('%B %Y')})",
+        amount_inr=amt,
+        amount_usd=round(amt / 83.0, 2),
+        status="PAID",
+        payment_method=body.payment_method or "SANDBOX_WALLET",
+        date=now.strftime("%Y-%m-%d"),
+        download_url=f"/api/v1/billing/invoices/{inv_id}/pdf",
+        created_at=now
+    )
+    db.add(legacy_inv)
+
     desc = body.description or f"Funds top-up via {body.payment_method} (₹{amt:.2f})"
     ledger_entry = BillingLedgerEntry(
         id=f"led-{uuid4().hex[:12]}",
         billing_account_id=account.id,
-        invoice_id=None,
+        invoice_id=inv_id,
         entry_type="CREDIT",
         amount=amt,
         currency=account.currency,
-        balance_after=round(account.balance, 2),
+        balance_after=round(account.credits, 2),
         description=desc,
         created_at=now
     )
@@ -236,8 +290,70 @@ def add_funds(
         "currency": account.currency,
         "new_balance": round(account.balance, 2),
         "credits_available": round(account.credits, 2),
+        "invoice_id": inv_id,
+        "invoice": topup_invoice.to_dict(),
         "ledger_entry_id": ledger_entry.id,
-        "message": f"₹{amt:,.2f} added to billing account {account.id}"
+        "message": f"₹{amt:,.2f} added to billing account {account.id}. Invoice {inv_id} generated."
+    }
+
+
+@router.post("/debit", summary="Directly debit billing account credits for service usage")
+def debit_service_funds(
+    body: DebitFundsRequest,
+    organization_id: Optional[str] = Header(None, alias="x-organization-id"),
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """
+    Directly debits a service charge from tenant's prepaid credits / balance.
+    Appends an immutable DEBIT entry into the financial audit ledger with detailed service information.
+    """
+    org_id = _resolve_tenant_org(db, current_user, organization_id)
+    account = InvoiceService.get_or_create_billing_account(db, org_id)
+
+    amt = round(body.amount, 2)
+    if amt <= 0:
+        raise HTTPException(status_code=400, detail="Debit amount must be greater than 0")
+
+    now = datetime.utcnow()
+
+    # Deduct from credits first, remainder to balance (dues)
+    if account.credits >= amt:
+        account.credits = round(account.credits - amt, 2)
+    else:
+        remaining = round(amt - account.credits, 2)
+        account.credits = 0.0
+        account.balance = round(account.balance + remaining, 2)
+    account.status = "ACTIVE"
+    account.updated_at = now
+
+    res_info = f" ({body.resource_id[:12]})" if body.resource_id else ""
+    desc = body.description or f"{body.service_name}{res_info} — Usage Debit (-₹{amt:.2f})"
+
+    ledger_entry = BillingLedgerEntry(
+        id=f"led-deb-{uuid4().hex[:10]}",
+        billing_account_id=account.id,
+        invoice_id=None,
+        entry_type="DEBIT",
+        amount=amt,
+        currency=account.currency,
+        balance_after=round(account.credits, 2),
+        description=desc,
+        created_at=now
+    )
+    db.add(ledger_entry)
+    db.commit()
+
+    return {
+        "status": "SUCCESS",
+        "amount_debited": amt,
+        "currency": account.currency,
+        "credits_remaining": round(account.credits, 2),
+        "balance_due": round(account.balance, 2),
+        "balance_after": round(account.credits, 2),
+        "ledger_entry_id": ledger_entry.id,
+        "description": desc,
+        "message": f"Debited ₹{amt:.2f} for {body.service_name}. Available balance: ₹{account.credits:.2f}"
     }
 
 
@@ -525,6 +641,9 @@ def download_billing_invoice_pdf(
     customer_email: Optional[str] = Query(None),
     customer_account: Optional[str] = Query(None),
     workspace_name: Optional[str] = Query(None),
+    amount: Optional[float] = Query(None),
+    period: Optional[str] = Query(None),
+    payment_method: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
     from app.services.arvoperations.router import download_invoice_pdf
@@ -536,6 +655,9 @@ def download_billing_invoice_pdf(
         customer_email=customer_email,
         customer_account=customer_account,
         workspace_name=workspace_name,
+        amount=amount,
+        period=period,
+        payment_method=payment_method,
         db=db,
         current_user=None
     )

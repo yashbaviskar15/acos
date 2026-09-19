@@ -132,7 +132,11 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
         body: JSON.stringify({ name, region, storage_class: storageClass, access, versioning })
       });
       setShowCreateModal(false);
-      deductClientServiceCharge(1.00, `Storage Bucket (${name})`);
+      deductClientServiceCharge(1.00, 'ArvStorage', {
+        resourceId: name,
+        resourceType: 'storage',
+        description: `ArvStorage — S3 Bucket (${name}) provisioned @ ₹1.00/GB-mo`
+      });
       setName('');
       fetchBuckets();
     } catch (err) {

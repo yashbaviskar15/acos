@@ -126,7 +126,11 @@ Metrics-server is running and healthy.`);
         body: JSON.stringify({ name, version, region, node_count: Number(nodeCount), node_size: nodeSize })
       });
       setShowCreateModal(false);
-      deductClientServiceCharge(4.00, `Kubernetes Cluster (${name})`);
+      deductClientServiceCharge(4.00, 'ArvKube', {
+        resourceId: name,
+        resourceType: 'kubernetes',
+        description: `ArvKube — Kubernetes Cluster (${name}) provisioned @ ₹4.00/hr`
+      });
       setName('');
       fetchClusters();
     } catch (err) {

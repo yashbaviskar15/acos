@@ -377,3 +377,86 @@ def test_05_service_provisioning_debit_add_funds_and_pdf_sanitization():
     finally:
         db.close()
 
+
+def test_06_debit_endpoint_and_itemized_service_ledger():
+    env = _setup_tenant_env()
+    headers = env["headers"]
+
+    # 1. Top up funds
+    r_topup = client.post(
+        "/api/v1/billing/add-funds",
+        json={"amount": 1000.0, "payment_method": "SANDBOX_WALLET"},
+        headers=headers
+    )
+    assert r_topup.status_code == 200
+    topup_data = r_topup.json()
+    assert topup_data["status"] == "SUCCESS"
+    assert topup_data["credits_available"] >= 1000.0
+    assert "INV-TOPUP" in topup_data["invoice_id"]
+    assert topup_data["invoice"]["status"] == "PAID"
+
+    # 2. Debit for ArvCompute VM
+    r_deb1 = client.post(
+        "/api/v1/billing/debit",
+        json={
+            "amount": 3.75,
+            "service_name": "ArvCompute",
+            "resource_id": "vm-prod-api-01",
+            "resource_type": "compute",
+            "description": "ArvCompute: prod-api-cluster-vm (2.5 hrs @ ₹1.50/hr)"
+        },
+        headers=headers
+    )
+    assert r_deb1.status_code == 200
+    d1 = r_deb1.json()
+    assert d1["status"] == "SUCCESS"
+    assert d1["amount_debited"] == 3.75
+    assert d1["credits_remaining"] >= 996.0
+
+    # 3. Debit for ArvDatabase PostgreSQL
+    r_deb2 = client.post(
+        "/api/v1/billing/debit",
+        json={
+            "amount": 6.00,
+            "service_name": "ArvDatabase",
+            "resource_id": "db-prod-postgres",
+            "resource_type": "database",
+            "description": "ArvDatabase: primary-postgresql-db (2.0 hrs @ ₹3.00/hr)"
+        },
+        headers=headers
+    )
+    assert r_deb2.status_code == 200
+    d2 = r_deb2.json()
+    assert d2["status"] == "SUCCESS"
+    assert d2["amount_debited"] == 6.00
+
+    # 4. Check ledger contains both CREDIT and DEBIT entries with itemized descriptions
+    r_ledger = client.get("/api/v1/billing/ledger", headers=headers)
+    assert r_ledger.status_code == 200
+    ledger_entries = r_ledger.json()
+    assert len(ledger_entries) >= 3
+
+    debit_entries = [e for e in ledger_entries if e["entry_type"] == "DEBIT"]
+    assert len(debit_entries) >= 2
+    assert any("ArvCompute" in e["description"] for e in debit_entries)
+    assert any("ArvDatabase" in e["description"] for e in debit_entries)
+
+    # 5. Check invoice list includes the top-up invoice
+    r_invs = client.get("/api/v1/billing/invoices", headers=headers)
+    assert r_invs.status_code == 200
+    invs = r_invs.json()
+    topup_inv = next((i for i in invs if "INV-TOPUP" in i["id"]), None)
+    assert topup_inv is not None
+    assert topup_inv["status"] == "PAID"
+    assert topup_inv["total"] == 1000.0
+
+    # 6. Check invoice PDF/print view for user's invoice ID works without 404
+    r_user_inv = client.get(
+        "/api/v1/billing/invoices/INV-TOPUP-20260919-Q6MX/pdf?customer_name=Yash%20Baviskar&customer_email=yashbaviskar67%40gmail.com&amount=100.0",
+        headers=headers
+    )
+    assert r_user_inv.status_code == 200
+    assert "INV-TOPUP-20260919-Q6MX" in r_user_inv.text
+    assert "Yash Baviskar" in r_user_inv.text
+    assert "TAX INVOICE" in r_user_inv.text
+
