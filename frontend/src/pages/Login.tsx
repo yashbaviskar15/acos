@@ -107,7 +107,6 @@ export const Login: React.FC<LoginProps> = ({
   const [error, setError] = useState('');
   const [errorDismissed, setErrorDismissed] = useState(false);
   const [success, setSuccess] = useState('');
-  const [devResetCode, setDevResetCode] = useState<string | null>(null);
 
   // Rate-limiting / lockout state
   const [lockoutRemaining, setLockoutRemaining] = useState(0);
@@ -495,7 +494,6 @@ export const Login: React.FC<LoginProps> = ({
     setError('');
     setErrorDismissed(false);
     setSuccess('');
-    setDevResetCode(null);
     setLoading(true);
 
     try {
@@ -504,15 +502,7 @@ export const Login: React.FC<LoginProps> = ({
         body: JSON.stringify({ email: resetEmail.trim() }),
       });
 
-      if (res.verification_code) {
-        setResetCode(res.verification_code);
-        setDevResetCode(res.verification_code);
-        setSuccess('Verification code generated. Code has been prefilled below for immediate verification.');
-      } else if (res.email_sent) {
-        setSuccess('A 6-digit verification code has been dispatched to your email address. Please check your inbox and spam folder.');
-      } else {
-        setSuccess(res.message || 'A verification code has been dispatched.');
-      }
+      setSuccess(res.message || 'If an account exists for this email, a verification code has been dispatched.');
       setResetStep('confirm');
     } catch (err: any) {
       setError(err.message || 'Failed to request password reset code.');
@@ -564,7 +554,6 @@ export const Login: React.FC<LoginProps> = ({
         setActiveTab('signin');
         setEmail(targetEmail);
         setResetCode('');
-        setDevResetCode(null);
         setNewPassword('');
         setConfirmNewPassword('');
         setResetStep('request');
@@ -1562,14 +1551,6 @@ export const Login: React.FC<LoginProps> = ({
                       Resetting password for: <strong className="text-[#C6923B] dark:text-[#E5B04E]">{resetEmail || email}</strong>
                     </div>
 
-                    {/* Dev Code Banner if SMTP wasn't configured on server */}
-                    {devResetCode && (
-                      <div className="p-2 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 rounded-xl text-[11px] text-amber-800 dark:text-amber-200 flex items-center justify-between">
-                        <span>Verification Code: <strong className="font-mono text-xs">{devResetCode}</strong></span>
-                        <span className="text-[10px] text-amber-600 dark:text-amber-400">Prefilled for test</span>
-                      </div>
-                    )}
-
                     {/* Verification code input */}
                     <div>
                       <label htmlFor="reset-code" className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
@@ -1687,7 +1668,6 @@ export const Login: React.FC<LoginProps> = ({
                       onClick={() => {
                         setResetStep('request');
                         setResetCode('');
-                        setDevResetCode(null);
                         setError('');
                       }}
                       className="h-10 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl transition-colors cursor-pointer text-xs"

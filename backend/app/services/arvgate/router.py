@@ -868,27 +868,17 @@ def request_password_reset(req: PasswordResetRequest, request: Request, db: Sess
     email_clean = req.email.strip().lower()
     user = db.query(User).filter(func.lower(User.email) == email_clean).first()
 
-    token = f"{secrets.randbelow(900000) + 100000}"
-    expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=15)
-    _reset_tokens[email_clean] = {"token": token, "expires_at": expires_at}
-
-    email_sent = False
     if user:
+        token = f"{secrets.randbelow(900000) + 100000}"
+        expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=15)
+        _reset_tokens[email_clean] = {"token": token, "expires_at": expires_at}
         log_audit(db, user.email, "PASSWORD_RESET_REQUEST", "ArvGate", request, "Password reset code generated", workspace_id=user.workspace_id)
-        email_sent = send_password_reset_email(user.email, token)
-    else:
-        email_sent = send_password_reset_email(email_clean, token)
+        send_password_reset_email(user.email, token)
 
-    response = {
-        "message": f"If an account is associated with {req.email}, a verification code has been dispatched.",
-        "expires_in_minutes": 15,
-        "email_sent": email_sent
+    return {
+        "message": f"If an account exists for {req.email}, a verification code has been sent.",
+        "expires_in_minutes": 15
     }
-    if not email_sent:
-        response["verification_code"] = token
-        response["dev_notice"] = "SMTP server not configured on backend. Verification code provided directly."
-
-    return response
 
 @router.post(
     "/password-reset/confirm",
@@ -897,6 +887,12 @@ def request_password_reset(req: PasswordResetRequest, request: Request, db: Sess
 def confirm_password_reset(req: PasswordResetConfirm, request: Request, db: Session = Depends(get_db)):
     email_clean = req.email.strip().lower()
     user = db.query(User).filter(func.lower(User.email) == email_clean).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid verification code or email. Please request a new password reset."
+        )
 
     record = _reset_tokens.get(email_clean)
     if not record:
@@ -924,23 +920,7 @@ def confirm_password_reset(req: PasswordResetConfirm, request: Request, db: Sess
     if len(req.new_password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters long")
 
-    if not user:
-        account_id = f"ARV-ACC-{random.randint(100000, 999999)}"
-        user = User(
-            id=str(uuid.uuid4()),
-            account_id=account_id,
-            workspace_id=f"ws-{account_id.lower()}",
-            workspace_name=f"{email_clean.split('@')[0].capitalize()}'s Workspace",
-            email=email_clean,
-            full_name=email_clean.split('@')[0].capitalize(),
-            hashed_password=get_password_hash(req.new_password),
-            role="Admin",
-            is_active=True
-        )
-        db.add(user)
-    else:
-        user.hashed_password = get_password_hash(req.new_password)
-
+    user.hashed_password = get_password_hash(req.new_password)
     db.commit()
     if email_clean in _reset_tokens:
         del _reset_tokens[email_clean]
