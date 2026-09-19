@@ -5,6 +5,7 @@ import {
 import { CreateComputeWizardModal, ComputeConfig } from '../components/CreateComputeWizardModal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { apiFetch } from '../config/api';
+import { deductClientServiceCharge } from '../utils/billingDebit';
 
 interface ComputeProps {
   token: string | null;
@@ -70,6 +71,7 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
         })
       });
       setShowDeployWizard(false);
+      deductClientServiceCharge(1.50, `Compute VM (${config.name})`);
       fetchInstances();
     } catch (err) {
       console.error(err);

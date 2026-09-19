@@ -114,6 +114,18 @@ def create_cluster(
 
     db.commit()
     db.refresh(new_cluster)
+
+    try:
+        from app.billing.metering_service import MeteringService
+        MeteringService.start_resource_meter(
+            db=db,
+            resource_id=new_cluster.id,
+            resource_type="kubernetes",
+            organization_id=current_user.workspace_id or "default"
+        )
+    except Exception:
+        pass
+
     return new_cluster.to_dict()
 
 @router.delete("/clusters/{cluster_id}")
@@ -131,6 +143,14 @@ def delete_cluster(
 
     c_name = cluster.name
     db.delete(cluster)
+    db.commit()
+
+    try:
+        from app.billing.metering_service import MeteringService
+        MeteringService.stop_resource_meter(db=db, resource_id=cluster_id, debit_from_account=True)
+    except Exception:
+        pass
+
     emit_notification(
         db=db,
         user_id=current_user.id,

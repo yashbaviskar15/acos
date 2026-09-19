@@ -21,6 +21,7 @@ import app.services.arvcostiq.models
 import app.services.arvguard.models
 import app.services.arvpulse.models
 import app.services.arvsandbox.models
+import app.billing.models
 
 test_engine = create_engine(
     "sqlite:///:memory:",

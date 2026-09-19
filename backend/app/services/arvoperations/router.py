@@ -463,6 +463,17 @@ def trigger_deployment(
     db.commit()
     db.refresh(new_dep)
 
+    try:
+        from app.billing.metering_service import MeteringService
+        MeteringService.start_resource_meter(
+            db=db,
+            resource_id=new_dep.id,
+            resource_type="container",
+            organization_id=ws_id
+        )
+    except Exception:
+        pass
+
     emit_notification(
         db,
         title="Deployment Initiated",
@@ -2359,11 +2370,47 @@ def download_invoice_pdf(
     ).first()
     
     if not inv:
+        from app.billing.models import Invoice as BillingInvoice
+        billing_inv = db.query(BillingInvoice).filter(
+            or_(
+                BillingInvoice.id == invoice_id,
+                func.lower(BillingInvoice.id) == invoice_id.lower()
+            )
+        ).first()
+        if billing_inv:
+            class AdaptedInvoice:
+                def __init__(self, b_inv):
+                    self.id = b_inv.id
+                    self.user_id = None
+                    self.workspace_id = b_inv.organization_id
+                    self.period = f"{b_inv.created_at.strftime('%B %Y')} Metered Cloud Infrastructure"
+                    self.amount_inr = b_inv.total
+                    self.amount_usd = round(b_inv.total / 83.0, 2)
+                    self.status = b_inv.status
+                    self.payment_method = b_inv.payment_method or "Sandbox AutoPay"
+                    self.date = b_inv.created_at.strftime("%Y-%m-%d")
+                    self.created_at = b_inv.created_at
+            inv = AdaptedInvoice(billing_inv)
+
+    if not inv:
         raise HTTPException(status_code=404, detail="Invoice record not found")
-        
+
+    def _clean_str(val):
+        if val is None or not isinstance(val, str):
+            return None
+        s = val.strip()
+        if not s or s.startswith("annotation=") or "json_schema_extra" in s or "default=" in s or "alias=" in s:
+            return None
+        return s
+
+    clean_name = _clean_str(customer_name)
+    clean_email = _clean_str(customer_email)
+    clean_account = _clean_str(customer_account)
+    clean_workspace = _clean_str(workspace_name)
+
     # Resolve actual customer from DB record or session
     inv_user = None
-    if inv.user_id:
+    if getattr(inv, "user_id", None):
         inv_user = db.query(User).filter(User.id == inv.user_id).first()
 
     # Fallback to the primary active administrator/developer if unauthenticated tab view
@@ -2373,11 +2420,11 @@ def download_invoice_pdf(
         ).first() or db.query(User).first()
 
     actual_user = current_user or inv_user
-    user_email = customer_email or (actual_user.email if actual_user else "yashbaviskar83@gmail.com")
-    user_name = customer_name or (actual_user.full_name if actual_user else "Yash Baviskar")
-    account_id = customer_account or (getattr(actual_user, "account_id", "") if actual_user else "ARV-ACC-100001")
-    resolved_workspace = workspace_name or (getattr(actual_user, "workspace_name", "") if actual_user else "speedyswap")
-    ws_id = inv.workspace_id or resolved_workspace or (actual_user.workspace_id if actual_user else "speedyswap")
+    user_email = clean_email or (actual_user.email if actual_user else "yashbaviskar83@gmail.com")
+    user_name = clean_name or (actual_user.full_name if actual_user else "Yash Baviskar")
+    account_id = clean_account or (getattr(actual_user, "account_id", "") if actual_user else "ARV-ACC-100001")
+    resolved_workspace = clean_workspace or (getattr(actual_user, "workspace_name", "") if actual_user else "speedyswap")
+    ws_id = getattr(inv, "workspace_id", None) or resolved_workspace or (actual_user.workspace_id if actual_user else "speedyswap")
     
     if download or format.lower() == "pdf":
         try:

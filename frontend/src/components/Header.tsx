@@ -114,6 +114,21 @@ export const Header: React.FC<HeaderProps> = ({
     }
   }, []);
 
+  // Sync user credits reactively when services debit accounts or funds are added
+  useEffect(() => {
+    const handleCreditsUpdated = () => {
+      try {
+        const raw = localStorage.getItem('aravanta_user');
+        if (raw) {
+          const u = JSON.parse(raw);
+          onUpdateUser?.(u);
+        }
+      } catch {}
+    };
+    window.addEventListener('aravanta_credits_updated', handleCreditsUpdated);
+    return () => window.removeEventListener('aravanta_credits_updated', handleCreditsUpdated);
+  }, [onUpdateUser]);
+
   // Fetch real notifications from API
   useEffect(() => {
     const fetchNotifications = async () => {
@@ -450,16 +465,18 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Dynamic 10-Day Free Trial / Production Plan Badge */}
         {(() => {
           const plan = user?.plan || '';
-          const isPaid = plan && !['free', 'trial', 'none'].includes(plan.toLowerCase());
+          const hasCredits = (user?.credits ?? 0) > 0;
+          const isPaid = (plan && !['free', 'trial', 'none'].includes(plan.toLowerCase())) || hasCredits;
           if (isPaid) {
+            const displayPlan = hasCredits && (!plan || ['free', 'trial', 'none'].includes(plan.toLowerCase())) ? 'PAYG' : plan;
             return (
               <div 
                 onClick={onNavigateToProfile}
                 className="hidden 2xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-xs font-mono font-bold cursor-pointer hover:bg-emerald-500/20 transition-colors"
-                title="Active Paid Subscription Plan"
+                title="Active Account with Paid Credits / Subscription"
               >
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-                <span className="uppercase">{plan} ACTIVE</span>
+                <span className="uppercase">{displayPlan} ACTIVE</span>
               </div>
             );
           }

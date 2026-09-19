@@ -155,6 +155,21 @@ def trigger_pipeline(
     db.commit()
     db.refresh(wf)
 
+    try:
+        from app.billing.metering_service import MeteringService
+        MeteringService.record_instant_charge(
+            db=db,
+            organization_id=wf.workspace_id or "default",
+            resource_type="cicd",
+            resource_id=pipeline_id,
+            meter_name="cicd.build.minutes",
+            quantity=1.5,
+            unit="minutes",
+            description=f"CI/CD Runner Build #{wf.run_count} execution"
+        )
+    except Exception:
+        pass
+
     emit_notification(
         db,
         title="Pipeline Build Succeeded",

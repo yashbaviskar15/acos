@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Database, Plus, Trash2, RefreshCw, Terminal, Copy, Check, ShieldCheck, Zap } from 'lucide-react';
 import { ModalPortal } from '../components/ModalPortal';
 import { apiFetch } from '../config/api';
+import { deductClientServiceCharge } from '../utils/billingDebit';
 
 interface DatabaseProps {
   token: string | null;
@@ -75,6 +76,7 @@ export const Databases: React.FC<DatabaseProps> = ({ token }) => {
         body: JSON.stringify({ name, engine, tier, region, storage_gb: Number(storageGb), multi_az: multiAz })
       });
       setShowCreateModal(false);
+      deductClientServiceCharge(3.00, `Database (${name})`);
       setName('');
       fetchDatabases();
     } catch (err) {

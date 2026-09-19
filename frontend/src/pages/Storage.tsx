@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { HardDrive, Plus, Trash2, Folder, FileText, RefreshCw, Upload, CheckCircle2, Download, Eye, Copy, Check, Info, AlertCircle, X, Zap } from 'lucide-react';
 import { ModalPortal } from '../components/ModalPortal';
 import { apiFetch } from '../config/api';
+import { deductClientServiceCharge } from '../utils/billingDebit';
 
 interface StorageProps {
   token: string | null;
@@ -131,6 +132,7 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
         body: JSON.stringify({ name, region, storage_class: storageClass, access, versioning })
       });
       setShowCreateModal(false);
+      deductClientServiceCharge(1.00, `Storage Bucket (${name})`);
       setName('');
       fetchBuckets();
     } catch (err) {

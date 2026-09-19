@@ -411,6 +411,111 @@ def cmd_compute(args, cfg):
             cmd_resource(args, cfg)
 
 
+def cmd_billing(args, cfg):
+    action = args.billing_action
+    if action == "account":
+        res = api_request("GET", "/api/v1/billing/account", api_url=args.api_url)
+        if args.output == "json":
+            print(json.dumps(res, indent=2))
+        else:
+            print("=== Aravanta Billing Account ===")
+            print(f"Account ID:      {res.get('id')}")
+            print(f"Organization ID: {res.get('organization_id')}")
+            print(f"Status:          {res.get('status')}")
+            print(f"Currency:        {res.get('currency')}")
+            print(f"Current Balance: ₹{res.get('balance', 0):,.2f}")
+            print(f"Credits:         ₹{res.get('credits', 0):,.2f}")
+            print(f"Billing Cycle:   {res.get('billing_cycle')}")
+    elif action == "usage":
+        params = []
+        if args.project:
+            params.append(f"project_id={args.project}")
+        if getattr(args, "status", None):
+            params.append(f"status={args.status}")
+        query_str = f"?{'&'.join(params)}" if params else ""
+        res = api_request("GET", f"/api/v1/billing/usage{query_str}", api_url=args.api_url)
+        if args.output == "json":
+            print(json.dumps(res, indent=2))
+        else:
+            headers = ["ID", "RESOURCE ID", "TYPE", "METER", "QTY", "UNIT", "STATUS"]
+            rows = []
+            for r in res:
+                rows.append([
+                    r.get("id", "")[:14],
+                    r.get("resource_id", "")[:16],
+                    r.get("resource_type", ""),
+                    r.get("meter_name", ""),
+                    str(r.get("quantity", 0)),
+                    r.get("unit", ""),
+                    r.get("status", "")
+                ])
+            print_table(headers, rows)
+    elif action == "estimate":
+        res = api_request("GET", "/api/v1/billing/estimate", api_url=args.api_url)
+        if args.output == "json":
+            print(json.dumps(res, indent=2))
+        else:
+            print("=== Live Metered Billing Estimate ===")
+            print(f"Subtotal:       ₹{res.get('subtotal', 0):,.2f}")
+            print(f"CGST (9%):      ₹{res.get('tax_cgst', 0):,.2f}")
+            print(f"SGST (9%):      ₹{res.get('tax_sgst', 0):,.2f}")
+            print(f"Total Estimate: ₹{res.get('total_estimated', 0):,.2f} ({res.get('currency', 'INR')})")
+            print(f"Active Meters:  {res.get('active_unbilled_meters', 0)}")
+            items = res.get("line_items", [])
+            if items:
+                print("\nItemized Breakdown:")
+                headers = ["RESOURCE", "TYPE", "METER", "QTY", "RATE", "AMOUNT"]
+                rows = []
+                for item in items:
+                    rows.append([
+                        item.get("resource_name", "")[:20],
+                        item.get("resource_type", ""),
+                        item.get("meter_name", ""),
+                        f"{item.get('quantity', 0)} {item.get('unit', '')}",
+                        f"₹{item.get('unit_price', 0):,.2f}",
+                        f"₹{item.get('amount', 0):,.2f}"
+                    ])
+                print_table(headers, rows)
+    elif action in ("invoices", "list"):
+        res = api_request("GET", "/api/v1/billing/invoices", api_url=args.api_url)
+        if args.output == "json":
+            print(json.dumps(res, indent=2))
+        else:
+            headers = ["INVOICE ID", "PERIOD START", "PERIOD END", "TOTAL", "STATUS", "PAYMENT METHOD"]
+            rows = []
+            for inv in res:
+                rows.append([
+                    inv.get("id", ""),
+                    (inv.get("period_start") or "")[:10],
+                    (inv.get("period_end") or "")[:10],
+                    f"₹{inv.get('total', 0):,.2f}",
+                    inv.get("status", ""),
+                    inv.get("payment_method", "")
+                ])
+            print_table(headers, rows)
+    elif action == "pay":
+        body = {
+            "invoice_id": args.invoice_id,
+            "provider": args.provider or "sandbox",
+            "payment_method": args.method or "CLI_CHECKOUT"
+        }
+        res = api_request("POST", "/api/v1/billing/pay", body, api_url=args.api_url)
+        if args.output == "json":
+            print(json.dumps(res, indent=2))
+        else:
+            print(f"Payment {res.get('status')}: Invoice {res.get('invoice_id')} settled for ₹{res.get('amount', 0):,.2f}")
+    elif action == "close-period":
+        res = api_request("POST", "/api/v1/billing/invoices/generate", {"payment_method": "CLI_AUTOPAY"}, api_url=args.api_url)
+        if args.output == "json":
+            print(json.dumps(res, indent=2))
+        else:
+            inv = res.get("invoice")
+            if inv:
+                print(f"Closed billing period. Finalized Invoice: {inv.get('id')} — Total: ₹{inv.get('total', 0):,.2f}")
+            else:
+                print(res.get("message", "No unbilled usage found."))
+
+
 # ─── Parser Setup ────────────────────────────────────────────────────────────
 
 def build_parser() -> argparse.ArgumentParser:
@@ -504,7 +609,21 @@ def build_parser() -> argparse.ArgumentParser:
         p_act = p_comp_sub.add_parser(act, help=f"{act.capitalize()} a compute instance", parents=[common])
         p_act.add_argument("resource_id", help="Compute instance ID")
 
-    # 7. Version
+    # 7. Billing
+    p_bill = subparsers.add_parser("billing", help="Inspect billing accounts, live estimates, meters, and invoices", parents=[common])
+    p_bill_sub = p_bill.add_subparsers(dest="billing_action", required=True)
+    p_bill_sub.add_parser("account", help="Inspect tenant billing account balance and status", parents=[common])
+    p_bill_usage = p_bill_sub.add_parser("usage", help="List metered resource usage records", parents=[common])
+    p_bill_usage.add_argument("--status", choices=["OPEN", "CLOSED", "BILLED"], help="Filter by meter status")
+    p_bill_sub.add_parser("estimate", help="Get live cost estimate for current unbilled usage", parents=[common])
+    p_bill_sub.add_parser("invoices", help="List finalized tenant invoices", parents=[common])
+    p_bill_pay = p_bill_sub.add_parser("pay", help="Pay an invoice", parents=[common])
+    p_bill_pay.add_argument("invoice_id", help="Invoice ID (e.g. INV-202609-ABCD)")
+    p_bill_pay.add_argument("--provider", default="sandbox", help="Payment provider")
+    p_bill_pay.add_argument("--method", default="CLI_CHECKOUT", help="Payment method name")
+    p_bill_sub.add_parser("close-period", help="Close period and generate invoice (test mode)", parents=[common])
+
+    # 8. Version
     subparsers.add_parser("version", help="Print CLI version", parents=[common])
 
     return parser
@@ -541,6 +660,8 @@ def main():
         cmd_resource(args, cfg)
     elif args.command == "compute":
         cmd_compute(args, cfg)
+    elif args.command == "billing":
+        cmd_billing(args, cfg)
     else:
         parser.print_help()
 

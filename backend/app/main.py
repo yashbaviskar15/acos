@@ -37,6 +37,7 @@ import app.services.arvcostiq.models
 import app.services.arvguard.models
 import app.services.arvpulse.models
 import app.services.arvsandbox.models
+import app.billing.models
 
 logger = logging.getLogger("aravanta.startup")
 

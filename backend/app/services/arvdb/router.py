@@ -116,6 +116,17 @@ def create_database(
     db.commit()
     db.refresh(instance)
 
+    try:
+        from app.billing.metering_service import MeteringService
+        MeteringService.start_resource_meter(
+            db=db,
+            resource_id=instance.id,
+            resource_type="database",
+            organization_id=instance.workspace_id or "default"
+        )
+    except Exception:
+        pass
+
     emit_notification(
         db,
         title="Database Instance Provisioned",
@@ -147,6 +158,12 @@ def delete_database(
     workspace_id = instance.workspace_id
     db.delete(instance)
     db.commit()
+
+    try:
+        from app.billing.metering_service import MeteringService
+        MeteringService.stop_resource_meter(db=db, resource_id=db_id, debit_from_account=True)
+    except Exception:
+        pass
 
     emit_notification(
         db,

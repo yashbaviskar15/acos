@@ -95,6 +95,17 @@ def create_bucket(
     db.commit()
     db.refresh(bucket)
 
+    try:
+        from app.billing.metering_service import MeteringService
+        MeteringService.start_resource_meter(
+            db=db,
+            resource_id=bucket.id,
+            resource_type="storage",
+            organization_id=bucket.workspace_id or "default"
+        )
+    except Exception:
+        pass
+
     emit_notification(
         db,
         title="S3 Bucket Created",
@@ -127,6 +138,12 @@ def delete_bucket(
     db.query(StorageObject).filter(StorageObject.bucket_id == bucket_id).delete()
     db.delete(bucket)
     db.commit()
+
+    try:
+        from app.billing.metering_service import MeteringService
+        MeteringService.stop_resource_meter(db=db, resource_id=bucket_id, debit_from_account=True)
+    except Exception:
+        pass
 
     emit_notification(
         db,

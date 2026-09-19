@@ -148,6 +148,18 @@ def create_instance(
 
     db.commit()
     db.refresh(new_inst)
+
+    try:
+        from app.billing.metering_service import MeteringService
+        MeteringService.start_resource_meter(
+            db=db,
+            resource_id=new_inst.id,
+            resource_type="compute",
+            organization_id=current_user.workspace_id or "default"
+        )
+    except Exception:
+        pass
+
     return new_inst.to_dict()
 
 @router.post("/instances/{instance_id}/action")
@@ -173,6 +185,11 @@ def instance_action(
             )
         inst_name = inst.name
         db.delete(inst)
+        try:
+            from app.billing.metering_service import MeteringService
+            MeteringService.stop_resource_meter(db=db, resource_id=instance_id, debit_from_account=True)
+        except Exception:
+            pass
         emit_notification(
             db=db,
             user_id=current_user.id,
@@ -198,6 +215,16 @@ def instance_action(
         inst.cpu_usage = round(random.uniform(8, 25), 1)
         inst.ram_usage = round(random.uniform(20, 45), 1)
         inst.updated_at = datetime.utcnow()
+        try:
+            from app.billing.metering_service import MeteringService
+            MeteringService.start_resource_meter(
+                db=db,
+                resource_id=instance_id,
+                resource_type="compute",
+                organization_id=current_user.workspace_id or "default"
+            )
+        except Exception:
+            pass
         emit_notification(
             db=db,
             user_id=current_user.id,
@@ -211,6 +238,11 @@ def instance_action(
         inst.cpu_usage = 0.0
         inst.ram_usage = 0.0
         inst.updated_at = datetime.utcnow()
+        try:
+            from app.billing.metering_service import MeteringService
+            MeteringService.stop_resource_meter(db=db, resource_id=instance_id, debit_from_account=True)
+        except Exception:
+            pass
         emit_notification(
             db=db,
             user_id=current_user.id,

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Boxes, Plus, Trash2, RefreshCw, Activity, Terminal, Copy, Check, Info, Play, Layers, ArrowRight, Moon, Zap } from 'lucide-react';
 import { ModalPortal } from '../components/ModalPortal';
 import { apiFetch } from '../config/api';
+import { deductClientServiceCharge } from '../utils/billingDebit';
 
 interface KubernetesProps {
   token: string | null;
@@ -125,6 +126,7 @@ Metrics-server is running and healthy.`);
         body: JSON.stringify({ name, version, region, node_count: Number(nodeCount), node_size: nodeSize })
       });
       setShowCreateModal(false);
+      deductClientServiceCharge(4.00, `Kubernetes Cluster (${name})`);
       setName('');
       fetchClusters();
     } catch (err) {

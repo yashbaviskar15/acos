@@ -11,6 +11,7 @@ from sqlalchemy import and_
 
 from app.control_plane.models import ResourceRecord, EventRecord, JobRecord
 from app.control_plane.providers.base import DefaultComputeProvider
+from app.billing.metering_service import MeteringService
 
 logger = logging.getLogger("aravanta.resource_manager")
 
@@ -95,6 +96,12 @@ class ResourceManager:
             db.commit()
             db.refresh(resource)
 
+        if resource.status in ("RUNNING", "READY"):
+            try:
+                MeteringService.start_usage(db, resource)
+            except Exception as m_err:
+                logger.warning("Failed to start usage metering: %s", m_err)
+
         return resource
 
     @staticmethod
@@ -142,18 +149,30 @@ class ResourceManager:
                 meta = _compute_provider.stop(resource.id, meta)
             resource.status = "STOPPED"
             resource.observed_state = "STOPPED"
+            try:
+                MeteringService.stop_usage(db, resource)
+            except Exception as m_err:
+                logger.warning("Failed to stop usage metering: %s", m_err)
         elif action_clean in ("start", "resume"):
             resource.desired_state = "RUNNING"
             if resource.type == "compute":
                 meta = _compute_provider.start(resource.id, meta)
             resource.status = "RUNNING"
             resource.observed_state = "RUNNING"
+            try:
+                MeteringService.start_usage(db, resource)
+            except Exception as m_err:
+                logger.warning("Failed to start usage metering: %s", m_err)
         elif action_clean == "terminate":
             resource.desired_state = "TERMINATED"
             if resource.type == "compute":
                 meta = _compute_provider.terminate(resource.id, meta)
             resource.status = "TERMINATED"
             resource.observed_state = "TERMINATED"
+            try:
+                MeteringService.stop_usage(db, resource, terminate=True)
+            except Exception as m_err:
+                logger.warning("Failed to terminate usage metering: %s", m_err)
 
         resource.metadata_json = json.dumps(meta)
         resource.updated_at = datetime.utcnow()
@@ -175,5 +194,9 @@ class ResourceManager:
     def delete_resource(db: Session, resource: ResourceRecord) -> None:
         """Terminates and purges the resource record."""
         ResourceManager.execute_action(db, resource, "terminate")
+        try:
+            MeteringService.close_all_for_resource(db, resource.id)
+        except Exception:
+            pass
         db.delete(resource)
         db.commit()
