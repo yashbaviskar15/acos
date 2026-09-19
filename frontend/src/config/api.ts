@@ -1,8 +1,6 @@
 /**
  * Aravanta CloudOS Centralized API Client
- *
- * - Dev (localhost):  http://localhost:8000
- * - Prod:             https://arv-backend.vercel.app  (overridable via VITE_API_URL)
+ * - Backend:          https://arv-backend.vercel.app  (overridable via VITE_API_URL)
  * - Auto-prefixes paths with /api/v1
  * - Preserves Bearer token (param > localStorage)
  * - 15s timeout, 2 retries with exponential backoff on network/5xx
@@ -76,6 +74,14 @@ export async function apiFetch<T = any>(
   const authToken = token !== undefined ? token : localStorage.getItem('aravanta_token');
   if (authToken && authToken !== 'undefined' && authToken !== 'null' && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${authToken}`);
+  }
+  const activeOrg = localStorage.getItem('aravanta_active_org');
+  if (activeOrg && !headers.has('x-organization-id')) {
+    headers.set('x-organization-id', activeOrg);
+  }
+  const activePrj = localStorage.getItem('aravanta_active_project');
+  if (activePrj && !headers.has('x-project-id')) {
+    headers.set('x-project-id', activePrj);
   }
   const method = (fetchOptions.method || 'GET').toUpperCase();
   const isIdempotent = method !== 'POST' || skipRetry !== true;

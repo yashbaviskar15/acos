@@ -14,6 +14,7 @@ from app.core.database import Base, get_db
 from app.main import app as fastapi_app
 
 import app.services.arvgate.models
+import app.control_plane.models
 import app.core.cloud_models
 import app.services.arvcommunity.models
 import app.services.arvcostiq.models

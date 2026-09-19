@@ -65,20 +65,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       title: t('sidebar.section_operations'),
       items: [
-        { id: 'dashboard', label: t('sidebar.item_dashboard'), icon: LayoutDashboard, badge: 'PROD' },
-        { id: 'infrastructure', label: t('sidebar.item_infrastructure'), icon: Server, count: '28' },
-        { id: 'applications', label: t('sidebar.item_applications'), icon: Layers, count: '5' },
+        { id: 'dashboard', label: t('sidebar.item_dashboard'), icon: LayoutDashboard },
+        { id: 'infrastructure', label: t('sidebar.item_infrastructure'), icon: Server },
+        { id: 'applications', label: t('sidebar.item_applications'), icon: Layers },
         { id: 'deployments', label: t('sidebar.item_deployments'), icon: GitBranch },
-        { id: 'containers', label: t('sidebar.item_containers'), icon: Box, count: '11' },
+        { id: 'containers', label: t('sidebar.item_containers'), icon: Box },
       ]
     },
     {
       title: t('sidebar.section_observability'),
       items: [
         { id: 'monitoring', label: t('sidebar.item_monitoring'), icon: Activity },
-        { id: 'logs', label: t('sidebar.item_logs'), icon: FileText, badge: 'LIVE' },
-        { id: 'alerts', label: t('sidebar.item_alerts'), icon: Bell, count: '6' },
-        { id: 'incidents', label: t('sidebar.item_incidents'), icon: ShieldAlert, badge: 'P1' },
+        { id: 'logs', label: t('sidebar.item_logs'), icon: FileText },
+        { id: 'alerts', label: t('sidebar.item_alerts'), icon: Bell },
+        { id: 'incidents', label: t('sidebar.item_incidents'), icon: ShieldAlert },
       ]
     },
     {
@@ -93,7 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       title: t('sidebar.section_cloud_resources'),
       items: [
         { id: 'compute', label: t('sidebar.item_compute'), icon: Server },
-        { id: 'kubernetes', label: t('sidebar.item_kubernetes'), icon: Boxes, badge: 'ADVANCED' },
+        { id: 'kubernetes', label: t('sidebar.item_kubernetes'), icon: Boxes },
         { id: 'database', label: t('sidebar.item_database'), icon: Database },
         { id: 'storage', label: t('sidebar.item_storage'), icon: HardDrive },
       ]
@@ -116,8 +116,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   ];
 
-  const displayName = user?.full_name || user?.email?.split('@')[0] || 'Yash Baviskar';
-  const displayRole = user?.role || user?.roles?.[0] || 'SuperAdmin';
+  const displayName = user?.full_name || user?.email?.split('@')[0] || 'Cloud Operator';
+  const displayRole = user?.role || user?.roles?.[0] || 'Developer';
   const initial = displayName.charAt(0).toUpperCase();
 
   const handleTabClick = (id: string) => {

@@ -28,7 +28,9 @@ from app.services.arvcostiq.router import router as arvcostiq_router
 from app.services.arvguard.router import router as arvguard_router
 from app.services.arvpulse.router import router as arvpulse_router
 from app.services.arvsandbox.router import router as arvsandbox_router
+from app.services.control_plane.router import router as control_plane_router
 import app.services.arvgate.models
+import app.control_plane.models
 import app.core.cloud_models
 import app.services.arvcommunity.models
 import app.services.arvcostiq.models
@@ -162,6 +164,7 @@ app.include_router(arvcostiq_router)
 app.include_router(arvguard_router)
 app.include_router(arvpulse_router)
 app.include_router(arvsandbox_router)
+app.include_router(control_plane_router)
 
 @app.get("/", tags=["Root"])
 def root():
