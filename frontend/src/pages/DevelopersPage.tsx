@@ -43,20 +43,20 @@ const quickstartSteps = [
   {
     step: '02',
     title: 'Install the CLI',
-    body: 'Install the agy binary via Homebrew, npm, bash installer, or direct download. Tab-completion scripts ship for bash, zsh, fish, and PowerShell.',
-    tip: 'Run `agy completion zsh > ~/.zsh/completion/_agy` for shell completion.',
+    body: 'Install the standalone Aravanta CLI (aravanta) globally via 1-line installer for Windows, macOS, or Linux. Operates directly against the control plane REST API with zero repo dependencies.',
+    tip: 'Windows: [Net.ServicePointManager]::SecurityProtocol = 3072; irm https://aravantacos.vercel.app/install.ps1 | iex | macOS/Linux: curl -fsSL https://aravantacos.vercel.app/install.sh | bash',
   },
   {
     step: '03',
-    title: 'Authenticate & set defaults',
-    body: 'Run `agy auth login` to paste your API key and set a default project/region. Config lives at `~/.config/aravanta/config.toml`.',
-    tip: 'Use `--profile <name>` to juggle multiple workspaces.',
+    title: 'Authenticate & check status',
+    body: 'Run `aravanta auth login --email <email>` or paste a web console session token with `aravanta auth token <token>`. Verify live telemetry with `aravanta status`.',
+    tip: 'Credentials and active tenant context are stored at `~/.aravanta/config.json`.',
   },
   {
     step: '04',
     title: 'Provision your first resource',
-    body: 'Launch a c3.small instance with the CLI in one command. Instance is reachable via SSH in ~45s with the SSH key attached.',
-    tip: 'Delete with `agy compute delete <id>` to stop billing.',
+    body: 'Launch a cloud virtual machine in seconds: `aravanta compute create --name web-prod-01 --cpu 2 --ram 4096`.',
+    tip: 'Manage instance state with `aravanta compute stop <id>` or `aravanta compute start <id>`.',
   },
 ];
 
@@ -148,7 +148,7 @@ export const DevelopersPage: React.FC<PageProps> = ({
                   Go from zero → provisioned VM in under two minutes.
                 </h2>
                 <p className="text-base text-slate-600 dark:text-slate-300 leading-relaxed">
-                  The agy CLI walks you through auth, then you can provision VMs, K8s
+                  The Aravanta CLI walks you through auth, then you can provision VMs, K8s
                   clusters, storage buckets, and DB replicas with one-liners.
                 </p>
                 <div className="space-y-3 pt-2">
@@ -234,33 +234,30 @@ export const DevelopersPage: React.FC<PageProps> = ({
               <TabPanel value="cli">
                 <CodeBlock
                   language="bash"
-                  code={`# 1. Install (linux/mac)
-curl -fsSL https://cli.aravanta.cloud/install.sh | bash
+                  code={`# 1. Install Globally (No repository dependency)
+# Windows (PowerShell):
+[Net.ServicePointManager]::SecurityProtocol = 3072; irm https://aravantacos.vercel.app/install.ps1 | iex
 
-# 2. Authenticate (pastes key from clipboard)
-agy auth login --interactive
+# macOS & Linux (Terminal):
+curl -fsSL https://aravantacos.vercel.app/install.sh | bash
 
-# 3. Set project + default region
-agy config set project proj_3fa61b
-agy config set region  ap-south-1
+# 2. Check connection & platform status
+aravanta status
 
-# 4. List instance shapes available in region
-agy compute shapes list --region ap-south-1
+# 3. Authenticate with your account
+aravanta auth login --email dev@example.com
+# Or instant web session token:
+aravanta auth token <PASTE_JWT_TOKEN>
 
-# 5. Provision a c3.large with SSH key attached
-agy compute create \
-  --name web-prod-01 \
-  --shape c3.large \
-  --image ubuntu-24.04 \
-  --ssh-key ops-key \
-  --disk-size 120 \
-  --tags env=prod,tier=web
+# 4. Verify identity & tenant
+aravanta whoami
 
-# 6. Tail its boot log until cloud-init completes
-agy compute logs cmp_7f3da1b2 --follow
+# 5. Provision a cloud virtual machine instance
+aravanta compute create --name web-prod-01 --cpu 2 --ram 4096
 
-# 7. JSON output for jq pipelines
-agy compute list --format json | jq '.instances[].public_ip'`}
+# 6. List active virtual machines in human-readable table or JSON
+aravanta compute list
+aravanta compute list --output json`}
                 />
               </TabPanel>
 
@@ -539,7 +536,7 @@ curl -G "\\$API_URL/api/v1/compute/instances" \\
                   </div>
                   <ul className="divide-y divide-slate-200 dark:divide-brandObsidian-700">
                     {[
-                      { label: 'feat: add `agy cluster node-pool drain --grace-period` flag', tags: ['cli', 'k8s'] },
+                      { label: 'feat: add `aravanta compute restart` command and JSON/YAML formats', tags: ['cli', 'compute'] },
                       { label: 'docs: improve error messages on auth failures', tags: ['docs', 'ux'] },
                       { label: 'test: add integration tests for S3 signed URLs', tags: ['sdk', 'tests'] },
                       { label: 'perf: batch ListInstances by project on server', tags: ['api', 'perf'] },
@@ -587,7 +584,7 @@ curl -G "\\$API_URL/api/v1/compute/instances" \\
                     Grab an API key and ship your first resource today.
                   </h2>
                   <p className="text-base sm:text-lg text-slate-300 leading-relaxed">
-                    10-day full-access trial, no credit card. Cancel with one `agy auth
+                    10-day full-access trial, no credit card. Cancel with one `aravanta auth
                     logout` if it isn&apos;t a fit.
                   </p>
                 </div>

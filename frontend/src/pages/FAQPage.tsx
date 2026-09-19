@@ -41,7 +41,7 @@ const faqs = [
     icon: Rocket,
     title: 'How do I get started with Aravanta Cloud OS?',
     answer:
-      'Getting started takes under 10 minutes. Create a free workspace at console.aravanta.cloud, install the Aravanta CLI via npm install -g @aravanta/cli, and run arv init to scaffold your first project. From the console, you can provision VMs, Kubernetes clusters, managed databases, and object storage with a few clicks. The free tier includes 2 vCPUs, 4 GB RAM, 50 GB SSD, and 100 GB bandwidth per month \u2014 no credit card required. Enterprise teams can request a guided onboarding workshop by emailing sales@aravanta.cloud.',
+      'Getting started takes under 10 minutes. Create a free account at https://aravantacos.vercel.app, install the Aravanta CLI via one-line command (PowerShell on Windows: `[Net.ServicePointManager]::SecurityProtocol = 3072; irm https://aravantacos.vercel.app/install.ps1 | iex`, or Terminal on macOS/Linux: `curl -fsSL https://aravantacos.vercel.app/install.sh | bash`), and run `aravanta status` or `aravanta auth login` to start managing infrastructure from any directory. The free tier includes 2 vCPUs, 4 GB RAM, 50 GB SSD, and 100 GB bandwidth per month — no credit card required. Enterprise teams can request a guided onboarding workshop by emailing sales@aravanta.cloud.',
   },
   {
     id: 'supported-clouds',

@@ -60,17 +60,20 @@ const prefersReducedMotion = () =>
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const codeSnippets: Record<string, string> = {
-  cli: `# Provision a compute instance in Mumbai region
-agy compute create \\
-  --instance-type c3.large \\
-  --region ap-south-1 \\
-  --image ubuntu-24.04 \\
-  --ssh-key my-key \\
-  --disk-size 120
+  cli: `# 1. Install Globally (Run anywhere, zero repo dependency)
+# Windows:     [Net.ServicePointManager]::SecurityProtocol = 3072; irm https://aravantacos.vercel.app/install.ps1 | iex
+# macOS/Linux: curl -fsSL https://aravantacos.vercel.app/install.sh | bash
 
-✓ Instance arv-compute-7f3da provisioned
-  Public IP: 43.205.xx.xx
-  Ready in 48s`,
+# 2. Check health & connect to live control plane
+aravanta status
+
+# 3. Launch a high-performance compute instance
+aravanta compute create --name api-worker-01 --cpu 2 --ram 4096
+
+✓ Resource res-9cdc306743c7 provisioned (State: RUNNING)
+  Private IP: 10.240.0.12
+  Spec:       2 vCPU, 4096 MB RAM, 40 GB NVMe
+  Provider:   Aravanta FastCloud-v1`,
   terraform: `resource "arvanta_compute_instance" "web" {
   name          = "web-prod-01"
   instance_type = "c3.large"

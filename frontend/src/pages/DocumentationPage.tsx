@@ -80,106 +80,72 @@ const sidebarTree = [
 const numberedSteps = [
   {
     step: 1,
-    title: 'Create a workspace and project',
-    body: 'Workspaces are the top-level container for billing and RBAC. Projects group related resources (VMs, K8s clusters, buckets) for cost attribution and access scoping. Every API call targets a single project.',
+    title: 'Create an organization and project',
+    body: 'Organizations are the top-level container for multi-tenancy and RBAC. Projects group related cloud resources (VMs, K8s clusters, storage) for cost attribution and access scoping. Every API call targets a single project.',
     tip: 'Use naming convention: {company}-{env}-{team}. Ex: acme-prod-billing.',
-    code: `# List accessible workspaces for your user
-agy workspaces list
+    code: `# List accessible organizations for your user
+aravanta org list
 
-# Switch active workspace
-agy workspace switch acme-corp
+# Create a new organization
+aravanta org create --name "Acme Corp"
 
-# Create a new project scoped to the workspace
-agy projects create \\
-  --name acme-prod-billing \\
-  --region ap-south-1 \\
-  --description "Billing team production"`,
+# List cloud projects in active tenant
+aravanta project list
+
+# Create a new project scoped to the organization
+aravanta project create --name acme-prod-billing`,
   },
   {
     step: 2,
-    title: 'Upload an SSH key for compute access',
-    body: 'Compute instances are reached exclusively via SSH key pairs; password auth is disabled on all stock images. Upload your public key once and reference it by name across all instance launches.',
-    tip: 'Generate a dedicated ed25519 key for Aravanta resources.',
-    code: `# Generate a dedicated SSH key pair
-ssh-keygen -t ed25519 -C "deploy@acme" -f ~/.ssh/id_ed25519.aravanta
+    title: 'Provision high-performance compute instances',
+    body: 'Launch virtual machines with dedicated vCPU and memory allocations. Instances are provisioned instantly through the Aravanta FastCloud engine.',
+    tip: 'Pass --output json for automated CI/CD pipeline integration.',
+    code: `# List active virtual machine instances
+aravanta compute list
 
-# Upload the public key to your workspace
-agy compute ssh-keys upload \\
-  --name acme-deploy-key \\
-  --public-key ~/.ssh/id_ed25519.aravanta.pub
+# Launch a new compute instance (2 vCPU, 4GB RAM)
+aravanta compute create --name api-worker-01 --cpu 2 --ram 4096
 
-# Verify it's available
-agy compute ssh-keys list --format json | jq .keys[].name`,
+# Output JSON for jq pipelines
+aravanta compute list --output json | jq .`,
   },
   {
     step: 3,
-    title: 'Launch a managed Kubernetes cluster',
-    body: 'Provision a 3-node cluster with default CNI networking, HPA, and a private image registry. Cluster control plane is fully managed — etcd, API server, and controller manager are multi-AZ by default.',
-    tip: 'Start with 3 nodes, 2 availability zones, and HPA enabled.',
-    code: `# Create EKS-compatible cluster in Mumbai region
-agy k8s clusters create \\
-  --name prod-primary \\
-  --version 1.30 \\
-  --region ap-south-1 \\
-  --node-count 3 \\
-  --node-shape k3.medium \\
-  --zones ap-south-1a,ap-south-1b \\
-  --enable-hpa \\
-  --enable-private-registry
+    title: 'Inspect platform telemetry & unified resources',
+    body: 'Check live connection latency, backend health status, and unified resource topology across all infrastructure types.',
+    tip: 'Filter resources by type (compute, database, storage).',
+    code: `# Inspect active cloud infrastructure status & latency
+aravanta status
 
-# Wait for cluster Ready state
-agy k8s clusters wait prod-primary --for ready
-
-# Download kubeconfig to merge into ~/.kube/config
-agy k8s clusters kubeconfig prod-primary --merge`,
+# Check unified resources across all categories
+aravanta resource list --type compute`,
   },
   {
     step: 4,
-    title: 'Deploy a workload with GitOps (ArvCD)',
-    body: 'Push a Kustomize/Helm manifest to a git repo, register it as an ArvCD Application, and the control plane reconciles it every 30s. Canary strategies are supported via progressive delivery flags.',
-    tip: 'Enable SLO-gated rollouts on any app that serves user traffic.',
-    code: `# Register a git repo as an ArvCD source
-agy cd sources add git \\
-  --name acme-apps \\
-  --url ssh://git@github.com/acme/deploy.git \\
-  --branch main \\
-  --private-key ~/.ssh/id_ed25519.deploy
+    title: 'Automate deployments with CI/CD non-interactive mode',
+    body: 'Integrate the Aravanta CLI into GitHub Actions, GitLab CI, or Jenkins using environment variables without interactive prompts.',
+    tip: 'Set ARAVANTA_TOKEN and ARAVANTA_API_URL in CI repository secrets.',
+    code: `# Provide token in environment without interactive prompt
+export ARAVANTA_TOKEN="your-api-token"
+export ARAVANTA_API_URL="https://arv-backend.vercel.app"
 
-# Create an application pointed at a path
-agy cd apps create \\
-  --name api-gateway \\
-  --source acme-apps \\
-  --path services/api/kustomize/overlays/prod \\
-  --cluster prod-primary \\
-  --namespace default \\
-  --strategy canary \\
-  --slo-gate latency:200ms
-
-# Force an immediate reconciliation
-agy cd apps sync api-gateway --watch`,
+# Query resources headlessly
+aravanta compute list --output json
+aravanta project list --output json`,
   },
   {
     step: 5,
-    title: 'Configure alerting & PagerDuty routing',
-    body: 'Every workspace ships a Prometheus-compatible Alertmanager. Route firing alerts to Slack, email, PagerDuty, or generic webhooks. Silence rules during deploys are auto-created.',
-    tip: 'Route severity=critical alerts to PagerDuty only.',
-    code: `# Create a PagerDuty routing key
-agy alerting integrations create pagerduty \\
-  --name pagerduty-prod \\
-  --routing-key \$PD_ROUTING_KEY
+    title: 'Manage instance lifecycle & session state',
+    body: 'Stop, start, and restart compute instances on demand. Inspect active user credentials and tenant roles.',
+    tip: 'Stop idle instances to optimize cloud spend.',
+    code: `# Inspect session identity and RBAC role
+aravanta whoami
 
-# Route severity=critical alerts to PagerDuty
-agy alerting routes create \\
-  --name "Critical pages" \\
-  --match severity=critical \\
-  --match team=billing \\
-  --integration pagerduty-prod
+# Stop an active virtual machine
+aravanta compute stop res-9cdc306743c7
 
-# Silences auto-expire; set 2h for deploy windows
-agy alerting silences create \\
-  --reason "v2.4.2 canary deploy" \\
-  --duration 2h \\
-  --matchers "app=api-gateway"`,
+# Start a stopped virtual machine
+aravanta compute start res-9cdc306743c7`,
   },
 ];
 
@@ -370,7 +336,7 @@ export const DocumentationPage: React.FC<PageProps> = ({
 
                 <div className="flex flex-wrap items-center justify-center gap-2 pt-3 text-xs text-slate-500 dark:text-slate-400">
                   <span className="font-semibold uppercase tracking-wider">Popular:</span>
-                  {['agy compute create', 'Kubernetes HPA', 'Terraform provider', 'SLO burn rate'].map((t) => (
+                  {['aravanta compute create', 'Kubernetes HPA', 'Terraform provider', 'SLO burn rate'].map((t) => (
                     <button
                       key={t}
                       type="button"
@@ -512,7 +478,7 @@ export const DocumentationPage: React.FC<PageProps> = ({
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3">
                     {[
-                      { label: 'Prerequisites', body: 'API key + installed agy CLI', icon: Check },
+                      { label: 'Prerequisites', body: 'API key + installed aravanta CLI', icon: Check },
                       { label: 'Time', body: '~10 minutes', icon: Zap },
                       { label: 'Cost', body: 'Free trial quota covered', icon: CreditCard },
                     ].map((x) => {
