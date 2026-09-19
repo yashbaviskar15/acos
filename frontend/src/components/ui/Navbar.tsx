@@ -33,6 +33,7 @@ export type LandingView =
   | 'features'
   | 'developers'
   | 'documentation'
+  | 'user-manual'
   | 'pricing'
   | 'foundations'
   | 'components'
@@ -306,6 +307,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   {t('nav.documentation')}
                 </button>
+
+                <button
+                  onClick={() => handleNavClick('user-manual')}
+                  className={[
+                    navLinkBase,
+                    'px-3 rounded-lg',
+                    currentView === 'user-manual' ? activeLink(true) : '',
+                  ].join(' ')}
+                >
+                  Manual
+                </button>
               </nav>
             </div>
 
@@ -525,14 +537,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                       {t('nav.platform')}
                     </div>
                     {([
-                      { view: 'home' as LandingView, key: 'nav.home' },
-                      { view: 'features' as LandingView, key: 'nav.features' },
-                      { view: 'community' as LandingView, key: 'nav.community' },
-                      { view: 'pricing' as LandingView, key: 'nav.pricing' },
-                      { view: 'documentation' as LandingView, key: 'nav.documentation' },
-                      { view: 'about' as LandingView, key: 'nav.about' },
-                      { view: 'contact' as LandingView, key: 'nav.contact' },
-                      { view: 'faq' as LandingView, key: 'nav.faq' },
+                      { view: 'home' as LandingView, label: t('nav.home') },
+                      { view: 'features' as LandingView, label: t('nav.features') },
+                      { view: 'community' as LandingView, label: t('nav.community') },
+                      { view: 'pricing' as LandingView, label: t('nav.pricing') },
+                      { view: 'documentation' as LandingView, label: t('nav.documentation') },
+                      { view: 'user-manual' as LandingView, label: 'User Manual' },
+                      { view: 'about' as LandingView, label: t('nav.about') },
+                      { view: 'contact' as LandingView, label: t('nav.contact') },
+                      { view: 'faq' as LandingView, label: t('nav.faq') },
                     ]).map((item, i) => (
                       <motion.button
                         key={item.view}
@@ -547,7 +560,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             : 'text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-brandObsidian-800/60',
                         ].join(' ')}
                       >
-                        <span>{t(item.key)}</span>
+                        <span>{item.label}</span>
                         <ChevronRight className="w-4 h-4 opacity-50" />
                       </motion.button>
                     ))}

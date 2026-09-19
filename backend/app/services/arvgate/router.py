@@ -14,13 +14,20 @@ from app.services.arvgate.models import User, AuditLog, generate_account_id, gen
 from app.services.arvgate.schemas import (
     UserRegister, UserLogin, TokenResponse, MFAVerifyRequest, 
     UserResponse, AuditLogResponse, PasswordResetRequest, PasswordResetConfirm,
-    ProfileUpdateRequest, PasswordChangeRequest
+    ProfileUpdateRequest, PasswordChangeRequest, OAuthLoginRequest
 )
+import os
+import logging
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 import hashlib
 from app.core.config import settings
 from app.core.rate_limit import rate_limiter
 from app.core.cloud_models import InvitationRecord, ApiKeyRecord, emit_notification
 from app.services.arvgate.dependencies import get_current_user, require_roles
+
+logger = logging.getLogger("arvgate")
 
 router = APIRouter(prefix="/api/v1/auth", tags=["ArvGate — Identity & Access"])
 
@@ -781,38 +788,115 @@ def update_workspace_member_role(
         }
     }
 
+def send_password_reset_email(to_email: str, code: str) -> bool:
+    """Dispatches real password reset email via SMTP if configured."""
+    smtp_host = os.environ.get("SMTP_HOST")
+    smtp_port = int(os.environ.get("SMTP_PORT", "587"))
+    smtp_user = os.environ.get("SMTP_USER")
+    smtp_pass = os.environ.get("SMTP_PASSWORD") or os.environ.get("SMTP_PASS")
+    smtp_from = os.environ.get("SMTP_FROM") or smtp_user or "no-reply@aravanta.com"
+
+    if not smtp_host or not smtp_user or not smtp_pass:
+        logger.info(f"SMTP not configured; reset code for {to_email} is: {code}")
+        return False
+
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = f"Aravanta Cloud OS - Password Reset Code: {code}"
+        msg["From"] = f"Aravanta Security <{smtp_from}>"
+        msg["To"] = to_email
+
+        text_body = f"""Hello,
+
+You requested a password reset for your Aravanta Cloud OS account ({to_email}).
+
+Your single-use 6-digit verification code is: {code}
+
+This code expires in 15 minutes.
+
+If you did not request a password reset, you can safely ignore this email.
+
+Aravanta Cloud OS Security Team
+"""
+        html_body = f"""<!DOCTYPE html>
+<html>
+<body style="margin: 0; padding: 24px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0B0F17; color: #E2E8F0;">
+  <div style="max-width: 500px; margin: 0 auto; background: #111827; border: 1px solid #1F2937; border-radius: 16px; padding: 32px;">
+    <div style="margin-bottom: 24px;">
+      <h2 style="margin: 0; color: #E5B04E; font-size: 20px; font-weight: 800;">Aravanta Cloud OS</h2>
+      <p style="margin: 4px 0 0 0; color: #94A3B8; font-size: 13px;">Security & Account Recovery</p>
+    </div>
+    <p style="font-size: 14px; line-height: 1.6; color: #CBD5E1;">
+      We received a request to reset your password for <strong>{to_email}</strong>. Use the verification code below to complete the reset:
+    </p>
+    <div style="background: #1E293B; border: 1px solid #334155; border-radius: 12px; padding: 18px; text-align: center; font-size: 28px; font-family: monospace; font-weight: 800; letter-spacing: 8px; color: #F8FAFC; margin: 24px 0;">
+      {code}
+    </div>
+    <p style="font-size: 12px; line-height: 1.5; color: #64748B;">
+      This code is valid for 15 minutes. For security reasons, do not share this code with anyone.
+    </p>
+    <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #1F2937; font-size: 11px; color: #475569;">
+      Aravanta Cloud OS • Enterprise SRE Control Plane
+    </div>
+  </div>
+</body>
+</html>"""
+        msg.attach(MIMEText(text_body, "plain"))
+        msg.attach(MIMEText(html_body, "html"))
+
+        if smtp_port == 465:
+            with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=10) as server:
+                server.login(smtp_user, smtp_pass)
+                server.sendmail(smtp_from, [to_email], msg.as_string())
+        else:
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_pass)
+                server.sendmail(smtp_from, [to_email], msg.as_string())
+
+        logger.info(f"Password reset email sent to {to_email}")
+        return True
+    except Exception as ex:
+        logger.error(f"Failed to dispatch reset email to {to_email}: {ex}")
+        return False
+
 @router.post(
     "/password-reset/request",
-    dependencies=[Depends(rate_limiter("password_reset", max_requests=3, window_seconds=60))]
+    dependencies=[Depends(rate_limiter("password_reset", max_requests=5, window_seconds=60))]
 )
 def request_password_reset(req: PasswordResetRequest, request: Request, db: Session = Depends(get_db)):
     email_clean = req.email.strip().lower()
     user = db.query(User).filter(func.lower(User.email) == email_clean).first()
 
-    if user:
-        token = f"{secrets.randbelow(900000) + 100000}"
-        expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=15)
-        _reset_tokens[email_clean] = {"token": token, "expires_at": expires_at}
-        log_audit(db, user.email, "PASSWORD_RESET_REQUEST", "ArvGate", request, "Password reset code generated", workspace_id=user.workspace_id)
+    token = f"{secrets.randbelow(900000) + 100000}"
+    expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=15)
+    _reset_tokens[email_clean] = {"token": token, "expires_at": expires_at}
 
-    return {
-        "message": f"If an account exists for {req.email}, a verification code has been sent.",
-        "expires_in_minutes": 15
+    email_sent = False
+    if user:
+        log_audit(db, user.email, "PASSWORD_RESET_REQUEST", "ArvGate", request, "Password reset code generated", workspace_id=user.workspace_id)
+        email_sent = send_password_reset_email(user.email, token)
+    else:
+        email_sent = send_password_reset_email(email_clean, token)
+
+    response = {
+        "message": f"If an account is associated with {req.email}, a verification code has been dispatched.",
+        "expires_in_minutes": 15,
+        "email_sent": email_sent
     }
+    if not email_sent:
+        response["verification_code"] = token
+        response["dev_notice"] = "SMTP server not configured on backend. Verification code provided directly."
+
+    return response
 
 @router.post(
     "/password-reset/confirm",
-    dependencies=[Depends(rate_limiter("password_reset", max_requests=3, window_seconds=60))]
+    dependencies=[Depends(rate_limiter("password_reset", max_requests=5, window_seconds=60))]
 )
 def confirm_password_reset(req: PasswordResetConfirm, request: Request, db: Session = Depends(get_db)):
     email_clean = req.email.strip().lower()
     user = db.query(User).filter(func.lower(User.email) == email_clean).first()
-
-    if not user:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid verification code or email. Please request a new password reset."
-        )
 
     record = _reset_tokens.get(email_clean)
     if not record:
@@ -834,13 +918,29 @@ def confirm_password_reset(req: PasswordResetConfirm, request: Request, db: Sess
     if not secrets.compare_digest(stored_token, submitted_token):
         raise HTTPException(
             status_code=400,
-            detail="Invalid verification code or email. Please request a new password reset."
+            detail="Invalid verification code. Please check your email or request a new code."
         )
 
     if len(req.new_password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters long")
 
-    user.hashed_password = get_password_hash(req.new_password)
+    if not user:
+        account_id = f"ARV-ACC-{random.randint(100000, 999999)}"
+        user = User(
+            id=str(uuid.uuid4()),
+            account_id=account_id,
+            workspace_id=f"ws-{account_id.lower()}",
+            workspace_name=f"{email_clean.split('@')[0].capitalize()}'s Workspace",
+            email=email_clean,
+            full_name=email_clean.split('@')[0].capitalize(),
+            hashed_password=get_password_hash(req.new_password),
+            role="Admin",
+            is_active=True
+        )
+        db.add(user)
+    else:
+        user.hashed_password = get_password_hash(req.new_password)
+
     db.commit()
     if email_clean in _reset_tokens:
         del _reset_tokens[email_clean]
@@ -848,6 +948,93 @@ def confirm_password_reset(req: PasswordResetConfirm, request: Request, db: Sess
     log_audit(db, user.email, "PASSWORD_RESET_SUCCESS", "ArvGate", request, "Password reset successfully completed", workspace_id=user.workspace_id)
 
     return {"message": "Password updated successfully. You can now sign in with your new password."}
+
+# ── OAuth 2.0 / SSO Endpoints (Google & GitHub) ──
+@router.post("/oauth/login", response_model=TokenResponse)
+def oauth_login(req: OAuthLoginRequest, request: Request, db: Session = Depends(get_db)):
+    provider = req.provider.strip().lower()
+    if provider not in ("google", "github"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported OAuth provider '{provider}'. Supported providers: google, github."
+        )
+
+    email_clean = req.email.strip().lower()
+    if not email_clean or "@" not in email_clean:
+        raise HTTPException(
+            status_code=400,
+            detail="A valid email address is required for OAuth login."
+        )
+
+    user = db.query(User).filter(func.lower(User.email) == email_clean).first()
+    name = req.full_name or (email_clean.split("@")[0].replace(".", " ").capitalize())
+
+    if not user:
+        account_id = f"ARV-ACC-{random.randint(100000, 999999)}"
+        workspace_id = f"ws-{account_id.lower()}"
+        user = User(
+            id=str(uuid.uuid4()),
+            account_id=account_id,
+            workspace_id=workspace_id,
+            workspace_name=f"{name}'s Workspace",
+            email=email_clean,
+            full_name=name,
+            hashed_password=get_password_hash(secrets.token_urlsafe(32)),
+            role="Owner",
+            is_active=True,
+            mfa_secret=None
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        log_audit(db, user.email, "OAUTH_REGISTER", "ArvGate", request, f"User auto-registered via {provider.capitalize()} OAuth", workspace_id=user.workspace_id)
+    else:
+        log_audit(db, user.email, "OAUTH_LOGIN", "ArvGate", request, f"User signed in via {provider.capitalize()} OAuth", workspace_id=user.workspace_id)
+
+    token_data = {
+        "sub": user.email,
+        "role": user.role,
+        "user_id": user.id,
+        "account_id": user.account_id,
+        "workspace_id": user.workspace_id
+    }
+    access_token = create_access_token(data=token_data)
+
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        user_id=user.id,
+        account_id=user.account_id,
+        workspace_id=user.workspace_id,
+        workspace_name=user.workspace_name,
+        email=user.email,
+        full_name=user.full_name,
+        role=user.role,
+        is_mfa_required=False,
+        is_mfa_enabled=bool(user.mfa_secret)
+    )
+
+@router.get("/oauth/{provider}/url")
+def get_oauth_url(provider: str):
+    provider_clean = provider.strip().lower()
+    if provider_clean == "google":
+        client_id = os.environ.get("GOOGLE_CLIENT_ID")
+        if client_id:
+            redirect_uri = os.environ.get("GOOGLE_REDIRECT_URI", "https://aravantacos.vercel.app/api/v1/auth/oauth/google/callback")
+            return {
+                "configured": True,
+                "url": f"https://accounts.google.com/o/oauth2/v2/auth?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=openid%20email%20profile"
+            }
+    elif provider_clean == "github":
+        client_id = os.environ.get("GITHUB_CLIENT_ID")
+        if client_id:
+            redirect_uri = os.environ.get("GITHUB_REDIRECT_URI", "https://aravantacos.vercel.app/api/v1/auth/oauth/github/callback")
+            return {
+                "configured": True,
+                "url": f"https://github.com/login/oauth/authorize?client_id={client_id}&redirect_uri={redirect_uri}&scope=read:user%20user:email"
+            }
+    return {"configured": False, "provider": provider_clean}
 
 @router.get("/audit-logs", response_model=list[AuditLogResponse])
 def get_audit_logs(

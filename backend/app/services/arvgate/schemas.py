@@ -142,3 +142,11 @@ class AuditLogResponse(BaseModel):
     timestamp: datetime.datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+class OAuthLoginRequest(BaseModel):
+    provider: str  # "google" or "github"
+    email: str
+    full_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    oauth_id: Optional[str] = None
+    code: Optional[str] = None

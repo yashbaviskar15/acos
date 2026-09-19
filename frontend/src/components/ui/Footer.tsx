@@ -94,6 +94,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
       title: t('footer.resources') || 'Resources & Docs',
       links: [
         { label: 'Documentation & API Ref', view: 'documentation' },
+        { label: 'User Authentication Manual', view: 'user-manual' },
         { label: 'Getting Started Guide', view: 'documentation' },
         { label: 'Community Hub & SRE Forum', view: 'community' },
         {
@@ -201,7 +202,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                     <Shield className="w-3 h-3" /> SOC 2 & ISO 27001
                   </span>
                   <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-100 dark:bg-brandObsidian-800 border border-slate-200 dark:border-brandObsidian-700 text-[11px] font-mono text-slate-700 dark:text-slate-300">
-                    🇮🇳 Hosted in India
+                    Hosted in India
                   </span>
                 </div>
               </div>
@@ -364,7 +365,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 </form>
                 <div className="flex items-center gap-2 pt-1">
                   <span className="text-[11px] font-mono text-brandGold-700 dark:text-brandGold-300">
-                    SOC 2 Type II • ISO 27001 • 🇮🇳 Hosted in India
+                    SOC 2 Type II • ISO 27001 • Hosted in India
                   </span>
                 </div>
               </div>

@@ -44,6 +44,7 @@ import { ContactUsPage } from './pages/ContactUsPage';
 import { FAQPage } from './pages/FAQPage';
 import { SitemapPage } from './pages/SitemapPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { UserManualPage } from './pages/UserManualPage';
 import type { LandingView } from './components/ui/Navbar';
 import { CookieConsent } from './components/ui/CookieConsent';
 import { FloatingSalesChat } from './components/landing/FloatingSalesChat';
@@ -103,6 +104,7 @@ export default function App() {
         'features',
         'developers',
         'documentation',
+        'user-manual',
         'pricing',
         'about',
         'community',
@@ -198,6 +200,7 @@ export default function App() {
       'features',
       'developers',
       'documentation',
+      'user-manual',
       'pricing',
       'about',
       'community',
@@ -300,6 +303,7 @@ export default function App() {
       'features',
       'developers',
       'documentation',
+      'user-manual',
       'pricing',
       'about',
       'community',
@@ -441,6 +445,9 @@ export default function App() {
         break;
       case 'documentation':
         PageComponent = DocumentationPage;
+        break;
+      case 'user-manual':
+        PageComponent = UserManualPage;
         break;
       case 'pricing':
         PageComponent = PricingPage;
