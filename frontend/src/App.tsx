@@ -665,8 +665,8 @@ export default function App() {
           }}
         />
 
-        {/* Floating Copilot Launcher Orb (when drawer is closed) */}
-        {!isCopilotOpen && (
+        {/* Floating Copilot Launcher Orb (when drawer is closed and not in CLI tab) */}
+        {!isCopilotOpen && activeTab !== 'cli' && (
           <button
             onClick={() => setIsCopilotOpen(true)}
             className="fixed bottom-5 right-5 z-40 flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-gradient-to-r from-brandGold-600 to-brandGold-500 hover:from-brandGold-500 hover:to-brandGold-600 text-white font-mono font-bold text-xs shadow-xl shadow-brandGold-500/25 border border-brandGold-400/40 btn-press cursor-pointer group mb-[env(safe-area-inset-bottom,0px)]"

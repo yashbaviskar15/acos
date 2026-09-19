@@ -19,7 +19,7 @@ interface CommandLog {
   timestamp: string;
 }
 
-const WELCOME_HEADER = `
+const WELCOME_HEADER_DESKTOP = `
   █████╗ ██████╗  █████╗ ██╗   ██╗ █████╗ ███╗   ██╗████████╗ █████╗ 
  ██╔══██╗██╔══██╗██╔══██╗██║   ██║██╔══██╗████╗  ██║╚══██╔══╝██╔══██╗
  ███████║██████╔╝███████║██║   ██║███████║██╔██╗ ██║   ██║   ███████║
@@ -34,13 +34,23 @@ const WELCOME_HEADER = `
  ──────────────────────────────────────────────────────────────────────────
  Type 'help' to list available cloud and shell commands.`;
 
+const WELCOME_HEADER_MOBILE = `
+========================================
+ ARAVANTA CLOUD OS — WEB TERMINAL
+========================================
+ Backend : https://arv-backend.vercel.app
+ Region  : arv-us-east-1 (N. Virginia)
+ Status  : LIVE CONTROL PLANE CONNECTED
+========================================
+ Type 'help' for cloud commands.`;
+
 export const CLIPage: React.FC<CLIPageProps> = ({ token, user }) => {
   const [activeView, setActiveView] = useState<'terminal' | 'install' | 'reference'>('terminal');
   const [logs, setLogs] = useState<CommandLog[]>([
     {
       id: 'init',
       command: 'system::init',
-      output: WELCOME_HEADER,
+      output: WELCOME_HEADER_DESKTOP,
       timestamp: new Date().toLocaleTimeString()
     }
   ]);
@@ -392,86 +402,87 @@ Identity:
   );
 
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-5 font-sans">
+    <div className="p-3 sm:p-6 max-w-7xl mx-auto space-y-4 sm:space-y-5 font-sans">
       {/* Top Banner & Mode Selector */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm">
-        <div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-4 sm:p-5 rounded-2xl shadow-sm">
+        <div className="min-w-0">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
               <Terminal className="w-5 h-5" />
             </div>
-            <div>
-              <h1 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight">
+            <div className="min-w-0">
+              <h1 className="text-sm sm:text-lg font-black text-slate-900 dark:text-white tracking-tight truncate">
                 Developer Tools — Aravanta CLI & Shell
               </h1>
-              <p className="text-xs text-slate-600 dark:text-slate-400 font-mono mt-0.5">
+              <p className="text-[11px] sm:text-xs text-slate-600 dark:text-slate-400 font-mono mt-0.5 truncate">
                 First-class command line interface & in-browser cloud management console
               </p>
             </div>
           </div>
         </div>
 
-        {/* View Switcher Tabs */}
-        <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shrink-0">
+        {/* View Switcher Tabs - Responsive Segmented Control */}
+        <div className="grid grid-cols-3 sm:flex sm:items-center p-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl w-full sm:w-auto shrink-0 gap-1 sm:gap-0">
           <button
             onClick={() => setActiveView('terminal')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-2 sm:px-3 py-2 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1 sm:gap-1.5 text-center ${
               activeView === 'terminal'
                 ? 'bg-white dark:bg-[#152744] text-slate-900 dark:text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <Terminal className="w-3.5 h-3.5 text-emerald-500" />
-            <span>Web Terminal</span>
+            <Terminal className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+            <span className="truncate">Web Terminal</span>
           </button>
           <button
             onClick={() => setActiveView('install')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-2 sm:px-3 py-2 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1 sm:gap-1.5 text-center ${
               activeView === 'install'
                 ? 'bg-white dark:bg-[#152744] text-slate-900 dark:text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <Download className="w-3.5 h-3.5 text-blue-500" />
-            <span>Local CLI Setup</span>
+            <Download className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+            <span className="truncate">Install CLI</span>
           </button>
           <button
             onClick={() => setActiveView('reference')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-2 sm:px-3 py-2 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1 sm:gap-1.5 text-center ${
               activeView === 'reference'
                 ? 'bg-white dark:bg-[#152744] text-slate-900 dark:text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <Code2 className="w-3.5 h-3.5 text-brandGold-500" />
-            <span>Command Reference</span>
+            <Code2 className="w-3.5 h-3.5 text-brandGold-500 shrink-0" />
+            <span className="truncate">Reference</span>
           </button>
         </div>
       </div>
 
       {/* VIEW 1: WEB TERMINAL */}
       {activeView === 'terminal' && (
-        <div className="bg-[#070B14] border border-slate-800 rounded-2xl shadow-xl overflow-hidden flex flex-col h-[640px]">
+        <div className="bg-[#070B14] border border-slate-800 rounded-2xl shadow-xl overflow-hidden flex flex-col h-[520px] sm:h-[620px] max-h-[calc(100dvh-180px)] min-h-[460px]">
           {/* Terminal Window Header */}
-          <div className="h-11 bg-[#0C1220] border-b border-slate-800 px-4 flex items-center justify-between shrink-0 select-none">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-full bg-rose-500/80 inline-block" />
-                <span className="w-3 h-3 rounded-full bg-amber-500/80 inline-block" />
-                <span className="w-3 h-3 rounded-full bg-emerald-500/80 inline-block" />
+          <div className="h-10 sm:h-11 bg-[#0C1220] border-b border-slate-800 px-3 sm:px-4 flex items-center justify-between shrink-0 select-none">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+                <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-rose-500/80 inline-block" />
+                <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-amber-500/80 inline-block" />
+                <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-emerald-500/80 inline-block" />
               </div>
-              <span className="text-xs font-mono font-bold text-slate-200 flex items-center gap-1.5">
-                <Terminal className="w-3.5 h-3.5 text-emerald-400" />
-                aravanta-shell: production
+              <span className="text-xs font-mono font-bold text-slate-200 flex items-center gap-1.5 truncate">
+                <Terminal className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span className="hidden sm:inline">aravanta-shell: production</span>
+                <span className="inline sm:hidden">aravanta-sh</span>
               </span>
-              <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 LIVE API
               </span>
             </div>
 
             {/* Terminal Actions */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <div className="relative hidden md:block">
                 <Search className="w-3 h-3 absolute left-2 top-2 text-slate-500" />
                 <input
@@ -494,49 +505,58 @@ Identity:
 
           {/* Terminal Output Body */}
           <div 
-            className="flex-1 overflow-y-auto p-4 font-mono text-xs text-slate-200 space-y-2 select-text"
+            className="flex-1 overflow-y-auto p-3 sm:p-4 font-mono text-xs text-slate-200 space-y-2 select-text"
             onClick={() => inputRef.current?.focus()}
           >
             {filteredLogs.map((log) => (
               <div key={log.id} className="group space-y-1 relative">
                 {log.command !== 'system::init' && (
                   <div className="flex items-center justify-between text-emerald-400 font-bold">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-emerald-500">{username}@aravanta</span>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-emerald-500 truncate">{username}@aravanta</span>
                       <span className="text-slate-500">:</span>
                       <span className="text-blue-400">{currentDir}</span>
                       <span className="text-slate-400">$</span>
-                      <span className="text-white font-normal">{log.command}</span>
+                      <span className="text-white font-normal break-all">{log.command}</span>
                     </div>
                     <button
                       onClick={() => copyToClipboard(log.command, `cmd-${log.id}`)}
-                      className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-white rounded text-[10px] flex items-center gap-1 transition-opacity cursor-pointer"
+                      className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-white rounded text-[10px] flex items-center gap-1 transition-opacity cursor-pointer shrink-0"
                       title="Copy command"
                     >
                       {copiedId === `cmd-${log.id}` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
                     </button>
                   </div>
                 )}
-                <div className="relative">
-                  <pre className={`whitespace-pre-wrap font-mono leading-relaxed ${
-                    log.isError 
-                      ? 'text-rose-400 bg-rose-950/20 p-2 rounded border border-rose-900/40' 
-                      : log.command === 'system::init'
-                      ? 'text-brandGold-400 font-bold'
-                      : 'text-slate-300'
-                  }`}>
-                    {log.output}
-                  </pre>
-                  {log.command !== 'system::init' && log.output && (
-                    <button
-                      onClick={() => copyToClipboard(log.output, `out-${log.id}`)}
-                      className="opacity-0 group-hover:opacity-100 absolute top-1 right-1 p-1 text-slate-400 hover:text-white rounded bg-slate-800/80 text-[10px] flex items-center gap-1 transition-opacity cursor-pointer"
-                      title="Copy output"
-                    >
-                      {copiedId === `out-${log.id}` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                    </button>
-                  )}
-                </div>
+                {log.command === 'system::init' ? (
+                  <div className="text-brandGold-400 font-bold overflow-x-auto select-text scrollbar-none py-1">
+                    <pre className="hidden sm:block whitespace-pre font-mono text-[11px] md:text-xs leading-tight">
+                      {WELCOME_HEADER_DESKTOP}
+                    </pre>
+                    <pre className="block sm:hidden whitespace-pre font-mono text-[10px] leading-tight">
+                      {WELCOME_HEADER_MOBILE}
+                    </pre>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <pre className={`whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto ${
+                      log.isError 
+                        ? 'text-rose-400 bg-rose-950/20 p-2 rounded border border-rose-900/40' 
+                        : 'text-slate-300'
+                    }`}>
+                      {log.output}
+                    </pre>
+                    {log.output && (
+                      <button
+                        onClick={() => copyToClipboard(log.output, `out-${log.id}`)}
+                        className="opacity-0 group-hover:opacity-100 absolute top-1 right-1 p-1 text-slate-400 hover:text-white rounded bg-slate-800/80 text-[10px] flex items-center gap-1 transition-opacity cursor-pointer"
+                        title="Copy output"
+                      >
+                        {copiedId === `out-${log.id}` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
             {loading && (
@@ -549,7 +569,7 @@ Identity:
           </div>
 
           {/* Quick Suggestions Bar */}
-          <div className="px-4 py-2 bg-[#0A0F1D] border-t border-slate-800 flex items-center gap-2 overflow-x-auto text-[11px] font-mono shrink-0">
+          <div className="px-3 sm:px-4 py-2 bg-[#0A0F1D] border-t border-slate-800 flex items-center gap-2 overflow-x-auto text-[11px] font-mono shrink-0 scrollbar-none">
             <span className="text-slate-500 shrink-0 flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider">
               <Sparkles className="w-3 h-3 text-brandGold-400" /> Quick:
             </span>
@@ -574,9 +594,9 @@ Identity:
           </div>
 
           {/* Input Prompt */}
-          <div className="h-12 bg-[#050810] px-4 flex items-center gap-2 border-t border-slate-800 shrink-0">
+          <div className="h-11 sm:h-12 bg-[#050810] px-3 sm:px-4 flex items-center gap-2 border-t border-slate-800 shrink-0">
             <span className="font-mono text-xs font-bold text-emerald-400 shrink-0">
-              {username}@aravanta:{currentDir}$
+              <span className="hidden sm:inline">{username}@aravanta:</span>{currentDir}$
             </span>
             <input
               ref={inputRef}
@@ -586,7 +606,7 @@ Identity:
               onKeyDown={handleKeyDown}
               placeholder="Type an aravanta command or 'help' (Enter to run)..."
               disabled={loading}
-              className="flex-1 bg-transparent border-none outline-none font-mono text-xs text-white placeholder-slate-500"
+              className="flex-1 min-w-0 bg-transparent border-none outline-none font-mono text-xs text-white placeholder-slate-500"
               autoComplete="off"
               spellCheck="false"
             />
@@ -606,240 +626,282 @@ Identity:
       {activeView === 'install' && (
         <div className="space-y-6">
           {/* OS Selector Tabs */}
-          <div className="flex items-center gap-3">
+          <div className="grid grid-cols-3 sm:flex sm:items-center gap-1.5 sm:gap-3">
             {[
-              { id: 'windows', label: 'Windows (PowerShell / CMD)', icon: Monitor },
-              { id: 'mac', label: 'macOS (Apple Silicon & Intel)', icon: Laptop },
-              { id: 'linux', label: 'Linux (Ubuntu / Debian / RHEL)', icon: Server },
+              { id: 'windows', label: 'Windows', sub: 'PowerShell / CMD', icon: Monitor },
+              { id: 'mac', label: 'macOS', sub: 'Apple Silicon & Intel', icon: Laptop },
+              { id: 'linux', label: 'Linux', sub: 'Ubuntu, Debian, RHEL', icon: Server },
             ].map((os) => (
               <button
                 key={os.id}
                 onClick={() => setSelectedOS(os.id as any)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                className={`flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-xl border text-[11px] sm:text-xs font-bold transition-all cursor-pointer text-center ${
                   selectedOS === os.id
                     ? 'bg-blue-50 dark:bg-blue-500/15 border-blue-300 dark:border-blue-500/30 text-blue-700 dark:text-blue-300 shadow-sm'
                     : 'bg-white dark:bg-[#0F2038] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60'
                 }`}
               >
-                <os.icon className="w-4 h-4" />
-                <span>{os.label}</span>
+                <os.icon className="w-4 h-4 shrink-0" />
+                <span className="truncate">{os.label}</span>
+                <span className="hidden md:inline text-[10px] opacity-70">({os.sub})</span>
               </button>
             ))}
           </div>
 
           {/* Windows Instructions */}
           {selectedOS === 'windows' && (
-            <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-5">
+            <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 space-y-5">
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <Monitor className="w-4 h-4 text-blue-500" />
                   Running Aravanta CLI on Windows
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Works out-of-the-box in Windows Command Prompt (CMD) or Windows PowerShell. No WSL required.
+                  Installs globally in seconds. Works in Windows Terminal, PowerShell, or Command Prompt (CMD) from any directory.
                 </p>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
-                    Step 1: Check Connection & Service Status
+                  <label className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                    <span>Step 1: One-Line Global Install (PowerShell)</span>
+                    <span className="text-[10px] text-emerald-500 uppercase tracking-wide">Recommended</span>
                   </label>
                   <div className="relative">
                     <pre className="p-3 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl overflow-x-auto border border-slate-800">
-                      .\cli\aravanta.bat status
+                      irm https://aravantacos.vercel.app/install.ps1 | iex
                     </pre>
                     <button
-                      onClick={() => copyToClipboard('.\\cli\\aravanta.bat status', 'w-1')}
+                      onClick={() => copyToClipboard('irm https://aravantacos.vercel.app/install.ps1 | iex', 'w-install')}
                       className="absolute right-2 top-2 p-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 text-xs"
                     >
-                      {copiedId === 'w-1' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copiedId === 'w-install' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Alternatively with pip: <code className="text-brandGold-400 font-mono">pip install "git+https://github.com/yashbaviskar15/acos.git#subdirectory=cli"</code>
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
+                    Step 2: Verify Status from Any Directory
+                  </label>
+                  <div className="relative">
+                    <pre className="p-3 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl overflow-x-auto border border-slate-800">
+{`aravanta --version
+aravanta status`}
+                    </pre>
+                    <button
+                      onClick={() => copyToClipboard('aravanta --version\naravanta status', 'w-status')}
+                      className="absolute right-2 top-2 p-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 text-xs"
+                    >
+                      {copiedId === 'w-status' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
-                    Step 2: Authenticate (Option A: Email & Password)
+                    Step 3: Authenticate (Password or Instant Token)
                   </label>
                   <div className="relative">
                     <pre className="p-3 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl overflow-x-auto border border-slate-800">
-                      .\cli\aravanta.bat auth login --email {user?.email || 'your-email@example.com'}
+{`# Option A: Login with your email and password
+aravanta auth login --email ${user?.email || 'your-email@example.com'}
+
+# Option B: Instant web console token authorization
+aravanta auth token ${token || '<PASTE_WEB_JWT_TOKEN>'}`}
                     </pre>
                     <button
-                      onClick={() => copyToClipboard(`.\\cli\\aravanta.bat auth login --email ${user?.email || 'your-email@example.com'}`, 'w-2')}
+                      onClick={() => copyToClipboard(`aravanta auth login --email ${user?.email || 'your-email@example.com'}`, 'w-auth')}
                       className="absolute right-2 top-2 p-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 text-xs"
                     >
-                      {copiedId === 'w-2' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copiedId === 'w-auth' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
-                    Step 2 (Option B): Instant Login with Web Session Token
+                    Step 4: Manage Cloud Infrastructure Anywhere
                   </label>
                   <div className="relative">
                     <pre className="p-3 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl overflow-x-auto border border-slate-800">
-                      .\cli\aravanta.bat auth token {token || '<PASTE_JWT_TOKEN>'}
+{`# Inspect who you are logged in as
+aravanta whoami
+
+# List cloud compute instances
+aravanta compute list
+
+# Launch a new virtual machine
+aravanta compute create --name api-worker-01 --cpu 2 --ram 4096
+
+# List cloud projects
+aravanta project list`}
                     </pre>
                     <button
-                      onClick={() => copyToClipboard(`.\\cli\\aravanta.bat auth token ${token || '<PASTE_JWT_TOKEN>'}`, 'w-3')}
+                      onClick={() => copyToClipboard('aravanta compute list', 'w-run')}
                       className="absolute right-2 top-2 p-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 text-xs"
                     >
-                      {copiedId === 'w-3' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copiedId === 'w-run' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                 </div>
+              </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
-                    Step 3: List & Provision Resources
-                  </label>
-                  <div className="relative">
-                    <pre className="p-3 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl overflow-x-auto border border-slate-800">
-{`# Inspect session
-.\\cli\\aravanta.bat whoami
-
-# List compute nodes
-.\\cli\\aravanta.bat compute list
-
-# Launch an instance
-.\\cli\\aravanta.bat compute create --name web-prod-01 --cpu 2 --ram 4096`}
-                    </pre>
-                    <button
-                      onClick={() => copyToClipboard('.\\cli\\aravanta.bat compute list', 'w-4')}
-                      className="absolute right-2 top-2 p-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 text-xs"
-                    >
-                      {copiedId === 'w-4' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
-                </div>
+              {/* Contributor Section */}
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
+                <span className="font-bold text-slate-700 dark:text-slate-300">Open-Source Contributor? </span>
+                If developing in the private source repo, run <code className="px-1 py-0.5 bg-slate-100 dark:bg-slate-800 rounded font-mono text-brandGold-500">pip install -e cli</code> to link your local changes.
               </div>
             </div>
           )}
 
           {/* macOS Instructions */}
           {selectedOS === 'mac' && (
-            <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-5">
+            <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 space-y-5">
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <Laptop className="w-4 h-4 text-purple-500" />
                   Running Aravanta CLI on macOS
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Native POSIX executable. Works in Terminal, iTerm2, and VS Code terminal.
+                  Works in macOS Terminal, iTerm2, and VS Code terminal on both Apple Silicon (M1/M2/M3/M4) and Intel.
                 </p>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
-                    Step 1: Make executable & verify status
+                  <label className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                    <span>Step 1: One-Line Global Install (Terminal)</span>
+                    <span className="text-[10px] text-emerald-500 uppercase tracking-wide">Recommended</span>
                   </label>
                   <div className="relative">
                     <pre className="p-3 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl overflow-x-auto border border-slate-800">
-{`chmod +x cli/aravanta
-./cli/aravanta status`}
+                      curl -fsSL https://aravantacos.vercel.app/install.sh | bash
                     </pre>
                     <button
-                      onClick={() => copyToClipboard('chmod +x cli/aravanta\n./cli/aravanta status', 'm-1')}
+                      onClick={() => copyToClipboard('curl -fsSL https://aravantacos.vercel.app/install.sh | bash', 'm-install')}
                       className="absolute right-2 top-2 p-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 text-xs"
                     >
-                      {copiedId === 'm-1' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copiedId === 'm-install' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Or with pip: <code className="text-brandGold-400 font-mono">pip3 install "git+https://github.com/yashbaviskar15/acos.git#subdirectory=cli"</code>
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
+                    Step 2: Verify Status & Connect
+                  </label>
+                  <div className="relative">
+                    <pre className="p-3 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl overflow-x-auto border border-slate-800">
+{`aravanta --version
+aravanta status`}
+                    </pre>
+                    <button
+                      onClick={() => copyToClipboard('aravanta --version\naravanta status', 'm-status')}
+                      className="absolute right-2 top-2 p-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 text-xs"
+                    >
+                      {copiedId === 'm-status' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
-                    Step 2: Authenticate with Production Backend
+                    Step 3: Authenticate & Provision Resources
                   </label>
                   <div className="relative">
                     <pre className="p-3 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl overflow-x-auto border border-slate-800">
-                      ./cli/aravanta auth login --email {user?.email || 'your-email@example.com'}
-                    </pre>
-                    <button
-                      onClick={() => copyToClipboard(`./cli/aravanta auth login --email ${user?.email || 'your-email@example.com'}`, 'm-2')}
-                      className="absolute right-2 top-2 p-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 text-xs"
-                    >
-                      {copiedId === 'm-2' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
-                </div>
+{`# Authenticate
+aravanta auth login --email ${user?.email || 'your-email@example.com'}
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
-                    Step 3: Optional Global Install (creates 'aravanta' command in PATH)
-                  </label>
-                  <div className="relative">
-                    <pre className="p-3 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl overflow-x-auto border border-slate-800">
-{`pip install -e cli
-aravanta --version`}
+# List and create virtual machines
+aravanta compute list
+aravanta compute create --name prod-api-01 --cpu 2 --ram 4096`}
                     </pre>
                     <button
-                      onClick={() => copyToClipboard('pip install -e cli\naravanta --version', 'm-3')}
+                      onClick={() => copyToClipboard(`aravanta auth login --email ${user?.email || 'your-email@example.com'}`, 'm-auth')}
                       className="absolute right-2 top-2 p-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 text-xs"
                     >
-                      {copiedId === 'm-3' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copiedId === 'm-auth' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                 </div>
+              </div>
+
+              {/* Contributor Section */}
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
+                <span className="font-bold text-slate-700 dark:text-slate-300">Source Contributor? </span>
+                In the clone repo, use <code className="px-1 py-0.5 bg-slate-100 dark:bg-slate-800 rounded font-mono text-brandGold-500">pip install -e cli</code>.
               </div>
             </div>
           )}
 
           {/* Linux Instructions */}
           {selectedOS === 'linux' && (
-            <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-5">
+            <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 space-y-5">
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <Server className="w-4 h-4 text-emerald-500" />
-                  Running Aravanta CLI on Linux
+                  Running Aravanta CLI on Linux & CI/CD
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Works on Ubuntu, Debian, CentOS, RHEL, Arch Linux, Alpine, and CI/CD runners.
+                  Works on Ubuntu, Debian, CentOS, RHEL, Arch Linux, Alpine, GitHub Actions, and GitLab CI.
                 </p>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
-                    Step 1: Execute directly with standard python3
+                  <label className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                    <span>Step 1: One-Line Global Install</span>
+                    <span className="text-[10px] text-emerald-500 uppercase tracking-wide">Recommended</span>
                   </label>
                   <div className="relative">
                     <pre className="p-3 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl overflow-x-auto border border-slate-800">
-{`chmod +x cli/aravanta
-./cli/aravanta status
-./cli/aravanta auth login --email ${user?.email || 'admin@aravanta.internal'}`}
+                      curl -fsSL https://aravantacos.vercel.app/install.sh | bash
                     </pre>
                     <button
-                      onClick={() => copyToClipboard('chmod +x cli/aravanta\n./cli/aravanta status', 'l-1')}
+                      onClick={() => copyToClipboard('curl -fsSL https://aravantacos.vercel.app/install.sh | bash', 'l-install')}
                       className="absolute right-2 top-2 p-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 text-xs"
                     >
-                      {copiedId === 'l-1' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copiedId === 'l-install' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
-                    CI/CD Non-Interactive Integration
+                    Step 2: Headless CI/CD & Automation Integration
                   </label>
                   <div className="relative">
                     <pre className="p-3 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl overflow-x-auto border border-slate-800">
-{`export ARAVANTA_TOKEN="${token || 'YOUR_TOKEN'}"
+{`# Provide token in environment without interactive prompt
+export ARAVANTA_TOKEN="${token || 'YOUR_ARAVANTA_TOKEN'}"
 export ARAVANTA_API_URL="https://arv-backend.vercel.app"
-./cli/aravanta compute list --output json`}
+
+# Output structured JSON for automation scripts
+aravanta compute list --output json
+aravanta project list --output json`}
                     </pre>
                     <button
-                      onClick={() => copyToClipboard('./cli/aravanta compute list --output json', 'l-2')}
+                      onClick={() => copyToClipboard('aravanta compute list --output json', 'l-ci')}
                       className="absolute right-2 top-2 p-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 text-xs"
                     >
-                      {copiedId === 'l-2' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copiedId === 'l-ci' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                 </div>
+              </div>
+
+              {/* Contributor Section */}
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
+                <span className="font-bold text-slate-700 dark:text-slate-300">Developer / Contributor: </span>
+                In the clone repo: <code className="px-1 py-0.5 bg-slate-100 dark:bg-slate-800 rounded font-mono text-brandGold-500">pip install -e cli</code>.
               </div>
             </div>
           )}
