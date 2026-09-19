@@ -52,6 +52,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { apiFetch } from './config/api';
 import { canAccessTab } from './utils/rbac';
 import { AccessDenied } from './components/AccessDenied';
+import { CloudShell } from './components/CloudShell';
 
 export default function App() {
   const [inviteToken, setInviteToken] = useState<string | null>(() => {
@@ -176,8 +177,9 @@ export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+  const [isTerminalOpen, setIsTerminalOpen] = useState(false);
 
-  // Global Cmd+K (Command Palette) and Cmd+J / Cmd+Shift+K (Console Copilot) shortcut listeners
+  // Global Cmd+K (Command Palette), Cmd+J (Copilot), and Cmd+` (Cloud Shell CLI) shortcut listeners
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -186,6 +188,9 @@ export default function App() {
       } else if ((e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === 'j' || (e.shiftKey && e.key.toLowerCase() === 'k'))) {
         e.preventDefault();
         setIsCopilotOpen(prev => !prev);
+      } else if ((e.metaKey || e.ctrlKey) && e.key === '`') {
+        e.preventDefault();
+        setIsTerminalOpen(prev => !prev);
       }
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
@@ -580,6 +585,7 @@ export default function App() {
           onNavigateToProfile={() => setActiveTab('profile')}
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
           onToggleCopilot={() => setIsCopilotOpen(prev => !prev)}
+          onToggleTerminal={() => setIsTerminalOpen(prev => !prev)}
         />
 
         {/* Dynamic Route Pages with Error Boundary Protection */}
@@ -680,6 +686,15 @@ export default function App() {
           onNavigate={handleUniversalNavigate}
           initialQuery={searchTerm}
         />
+
+        {/* Interactive In-Browser Cloud Shell Terminal */}
+        <CloudShell
+          isOpen={isTerminalOpen}
+          onClose={() => setIsTerminalOpen(false)}
+          token={token}
+          user={user}
+        />
+
         <CookieConsent />
       </div>
     </div>
