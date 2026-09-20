@@ -8,8 +8,13 @@ import {
   Smartphone, 
   Globe,
   Shield,
-  ArrowRight
+  ArrowRight,
+  Search,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
+import { DataTablePagination } from '../components/DataTablePagination';
 
 interface PermissionRow {
   category: string;
@@ -160,9 +165,58 @@ export const Security: React.FC<{ token?: string | null }> = () => {
   const currentQuestion = PLAIN_LANGUAGE_CHECKS.find(q => q.id === activeQuestionId) || PLAIN_LANGUAGE_CHECKS[0];
   const currentRoleSummary = ROLE_SUMMARIES[inspectedRole] || ROLE_SUMMARIES.Developer;
 
-  const filteredPermissions = selectedCategory === 'all' 
-    ? PERMISSIONS_MATRIX 
-    : PERMISSIONS_MATRIX.filter(p => p.category.toLowerCase() === selectedCategory.toLowerCase());
+  // Matrix table searching, sorting, pagination
+  const [matrixSearch, setMatrixSearch] = useState('');
+  const [matrixSortField, setMatrixSortField] = useState<string>('category');
+  const [matrixSortDir, setMatrixSortDir] = useState<'asc' | 'desc'>('asc');
+  const [matrixPage, setMatrixPage] = useState<number>(1);
+  const [matrixPageSize, setMatrixPageSize] = useState<number>(10);
+
+  const handleMatrixSort = (field: string) => {
+    if (matrixSortField === field) {
+      setMatrixSortDir(matrixSortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setMatrixSortField(field);
+      setMatrixSortDir('asc');
+    }
+    setMatrixPage(1);
+  };
+
+  const renderMatrixSortIcon = (field: string) => {
+    if (matrixSortField !== field) {
+      return <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-60 ml-1 inline" />;
+    }
+    return matrixSortDir === 'asc' ? (
+      <ArrowUp className="w-3 h-3 text-purple-500 ml-1 inline" />
+    ) : (
+      <ArrowDown className="w-3 h-3 text-purple-500 ml-1 inline" />
+    );
+  };
+
+  const mQuery = matrixSearch.toLowerCase().trim();
+  const filteredPermissions = PERMISSIONS_MATRIX.filter((p) => {
+    const matchesCategory = selectedCategory === 'all' || p.category.toLowerCase() === selectedCategory.toLowerCase();
+    const matchesSearch = !mQuery || p.category.toLowerCase().includes(mQuery) || p.action.toLowerCase().includes(mQuery);
+    return matchesCategory && matchesSearch;
+  });
+
+  const sortedPermissions = [...filteredPermissions].sort((a: any, b: any) => {
+    let aVal = a[matrixSortField] ?? '';
+    let bVal = b[matrixSortField] ?? '';
+    if (typeof aVal === 'boolean' && typeof bVal === 'boolean') {
+      return matrixSortDir === 'asc' ? (aVal === bVal ? 0 : aVal ? -1 : 1) : (aVal === bVal ? 0 : aVal ? 1 : -1);
+    }
+    if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+    if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+    if (aVal < bVal) return matrixSortDir === 'asc' ? -1 : 1;
+    if (aVal > bVal) return matrixSortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const paginatedPermissions = sortedPermissions.slice(
+    (matrixPage - 1) * matrixPageSize,
+    matrixPage * matrixPageSize
+  );
 
   return (
     <div className="space-y-6 font-mono text-xs">
@@ -362,101 +416,166 @@ export const Security: React.FC<{ token?: string | null }> = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex items-center gap-2 flex-wrap">
-              {['all', 'Infrastructure', 'Deployments', 'Observability', 'Logs', 'Automation', 'Security & IAM'].map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                    selectedCategory === cat
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                  }`}
-                >
-                  {cat === 'all' ? 'All Domains' : cat}
-                </button>
-              ))}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                {['all', 'Infrastructure', 'Deployments', 'Observability', 'Logs', 'Automation', 'Security & IAM'].map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => {
+                      setSelectedCategory(cat);
+                      setMatrixPage(1);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                      selectedCategory === cat
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                    }`}
+                  >
+                    {cat === 'all' ? 'All Domains' : cat}
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative w-full sm:w-56">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search entitlements..."
+                  value={matrixSearch}
+                  onChange={(e) => {
+                    setMatrixSearch(e.target.value);
+                    setMatrixPage(1);
+                  }}
+                  className="w-full pl-8 pr-7 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                />
+                {matrixSearch && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMatrixSearch('');
+                      setMatrixPage(1);
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
 
-        {/* Matrix Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-800 font-bold text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-900/50">
-                <th className="py-3 px-4">Domain</th>
-                <th className="py-3 px-4">Action / Entitlement</th>
-                <th className="py-3 px-4 text-center">Admin (SuperAdmin)</th>
-                <th className="py-3 px-4 text-center">Operator (SRE)</th>
-                <th className="py-3 px-4 text-center">Developer</th>
-                <th className="py-3 px-4 text-center">Viewer (Auditor)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-              {filteredPermissions.map((row, idx) => (
-                <tr key={idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
-                  <td className="py-3 px-4 font-bold text-purple-600 dark:text-purple-400 text-[11px]">
-                    {row.category}
-                  </td>
-
-                  <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">
-                    {row.action}
-                  </td>
-
-                  <td className="py-3 px-4 text-center">
-                    {row.admin ? (
-                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600">
-                        <Check className="w-3.5 h-3.5" />
-                      </span>
+            {/* Matrix Table */}
+            <div className="space-y-3">
+              <div className="overflow-x-auto min-w-full">
+                <table className="w-full min-w-[750px] text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-800 font-bold text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-900/50 select-none">
+                      <th className="py-3 px-4 cursor-pointer hover:text-slate-200" onClick={() => handleMatrixSort('category')}>
+                        Domain {renderMatrixSortIcon('category')}
+                      </th>
+                      <th className="py-3 px-4 cursor-pointer hover:text-slate-200" onClick={() => handleMatrixSort('action')}>
+                        Action / Entitlement {renderMatrixSortIcon('action')}
+                      </th>
+                      <th className="py-3 px-4 text-center cursor-pointer hover:text-slate-200" onClick={() => handleMatrixSort('admin')}>
+                        Admin (SuperAdmin) {renderMatrixSortIcon('admin')}
+                      </th>
+                      <th className="py-3 px-4 text-center cursor-pointer hover:text-slate-200" onClick={() => handleMatrixSort('operator')}>
+                        Operator (SRE) {renderMatrixSortIcon('operator')}
+                      </th>
+                      <th className="py-3 px-4 text-center cursor-pointer hover:text-slate-200" onClick={() => handleMatrixSort('developer')}>
+                        Developer {renderMatrixSortIcon('developer')}
+                      </th>
+                      <th className="py-3 px-4 text-center cursor-pointer hover:text-slate-200" onClick={() => handleMatrixSort('viewer')}>
+                        Viewer (Auditor) {renderMatrixSortIcon('viewer')}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                    {paginatedPermissions.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-slate-400 font-sans">
+                          No entitlements match your criteria
+                        </td>
+                      </tr>
                     ) : (
-                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400">
-                        <X className="w-3.5 h-3.5" />
-                      </span>
-                    )}
-                  </td>
+                      paginatedPermissions.map((row, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                          <td className="py-3 px-4 font-bold text-purple-600 dark:text-purple-400 text-[11px]">
+                            {row.category}
+                          </td>
 
-                  <td className="py-3.5 px-4 text-center">
-                    {row.operator ? (
-                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600">
-                        <Check className="w-3.5 h-3.5" />
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400">
-                        <X className="w-3.5 h-3.5" />
-                      </span>
-                    )}
-                  </td>
+                          <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">
+                            {row.action}
+                          </td>
 
-                  <td className="py-3.5 px-4 text-center">
-                    {row.developer ? (
-                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600">
-                        <Check className="w-3.5 h-3.5" />
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400">
-                        <X className="w-3.5 h-3.5" />
-                      </span>
-                    )}
-                  </td>
+                          <td className="py-3 px-4 text-center">
+                            {row.admin ? (
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600">
+                                <Check className="w-3.5 h-3.5" />
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400">
+                                <X className="w-3.5 h-3.5" />
+                              </span>
+                            )}
+                          </td>
 
-                  <td className="py-3.5 px-4 text-center">
-                    {row.viewer ? (
-                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600">
-                        <Check className="w-3.5 h-3.5" />
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400">
-                        <X className="w-3.5 h-3.5" />
-                      </span>
+                          <td className="py-3.5 px-4 text-center">
+                            {row.operator ? (
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600">
+                                <Check className="w-3.5 h-3.5" />
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400">
+                                <X className="w-3.5 h-3.5" />
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="py-3.5 px-4 text-center">
+                            {row.developer ? (
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600">
+                                <Check className="w-3.5 h-3.5" />
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400">
+                                <X className="w-3.5 h-3.5" />
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="py-3.5 px-4 text-center">
+                            {row.viewer ? (
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600">
+                                <Check className="w-3.5 h-3.5" />
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400">
+                                <X className="w-3.5 h-3.5" />
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
                     )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </tbody>
+                </table>
+              </div>
+
+              <DataTablePagination
+                currentPage={matrixPage}
+                totalItems={sortedPermissions.length}
+                pageSize={matrixPageSize}
+                onPageChange={setMatrixPage}
+                onPageSizeChange={(sz) => {
+                  setMatrixPageSize(sz);
+                  setMatrixPage(1);
+                }}
+                pageSizeOptions={[5, 10, 20]}
+              />
+            </div>
+          </div>
+        )}
       </div>
-    )}
-  </div>
 
       {/* Active User Sessions */}
       <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">

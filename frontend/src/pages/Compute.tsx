@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Server, Plus, Play, Square, RotateCw, Trash2, RefreshCw, Search
+  Server, Plus, Play, Square, RotateCw, Trash2, RefreshCw, Search,
+  ArrowUpDown, ArrowUp, ArrowDown, X
 } from 'lucide-react';
 import { CreateComputeWizardModal, ComputeConfig } from '../components/CreateComputeWizardModal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { DataTablePagination } from '../components/DataTablePagination';
 import { apiFetch } from '../config/api';
 import { deductClientServiceCharge } from '../utils/billingDebit';
 
@@ -21,6 +23,12 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
   const [selectedStatus, setSelectedStatus] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<{ id: string; action: 'stop' | 'terminate'; name: string } | null>(null);
+
+  // Sorting & Pagination state
+  const [sortField, setSortField] = useState<string>('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
 
   const fetchInstances = async () => {
     setLoading(true);
@@ -101,16 +109,52 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
     }
   };
 
-  const filteredInstances = instances.filter(inst => {
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      (inst.name && inst.name.toLowerCase().includes(q)) ||
-      (inst.id && inst.id.toLowerCase().includes(q)) ||
-      (inst.instance_type && inst.instance_type.toLowerCase().includes(q)) ||
-      (inst.private_ip && inst.private_ip.includes(q))
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+    setPage(1);
+  };
+
+  const renderSortIcon = (field: string) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-60 ml-1 inline" />;
+    }
+    return sortDir === 'asc' ? (
+      <ArrowUp className="w-3 h-3 text-blue-500 ml-1 inline" />
+    ) : (
+      <ArrowDown className="w-3 h-3 text-blue-500 ml-1 inline" />
     );
-  });
+  };
+
+  const filteredInstances = instances
+    .filter(inst => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        (inst.name && inst.name.toLowerCase().includes(q)) ||
+        (inst.id && inst.id.toLowerCase().includes(q)) ||
+        (inst.instance_type && inst.instance_type.toLowerCase().includes(q)) ||
+        (inst.private_ip && inst.private_ip.includes(q)) ||
+        (inst.public_ip && inst.public_ip.includes(q)) ||
+        (inst.region && inst.region.toLowerCase().includes(q)) ||
+        (inst.status && inst.status.toLowerCase().includes(q))
+      );
+    })
+    .sort((a, b) => {
+      let aVal = a[sortField] ?? '';
+      let bVal = b[sortField] ?? '';
+      if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+      if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+      if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+  const paginatedInstances = filteredInstances.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <div className="p-4 sm:p-6 space-y-5 max-w-7xl mx-auto font-sans">
@@ -178,17 +222,34 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setPage(1);
+            }}
             placeholder="Filter by name, ID, or IP..."
-            className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 font-sans"
+            className="w-full pl-9 pr-8 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 font-sans"
           />
+          {searchQuery && (
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setPage(1);
+              }}
+              className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
           <select
             value={selectedRegion}
-            onChange={(e) => setSelectedRegion(e.target.value)}
-            className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-medium focus:outline-none"
+            onChange={(e) => {
+              setSelectedRegion(e.target.value);
+              setPage(1);
+            }}
+            className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-medium focus:outline-none cursor-pointer"
           >
             <option value="">All Regions</option>
             <option value="arv-us-east-1">arv-us-east-1</option>
@@ -198,8 +259,11 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
 
           <select
             value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-medium focus:outline-none"
+            onChange={(e) => {
+              setSelectedStatus(e.target.value);
+              setPage(1);
+            }}
+            className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-medium focus:outline-none cursor-pointer"
           >
             <option value="">All Statuses</option>
             <option value="RUNNING">Running</option>
@@ -210,16 +274,40 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
 
       {/* Resource Table */}
       <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+        <div className="overflow-x-auto min-w-full">
+          <table className="w-full text-left border-collapse min-w-[720px]">
             <thead>
               <tr className="border-b border-slate-200 dark:border-slate-800 text-[11px] font-mono uppercase text-slate-500 dark:text-slate-400 bg-slate-50/80 dark:bg-slate-900/50">
-                <th className="p-4 font-bold">Instance & ID</th>
-                <th className="p-4 font-bold">Size & Spec</th>
-                <th className="p-4 font-bold">Private IP</th>
-                <th className="p-4 font-bold">Public IP</th>
-                <th className="p-4 font-bold">Region</th>
-                <th className="p-4 font-bold">Status</th>
+                <th className="p-4">
+                  <button onClick={() => handleSort('name')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Instance & ID {renderSortIcon('name')}
+                  </button>
+                </th>
+                <th className="p-4">
+                  <button onClick={() => handleSort('instance_type')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Size & Spec {renderSortIcon('instance_type')}
+                  </button>
+                </th>
+                <th className="p-4">
+                  <button onClick={() => handleSort('private_ip')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Private IP {renderSortIcon('private_ip')}
+                  </button>
+                </th>
+                <th className="p-4">
+                  <button onClick={() => handleSort('public_ip')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Public IP {renderSortIcon('public_ip')}
+                  </button>
+                </th>
+                <th className="p-4">
+                  <button onClick={() => handleSort('region')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Region {renderSortIcon('region')}
+                  </button>
+                </th>
+                <th className="p-4">
+                  <button onClick={() => handleSort('status')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Status {renderSortIcon('status')}
+                  </button>
+                </th>
                 <th className="p-4 font-bold text-right">Actions</th>
               </tr>
             </thead>
@@ -264,7 +352,7 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
                   </td>
                 </tr>
               ) : (
-                filteredInstances.map((inst) => (
+                paginatedInstances.map((inst) => (
                   <tr key={inst.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                     <td className="p-4 font-sans">
                       <div className="flex items-center gap-3">
@@ -342,6 +430,18 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Pagination Controls */}
+        <div className="p-4 border-t border-slate-200 dark:border-slate-800">
+          <DataTablePagination
+            currentPage={page}
+            pageSize={pageSize}
+            totalItems={filteredInstances.length}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            itemName="virtual machines"
+          />
         </div>
       </div>
 

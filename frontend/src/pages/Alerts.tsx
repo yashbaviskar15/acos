@@ -8,11 +8,15 @@ import {
   X,
   Sliders,
   BellRing,
-  Sparkles
+  Sparkles,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { apiFetch } from '../config/api';
 import { StatusBadge } from '../components/StatusBadge';
 import { ModalPortal } from '../components/ModalPortal';
+import { DataTablePagination } from '../components/DataTablePagination';
 
 interface AlertItem {
   id: string;
@@ -90,6 +94,12 @@ export const Alerts: React.FC<{ token: string | null; onNavigate?: (tab: string)
   const [activeTab, setActiveTab] = useState<'active' | 'defaults'>('active');
   const [defaultRules, setDefaultRules] = useState<AlertRuleDefault[]>(PRE_TUNED_ALERT_DEFAULTS);
 
+  // Sorting & Pagination state
+  const [sortField, setSortField] = useState<string>('fired_at');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
+
   const handleToggleRule = (ruleId: string) => {
     setDefaultRules(prev => prev.map(r => r.id === ruleId ? { ...r, enabled: !r.enabled } : r));
     setToastMessage('Alert rule preference updated.');
@@ -99,6 +109,27 @@ export const Alerts: React.FC<{ token: string | null; onNavigate?: (tab: string)
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+    setPage(1);
+  };
+
+  const renderSortIcon = (field: string) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-60 ml-1 inline" />;
+    }
+    return sortDir === 'asc' ? (
+      <ArrowUp className="w-3 h-3 text-blue-500 ml-1 inline" />
+    ) : (
+      <ArrowDown className="w-3 h-3 text-blue-500 ml-1 inline" />
+    );
   };
 
   const fetchAlerts = async () => {
@@ -176,6 +207,18 @@ export const Alerts: React.FC<{ token: string | null; onNavigate?: (tab: string)
     const matchesStatus = statusFilter === 'all' || status === statusFilter.toLowerCase();
     return matchesSearch && matchesSeverity && matchesStatus;
   });
+
+  const sortedAlerts = [...filtered].sort((a, b) => {
+    let aVal = (a as any)[sortField] ?? '';
+    let bVal = (b as any)[sortField] ?? '';
+    if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+    if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+    if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+    if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const paginatedAlerts = sortedAlerts.slice((page - 1) * pageSize, page * pageSize);
 
   const firingCount = alerts.filter(a => (a?.status || '').toLowerCase() === 'firing').length;
   const criticalCount = alerts.filter(a => (a?.severity || '').toLowerCase() === 'critical' && (a?.status || '').toLowerCase() === 'firing').length;
@@ -312,22 +355,39 @@ export const Alerts: React.FC<{ token: string | null; onNavigate?: (tab: string)
       ) : (
         /* Filter and Table */
         <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
           <div className="relative w-full sm:w-80">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Search alert title, message, service..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setPage(1);
+              }}
+              className="w-full pl-10 pr-8 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+            {searchTerm && (
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setPage(1);
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-2.5 flex-wrap w-full sm:w-auto justify-start sm:justify-end">
             <select
               value={severityFilter}
-              onChange={(e) => setSeverityFilter(e.target.value)}
+              onChange={(e) => {
+                setSeverityFilter(e.target.value);
+                setPage(1);
+              }}
               className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
             >
               <option value="all">Severity: All</option>
@@ -338,7 +398,10 @@ export const Alerts: React.FC<{ token: string | null; onNavigate?: (tab: string)
 
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setPage(1);
+              }}
               className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
             >
               <option value="all">Status: All</option>
@@ -360,15 +423,35 @@ export const Alerts: React.FC<{ token: string | null; onNavigate?: (tab: string)
         </div>
 
         {/* Alerts Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[680px] text-left text-xs">
+        <div className="overflow-x-auto min-w-full">
+          <table className="w-full min-w-[700px] text-left text-xs">
             <thead>
               <tr className="border-b border-slate-200 dark:border-slate-800 font-bold text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-900/50">
-                <th className="py-3 px-4">Alert Name & Description</th>
-                <th className="py-3 px-4">Severity</th>
-                <th className="py-3 px-4">Affected Target</th>
-                <th className="py-3 px-4">Fired At</th>
-                <th className="py-3 px-4">Status</th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('title')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Alert Name & Description {renderSortIcon('title')}
+                  </button>
+                </th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('severity')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Severity {renderSortIcon('severity')}
+                  </button>
+                </th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('service')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Affected Target {renderSortIcon('service')}
+                  </button>
+                </th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('fired_at')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Fired At {renderSortIcon('fired_at')}
+                  </button>
+                </th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('status')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Status {renderSortIcon('status')}
+                  </button>
+                </th>
                 <th className="py-3 px-4 text-right">Triage Actions</th>
               </tr>
             </thead>
@@ -387,7 +470,7 @@ export const Alerts: React.FC<{ token: string | null; onNavigate?: (tab: string)
                   </td>
                 </tr>
               ) : (
-                filtered.map((alert) => {
+                paginatedAlerts.map((alert) => {
                   const alertStatus = (alert.status || '').toLowerCase();
                   return (
                     <tr 
@@ -460,6 +543,16 @@ export const Alerts: React.FC<{ token: string | null; onNavigate?: (tab: string)
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        <DataTablePagination
+          currentPage={page}
+          pageSize={pageSize}
+          totalItems={filtered.length}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          itemName="alerts"
+        />
       </div>
     )}
 

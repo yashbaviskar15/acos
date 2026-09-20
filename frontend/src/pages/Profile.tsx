@@ -13,13 +13,18 @@ import {
   Plus, 
   X, 
   Save, 
-  Globe,
-  Share2,
-  Mail,
-  UserPlus
+  Globe, 
+  Share2, 
+  Mail, 
+  UserPlus,
+  Search,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { ModalPortal } from '../components/ModalPortal';
 import { SkeletonTableRow } from '../components/Skeleton';
+import { DataTablePagination } from '../components/DataTablePagination';
 import { apiFetch } from '../config/api';
 
 interface ProfileProps {
@@ -61,6 +66,13 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
   const [lastInviteLink, setLastInviteLink] = useState<string | null>(null);
   const [copiedInviteLink, setCopiedInviteLink] = useState(false);
   const [updatingRoleId, setUpdatingRoleId] = useState<string | null>(null);
+
+  // Members table searching, sorting, pagination
+  const [memberSearchTerm, setMemberSearchTerm] = useState('');
+  const [memberSortField, setMemberSortField] = useState<string>('full_name');
+  const [memberSortDir, setMemberSortDir] = useState<'asc' | 'desc'>('asc');
+  const [memberPage, setMemberPage] = useState<number>(1);
+  const [memberPageSize, setMemberPageSize] = useState<number>(5);
 
   // Preferences toggles
   const [notifDeploy, setNotifDeploy] = useState(true);
@@ -385,6 +397,52 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
     showToast('Session revoked. JWT token invalidated.');
   };
 
+  const handleMemberSort = (field: string) => {
+    if (memberSortField === field) {
+      setMemberSortDir(memberSortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setMemberSortField(field);
+      setMemberSortDir('asc');
+    }
+    setMemberPage(1);
+  };
+
+  const renderMemberSortIcon = (field: string) => {
+    if (memberSortField !== field) {
+      return <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-60 ml-1 inline" />;
+    }
+    return memberSortDir === 'asc' ? (
+      <ArrowUp className="w-3 h-3 text-[#C6923B] ml-1 inline" />
+    ) : (
+      <ArrowDown className="w-3 h-3 text-[#C6923B] ml-1 inline" />
+    );
+  };
+
+  const memQuery = memberSearchTerm.toLowerCase().trim();
+  const filteredMembers = memQuery
+    ? members.filter((m) =>
+        (m.full_name || '').toLowerCase().includes(memQuery) ||
+        (m.email || '').toLowerCase().includes(memQuery) ||
+        (m.role || '').toLowerCase().includes(memQuery) ||
+        (m.status || '').toLowerCase().includes(memQuery)
+      )
+    : members;
+
+  const sortedMembers = [...filteredMembers].sort((a: any, b: any) => {
+    let aVal = a[memberSortField] ?? '';
+    let bVal = b[memberSortField] ?? '';
+    if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+    if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+    if (aVal < bVal) return memberSortDir === 'asc' ? -1 : 1;
+    if (aVal > bVal) return memberSortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const paginatedMembers = sortedMembers.slice(
+    (memberPage - 1) * memberPageSize,
+    memberPage * memberPageSize
+  );
+
   const initial = fullName.charAt(0).toUpperCase() || 'U';
   const qrUrl = mfaSetupData?.otpauth_url 
     ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(mfaSetupData.otpauth_url)}`
@@ -685,11 +743,42 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
         <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-6">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div>
-              <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase">Workspace Team & Members</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase">Workspace Team & Members</h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#C6923B]/10 text-[#C6923B] border border-[#C6923B]/20">
+                  {filteredMembers.length}
+                </span>
+              </div>
               <p className="text-slate-500 text-[11px] mt-0.5">Workspace ID: <strong className="text-[#C6923B] dark:text-[#E5B04E]">{user?.workspace_id || 'ws-yash-prod'}</strong></p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="relative w-full sm:w-56">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search members..."
+                  value={memberSearchTerm}
+                  onChange={(e) => {
+                    setMemberSearchTerm(e.target.value);
+                    setMemberPage(1);
+                  }}
+                  className="w-full pl-8 pr-7 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:border-[#C6923B]"
+                />
+                {memberSearchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMemberSearchTerm('');
+                      setMemberPage(1);
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
               <button
                 onClick={() => handleCopyInviteLink()}
                 className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer text-xs"
@@ -710,97 +799,125 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
           </div>
 
           {/* Members Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 font-bold text-slate-500 bg-slate-50/50 dark:bg-slate-900/50">
-                  <th className="py-3 px-4">Member Name</th>
-                  <th className="py-3 px-4">Email Address</th>
-                  <th className="py-3 px-4">System Role</th>
-                  <th className="py-3 px-4">Account Status</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {membersLoading ? (
-                  <>
-                    <SkeletonTableRow columns={5} />
-                    <SkeletonTableRow columns={5} />
-                    <SkeletonTableRow columns={5} />
-                  </>
-                ) : members.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="py-8 text-center text-slate-400 font-mono">
-                      <p>No team members added yet.</p>
-                      <button
-                        onClick={handleOpenInviteModal}
-                        className="mt-2 text-xs font-bold text-[#C6923B] hover:underline inline-flex items-center gap-1"
-                      >
-                        <Plus className="w-3.5 h-3.5" /> Invite your first team member
-                      </button>
-                    </td>
+          <div className="space-y-3">
+            <div className="overflow-x-auto min-w-full">
+              <table className="w-full min-w-[650px] text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-800 font-bold text-slate-500 bg-slate-50/50 dark:bg-slate-900/50 select-none">
+                    <th className="py-3 px-4 cursor-pointer hover:text-slate-200" onClick={() => handleMemberSort('full_name')}>
+                      Member Name {renderMemberSortIcon('full_name')}
+                    </th>
+                    <th className="py-3 px-4 cursor-pointer hover:text-slate-200" onClick={() => handleMemberSort('email')}>
+                      Email Address {renderMemberSortIcon('email')}
+                    </th>
+                    <th className="py-3 px-4 cursor-pointer hover:text-slate-200" onClick={() => handleMemberSort('role')}>
+                      System Role {renderMemberSortIcon('role')}
+                    </th>
+                    <th className="py-3 px-4 cursor-pointer hover:text-slate-200" onClick={() => handleMemberSort('status')}>
+                      Account Status {renderMemberSortIcon('status')}
+                    </th>
+                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
-                ) : (
-                  members.map((m) => {
-                    const isOwner = (m.email || '').toLowerCase() === (user?.email || '').toLowerCase();
-                    return (
-                      <tr key={m.id || m.email} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
-                        <td className="py-3 px-4 font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-[#C6923B]/15 text-[#C6923B] font-black text-[10px] flex items-center justify-center shrink-0">
-                            {(m.full_name || m.email || 'U').charAt(0).toUpperCase()}
-                          </div>
-                          <span>{m.full_name || m.email?.split('@')[0]}</span>
-                          {isOwner && (
-                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold">
-                              YOU
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-slate-500">{m.email}</td>
-                        <td className="py-3 px-4">
-                          {(user?.role === 'SuperAdmin' || user?.role === 'Admin' || (user?.email && user.email.toLowerCase().includes('yash'))) && !isOwner ? (
-                            <select
-                              value={m.role}
-                              onChange={(e) => handleUpdateMemberRole(m.id || m.email, e.target.value)}
-                              disabled={updatingRoleId === (m.id || m.email)}
-                              className="px-2 py-1 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-[11px] font-bold text-slate-800 dark:text-slate-200 cursor-pointer focus:ring-1 focus:ring-[#C6923B] transition-colors"
-                              title="Assign new role to this member"
-                            >
-                              {(user?.role === 'SuperAdmin' || user?.email?.toLowerCase().includes('yash')) && (
-                                <option value="SuperAdmin">SuperAdmin</option>
-                              )}
-                              <option value="Admin">Admin</option>
-                              <option value="Operator">Operator</option>
-                              <option value="Developer">Developer</option>
-                              <option value="Viewer">Viewer</option>
-                            </select>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded bg-[#C6923B]/10 dark:bg-[#C6923B]/20 text-[#C6923B] dark:text-[#E5B04E] font-bold border border-[#C6923B]/20 text-[11px]">
-                              {m.role}
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1 w-fit text-[11px]">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Active
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          {!isOwner && (
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {membersLoading ? (
+                    <>
+                      <SkeletonTableRow columns={5} />
+                      <SkeletonTableRow columns={5} />
+                      <SkeletonTableRow columns={5} />
+                    </>
+                  ) : paginatedMembers.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-slate-400 font-mono">
+                        {memberSearchTerm ? (
+                          <p>No team members match &ldquo;{memberSearchTerm}&rdquo;</p>
+                        ) : (
+                          <>
+                            <p>No team members added yet.</p>
                             <button
-                              onClick={() => handleRevokeMember(m.id, m.email)}
-                              className="text-rose-600 dark:text-rose-400 hover:underline font-bold text-[11px] cursor-pointer"
+                              onClick={handleOpenInviteModal}
+                              className="mt-2 text-xs font-bold text-[#C6923B] hover:underline inline-flex items-center gap-1"
                             >
-                              Remove
+                              <Plus className="w-3.5 h-3.5" /> Invite your first team member
                             </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedMembers.map((m) => {
+                      const isOwner = (m.email || '').toLowerCase() === (user?.email || '').toLowerCase();
+                      return (
+                        <tr key={m.id || m.email} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                          <td className="py-3 px-4 font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-full bg-[#C6923B]/15 text-[#C6923B] font-black text-[10px] flex items-center justify-center shrink-0">
+                              {(m.full_name || m.email || 'U').charAt(0).toUpperCase()}
+                            </div>
+                            <span>{m.full_name || m.email?.split('@')[0]}</span>
+                            {isOwner && (
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold">
+                                YOU
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-slate-500">{m.email}</td>
+                          <td className="py-3 px-4">
+                            {(user?.role === 'SuperAdmin' || user?.role === 'Admin' || (user?.email && user.email.toLowerCase().includes('yash'))) && !isOwner ? (
+                              <select
+                                value={m.role}
+                                onChange={(e) => handleUpdateMemberRole(m.id || m.email, e.target.value)}
+                                disabled={updatingRoleId === (m.id || m.email)}
+                                className="px-2 py-1 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-[11px] font-bold text-slate-800 dark:text-slate-200 cursor-pointer focus:ring-1 focus:ring-[#C6923B] transition-colors"
+                                title="Assign new role to this member"
+                              >
+                                {(user?.role === 'SuperAdmin' || user?.email?.toLowerCase().includes('yash')) && (
+                                  <option value="SuperAdmin">SuperAdmin</option>
+                                )}
+                                <option value="Admin">Admin</option>
+                                <option value="Operator">Operator</option>
+                                <option value="Developer">Developer</option>
+                                <option value="Viewer">Viewer</option>
+                              </select>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded bg-[#C6923B]/10 dark:bg-[#C6923B]/20 text-[#C6923B] dark:text-[#E5B04E] font-bold border border-[#C6923B]/20 text-[11px]">
+                                {m.role}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1 w-fit text-[11px]">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Active
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            {!isOwner && (
+                              <button
+                                onClick={() => handleRevokeMember(m.id, m.email)}
+                                className="text-rose-600 dark:text-rose-400 hover:underline font-bold text-[11px] cursor-pointer"
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <DataTablePagination
+              currentPage={memberPage}
+              totalItems={sortedMembers.length}
+              pageSize={memberPageSize}
+              onPageChange={setMemberPage}
+              onPageSizeChange={(sz) => {
+                setMemberPageSize(sz);
+                setMemberPage(1);
+              }}
+              pageSizeOptions={[5, 10, 20]}
+            />
           </div>
         </div>
       )}

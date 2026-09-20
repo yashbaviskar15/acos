@@ -5,11 +5,16 @@ import {
   CheckCircle2, 
   ShieldAlert, 
   ChevronRight, 
-  Send 
+  Send,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  X
 } from 'lucide-react';
 import { apiFetch } from '../config/api';
 import { StatusBadge } from '../components/StatusBadge';
 import { ModalPortal } from '../components/ModalPortal';
+import { DataTablePagination } from '../components/DataTablePagination';
 
 interface TimelineEntry {
   time?: string;
@@ -40,6 +45,12 @@ export const Incidents: React.FC<{ token: string | null }> = ({ token }) => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+
+  // Sorting & Pagination state
+  const [sortField, setSortField] = useState<string>('detected_at');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
 
   // Selected incident for drawer/detail
   const [selectedIncident, setSelectedIncident] = useState<IncidentItem | null>(null);
@@ -164,18 +175,52 @@ export const Incidents: React.FC<{ token: string | null }> = ({ token }) => {
     }
   };
 
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+    setPage(1);
+  };
+
+  const renderSortIcon = (field: string) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-60 ml-1 inline" />;
+    }
+    return sortDir === 'asc' ? (
+      <ArrowUp className="w-3 h-3 text-blue-500 ml-1 inline" />
+    ) : (
+      <ArrowDown className="w-3 h-3 text-blue-500 ml-1 inline" />
+    );
+  };
+
   const filtered = (incidents || []).filter(inc => {
     if (!inc) return false;
     const title = (inc.title || '').toLowerCase();
     const number = (inc.number || inc.id || '').toLowerCase();
     const summary = (inc.summary || '').toLowerCase();
     const status = (inc.status || '').toLowerCase();
+    const commander = (inc.commander || '').toLowerCase();
     const query = searchTerm.toLowerCase();
 
-    const matchesSearch = title.includes(query) || number.includes(query) || summary.includes(query);
+    const matchesSearch = title.includes(query) || number.includes(query) || summary.includes(query) || commander.includes(query);
     const matchesStatus = statusFilter === 'all' || status === statusFilter.toLowerCase();
     return matchesSearch && matchesStatus;
   });
+
+  const sortedIncidents = [...filtered].sort((a, b) => {
+    let aVal = (a as any)[sortField] ?? '';
+    let bVal = (b as any)[sortField] ?? '';
+    if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+    if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+    if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+    if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const paginatedIncidents = sortedIncidents.slice((page - 1) * pageSize, page * pageSize);
 
   const activeIncidents = (incidents || []).filter(i => (i?.status || '').toLowerCase() !== 'resolved').length;
   const p1Count = (incidents || []).filter(i => (i?.severity || '').includes('P1') && (i?.status || '').toLowerCase() !== 'resolved').length;
@@ -219,22 +264,39 @@ export const Incidents: React.FC<{ token: string | null }> = ({ token }) => {
 
       {/* Control Bar */}
       <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
           <div className="relative w-full sm:w-80">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Search incident number, title, summary..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setPage(1);
+              }}
+              className="w-full pl-10 pr-8 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+            {searchTerm && (
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setPage(1);
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-2.5 flex-wrap w-full sm:w-auto justify-start sm:justify-end">
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setPage(1);
+              }}
               className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
             >
               <option value="all">Status: All</option>
@@ -263,16 +325,36 @@ export const Incidents: React.FC<{ token: string | null }> = ({ token }) => {
         </div>
 
         {/* Incidents Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left text-xs font-mono">
+        <div className="overflow-x-auto min-w-full">
+          <table className="w-full min-w-[750px] text-left text-xs font-mono">
             <thead>
               <tr className="border-b border-slate-200 dark:border-slate-800 font-bold text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-900/50">
-                <th className="py-3 px-4">Incident #</th>
-                <th className="py-3 px-4">Title & Summary</th>
-                <th className="py-3 px-4">Severity</th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('number')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Incident # {renderSortIcon('number')}
+                  </button>
+                </th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('title')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Title & Summary {renderSortIcon('title')}
+                  </button>
+                </th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('severity')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Severity {renderSortIcon('severity')}
+                  </button>
+                </th>
                 <th className="py-3 px-4">Affected Services</th>
-                <th className="py-3 px-4">Commander</th>
-                <th className="py-3 px-4">Status</th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('commander')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Commander {renderSortIcon('commander')}
+                  </button>
+                </th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('status')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Status {renderSortIcon('status')}
+                  </button>
+                </th>
                 <th className="py-3 px-4 text-right">Details</th>
               </tr>
             </thead>
@@ -291,7 +373,7 @@ export const Incidents: React.FC<{ token: string | null }> = ({ token }) => {
                   </td>
                 </tr>
               ) : (
-                filtered.map((inc) => (
+                paginatedIncidents.map((inc) => (
                   <tr 
                     key={inc.id} 
                     className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors cursor-pointer group"
@@ -354,6 +436,16 @@ export const Incidents: React.FC<{ token: string | null }> = ({ token }) => {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        <DataTablePagination
+          currentPage={page}
+          pageSize={pageSize}
+          totalItems={filtered.length}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          itemName="incidents"
+        />
       </div>
 
       {/* Declare Incident Modal */}

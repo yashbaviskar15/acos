@@ -2,10 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   RefreshCw, Layers, ChevronRight,
   ShieldCheck, Cpu, ShieldAlert, Radio, Zap,
-  Server, Plus, Boxes, DollarSign, Database, HardDrive
+  Server, Plus, Boxes, DollarSign, Database, HardDrive,
+  ArrowUpDown, ArrowUp, ArrowDown, Search, X
 } from 'lucide-react';
 import { apiFetch } from '../config/api';
 import { StatusBadge } from '../components/StatusBadge';
+import { DataTablePagination } from '../components/DataTablePagination';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
@@ -27,6 +29,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, onNavigate, searchT
   const [dashboardServices, setDashboardServices] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedRange, setSelectedRange] = useState<string>('24h');
+
+  // Services table searching, sorting & pagination
+  const [tableSearch, setTableSearch] = useState<string>('');
+  const [serviceSortField, setServiceSortField] = useState<string>('accrued_cost_inr');
+  const [serviceSortDir, setServiceSortDir] = useState<'asc' | 'desc'>('desc');
+  const [servicePage, setServicePage] = useState<number>(1);
+  const [servicePageSize, setServicePageSize] = useState<number>(5);
 
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
@@ -80,17 +89,53 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, onNavigate, searchT
             created_at: a.created_at || new Date().toISOString()
           }))
         : []);
-  const query = searchTerm.toLowerCase().trim();
-  const displayedServices = query
+  const effectiveSearch = (tableSearch || searchTerm).toLowerCase().trim();
+  const displayedServices = effectiveSearch
     ? liveServicesList.filter((s: any) =>
-        (s.name || '').toLowerCase().includes(query) ||
-        (s.service_type || '').toLowerCase().includes(query) ||
-        (s.category || '').toLowerCase().includes(query) ||
-        (s.region || '').toLowerCase().includes(query) ||
-        (s.spec || '').toLowerCase().includes(query) ||
-        (s.status || '').toLowerCase().includes(query)
+        (s.name || '').toLowerCase().includes(effectiveSearch) ||
+        (s.service_type || '').toLowerCase().includes(effectiveSearch) ||
+        (s.category || '').toLowerCase().includes(effectiveSearch) ||
+        (s.region || '').toLowerCase().includes(effectiveSearch) ||
+        (s.spec || '').toLowerCase().includes(effectiveSearch) ||
+        (s.status || '').toLowerCase().includes(effectiveSearch)
       )
     : liveServicesList;
+
+  const handleServiceSort = (field: string) => {
+    if (serviceSortField === field) {
+      setServiceSortDir(serviceSortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setServiceSortField(field);
+      setServiceSortDir('asc');
+    }
+    setServicePage(1);
+  };
+
+  const renderServiceSortIcon = (field: string) => {
+    if (serviceSortField !== field) {
+      return <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-60 ml-1 inline" />;
+    }
+    return serviceSortDir === 'asc' ? (
+      <ArrowUp className="w-3 h-3 text-blue-500 ml-1 inline" />
+    ) : (
+      <ArrowDown className="w-3 h-3 text-blue-500 ml-1 inline" />
+    );
+  };
+
+  const sortedServices = [...displayedServices].sort((a: any, b: any) => {
+    let aVal = a[serviceSortField] ?? '';
+    let bVal = b[serviceSortField] ?? '';
+    if (typeof aVal === 'number' && typeof bVal === 'number') {
+      return serviceSortDir === 'asc' ? aVal - bVal : bVal - aVal;
+    }
+    if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+    if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+    if (aVal < bVal) return serviceSortDir === 'asc' ? -1 : 1;
+    if (aVal > bVal) return serviceSortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const paginatedServices = sortedServices.slice((servicePage - 1) * servicePageSize, servicePage * servicePageSize);
 
   const totalServicesCount = dashboardServices?.services_count ?? (apps.length + (metrics?.compute?.instances_total || 0));
   const healthyApps = liveServicesList.length > 0 
@@ -298,7 +343,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, onNavigate, searchT
 
       {/* ── Section: User's Actual Created Services & Granular Cost Accrual Table ── */}
       <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800/80">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800/80">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
@@ -307,9 +352,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, onNavigate, searchT
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30">
                 {liveServicesList.length} PROVISIONED
               </span>
-              {query && (
+              {effectiveSearch && (
                 <span className="px-2 py-0.5 rounded-md bg-brandGold-500/15 border border-brandGold-500/30 text-brandGold-600 dark:text-brandGold-400 text-[10px] font-bold">
-                  {displayedServices.length} match &ldquo;{searchTerm}&rdquo;
+                  {displayedServices.length} match &ldquo;{tableSearch || searchTerm}&rdquo;
                 </span>
               )}
             </div>
@@ -318,7 +363,34 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, onNavigate, searchT
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Search Input with Clear Button */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search services..."
+                value={tableSearch}
+                onChange={(e) => {
+                  setTableSearch(e.target.value);
+                  setServicePage(1);
+                }}
+                className="pl-8 pr-7 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 w-44 sm:w-56"
+              />
+              {tableSearch && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTableSearch('');
+                    setServicePage(1);
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
             <div className="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-2">
               <span className="text-[10px] text-slate-400 uppercase font-bold">Total Accrued:</span>
               <strong className="text-emerald-600 dark:text-emerald-400 font-black">
@@ -362,71 +434,99 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, onNavigate, searchT
             </div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[680px] text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase font-bold text-slate-400">
-                  <th className="pb-2.5">Service Name</th>
-                  <th className="pb-2.5">Type & Spec</th>
-                  <th className="pb-2.5">Status</th>
-                  <th className="pb-2.5">Provisioned At</th>
-                  <th className="pb-2.5">Runtime</th>
-                  <th className="pb-2.5">Hourly Rate</th>
-                  <th className="pb-2.5 text-right">Cost Accrued</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
-                {displayedServices.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-400 font-sans">
-                      No services match &ldquo;<strong className="text-slate-200">{searchTerm}</strong>&rdquo;
-                    </td>
+          <div className="space-y-3">
+            <div className="overflow-x-auto min-w-full">
+              <table className="w-full min-w-[680px] text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase font-bold text-slate-400 select-none">
+                    <th className="pb-2.5 cursor-pointer hover:text-slate-200" onClick={() => handleServiceSort('name')}>
+                      Service Name {renderServiceSortIcon('name')}
+                    </th>
+                    <th className="pb-2.5 cursor-pointer hover:text-slate-200" onClick={() => handleServiceSort('spec')}>
+                      Type & Spec {renderServiceSortIcon('spec')}
+                    </th>
+                    <th className="pb-2.5 cursor-pointer hover:text-slate-200" onClick={() => handleServiceSort('status')}>
+                      Status {renderServiceSortIcon('status')}
+                    </th>
+                    <th className="pb-2.5 cursor-pointer hover:text-slate-200" onClick={() => handleServiceSort('created_at')}>
+                      Provisioned At {renderServiceSortIcon('created_at')}
+                    </th>
+                    <th className="pb-2.5 cursor-pointer hover:text-slate-200" onClick={() => handleServiceSort('runtime_hours')}>
+                      Runtime {renderServiceSortIcon('runtime_hours')}
+                    </th>
+                    <th className="pb-2.5 cursor-pointer hover:text-slate-200" onClick={() => handleServiceSort('hourly_rate_inr')}>
+                      Hourly Rate {renderServiceSortIcon('hourly_rate_inr')}
+                    </th>
+                    <th className="pb-2.5 text-right cursor-pointer hover:text-slate-200" onClick={() => handleServiceSort('accrued_cost_inr')}>
+                      Cost Accrued {renderServiceSortIcon('accrued_cost_inr')}
+                    </th>
                   </tr>
-                ) : (
-                  displayedServices.map((svc: any) => (
-                    <tr key={svc.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
-                      <td className="py-3 pr-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">
-                            {getCategoryIcon(svc.category)}
-                          </div>
-                          <div>
-                            <strong className="text-slate-900 dark:text-white font-bold block">{svc.name}</strong>
-                            <span className="text-[10px] text-slate-400">{svc.service_type}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3 pr-3 text-slate-600 dark:text-slate-300 font-mono text-[11px]">
-                        {svc.spec}
-                      </td>
-                      <td className="py-3 pr-3">
-                        <StatusBadge status={svc.status} size="sm" />
-                      </td>
-                      <td className="py-3 pr-3 text-slate-500 text-[11px]">
-                        {formatTimestamp(svc.created_at)}
-                      </td>
-                      <td className="py-3 pr-3 text-slate-600 dark:text-slate-300 text-[11px]">
-                        <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-bold">
-                          {svc.runtime_hours} hrs
-                        </span>
-                      </td>
-                      <td className="py-3 pr-3 text-slate-600 dark:text-slate-300 text-[11px]">
-                        ₹{svc.hourly_rate_inr}/hr
-                        <span className="text-[10px] text-slate-400 block">${svc.hourly_rate_usd}/hr</span>
-                      </td>
-                      <td className="py-3 text-right">
-                        <strong className="text-emerald-600 dark:text-emerald-400 font-black text-xs block">
-                          ₹{svc.accrued_cost_inr.toFixed(2)}
-                        </strong>
-                        <span className="text-[10px] text-slate-400 font-mono">
-                          ${svc.accrued_cost_usd.toFixed(2)} USD
-                        </span>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
+                  {paginatedServices.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-400 font-sans">
+                        No services match &ldquo;<strong className="text-slate-200">{tableSearch || searchTerm}</strong>&rdquo;
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    paginatedServices.map((svc: any) => (
+                      <tr key={svc.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
+                        <td className="py-3 pr-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">
+                              {getCategoryIcon(svc.category)}
+                            </div>
+                            <div>
+                              <strong className="text-slate-900 dark:text-white font-bold block">{svc.name}</strong>
+                              <span className="text-[10px] text-slate-400">{svc.service_type}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3 pr-3 text-slate-600 dark:text-slate-300 font-mono text-[11px]">
+                          {svc.spec}
+                        </td>
+                        <td className="py-3 pr-3">
+                          <StatusBadge status={svc.status} size="sm" />
+                        </td>
+                        <td className="py-3 pr-3 text-slate-500 text-[11px]">
+                          {formatTimestamp(svc.created_at)}
+                        </td>
+                        <td className="py-3 pr-3 text-slate-600 dark:text-slate-300 text-[11px]">
+                          <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-bold">
+                            {svc.runtime_hours} hrs
+                          </span>
+                        </td>
+                        <td className="py-3 pr-3 text-slate-600 dark:text-slate-300 text-[11px]">
+                          ₹{svc.hourly_rate_inr}/hr
+                          <span className="text-[10px] text-slate-400 block">${svc.hourly_rate_usd}/hr</span>
+                        </td>
+                        <td className="py-3 text-right">
+                          <strong className="text-emerald-600 dark:text-emerald-400 font-black text-xs block">
+                            ₹{svc.accrued_cost_inr.toFixed(2)}
+                          </strong>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            ${svc.accrued_cost_usd.toFixed(2)} USD
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <DataTablePagination
+              currentPage={servicePage}
+              totalItems={sortedServices.length}
+              pageSize={servicePageSize}
+              onPageChange={setServicePage}
+              onPageSizeChange={(sz) => {
+                setServicePageSize(sz);
+                setServicePage(1);
+              }}
+              pageSizeOptions={[5, 10, 20]}
+            />
           </div>
         )}
       </div>

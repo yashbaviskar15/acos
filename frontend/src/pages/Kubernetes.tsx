@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Boxes, Plus, Trash2, RefreshCw, Activity, Terminal, Copy, Check, Info, Play, Layers, ArrowRight, Moon, Zap } from 'lucide-react';
+import { Boxes, Plus, Trash2, RefreshCw, Activity, Terminal, Copy, Check, Info, Play, Layers, ArrowRight, Moon, Zap, Search, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { ModalPortal } from '../components/ModalPortal';
+import { DataTablePagination } from '../components/DataTablePagination';
 import { apiFetch } from '../config/api';
 import { deductClientServiceCharge } from '../utils/billingDebit';
 
@@ -20,6 +21,13 @@ export const Kubernetes: React.FC<KubernetesProps> = ({ token, onNavigate }) => 
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [terminalCmd, setTerminalCmd] = useState('kubectl get nodes');
   const [terminalLogs, setTerminalLogs] = useState<string>('Ready. Click Run or type a kubectl command.');
+
+  // Pods table searching, sorting & pagination
+  const [podSearchTerm, setPodSearchTerm] = useState('');
+  const [podSortField, setPodSortField] = useState<string>('name');
+  const [podSortDir, setPodSortDir] = useState<'asc' | 'desc'>('asc');
+  const [podPage, setPodPage] = useState<number>(1);
+  const [podPageSize, setPodPageSize] = useState<number>(10);
 
   // Form State
   const [name, setName] = useState('');
@@ -153,6 +161,55 @@ Metrics-server is running and healthy.`);
       console.error(err);
     }
   };
+
+  const handlePodSort = (field: string) => {
+    if (podSortField === field) {
+      setPodSortDir(podSortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setPodSortField(field);
+      setPodSortDir('asc');
+    }
+    setPodPage(1);
+  };
+
+  const renderPodSortIcon = (field: string) => {
+    if (podSortField !== field) {
+      return <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-60 ml-1 inline" />;
+    }
+    return podSortDir === 'asc' ? (
+      <ArrowUp className="w-3 h-3 text-purple-500 ml-1 inline" />
+    ) : (
+      <ArrowDown className="w-3 h-3 text-purple-500 ml-1 inline" />
+    );
+  };
+
+  const podQuery = podSearchTerm.toLowerCase().trim();
+  const filteredPods = podQuery
+    ? pods.filter((pod) =>
+        (pod.name || '').toLowerCase().includes(podQuery) ||
+        (pod.namespace || '').toLowerCase().includes(podQuery) ||
+        (pod.status || '').toLowerCase().includes(podQuery) ||
+        (pod.node || '').toLowerCase().includes(podQuery)
+      )
+    : pods;
+
+  const sortedPods = [...filteredPods].sort((a: any, b: any) => {
+    let aVal = a[podSortField] ?? '';
+    let bVal = b[podSortField] ?? '';
+    if (typeof aVal === 'number' && typeof bVal === 'number') {
+      return podSortDir === 'asc' ? aVal - bVal : bVal - aVal;
+    }
+    if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+    if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+    if (aVal < bVal) return podSortDir === 'asc' ? -1 : 1;
+    if (aVal > bVal) return podSortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const paginatedPods = sortedPods.slice(
+    (podPage - 1) * podPageSize,
+    podPage * podPageSize
+  );
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
@@ -292,57 +349,118 @@ Metrics-server is running and healthy.`);
         <div className="lg:col-span-2 bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4 shadow-sm">
           {selectedCluster ? (
             <>
-              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
                 <div>
-                  <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider font-mono">
-                    Pods in <span className="text-purple-600 dark:text-purple-400">{selectedCluster.name}</span>
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider font-mono">
+                      Pods in <span className="text-purple-600 dark:text-purple-400">{selectedCluster.name}</span>
+                    </h3>
+                    <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-[10px] font-mono text-purple-600 dark:text-purple-400 font-bold">
+                      {filteredPods.length} Workload Pods
+                    </span>
+                  </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">Live Kubernetes Pod telemetry & status</p>
                 </div>
 
-                <span className="px-3 py-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono text-purple-600 dark:text-purple-400 font-bold">
-                  {pods.length} Workload Pods
-                </span>
+                <div className="relative w-full sm:w-56">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Search pods..."
+                    value={podSearchTerm}
+                    onChange={(e) => {
+                      setPodSearchTerm(e.target.value);
+                      setPodPage(1);
+                    }}
+                    className="w-full pl-8 pr-7 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:border-purple-500"
+                  />
+                  {podSearchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPodSearchTerm('');
+                        setPodPage(1);
+                      }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 dark:bg-slate-900/80 text-slate-600 dark:text-slate-400 font-mono text-[10px] uppercase border-b border-slate-200 dark:border-slate-800 font-extrabold">
-                    <tr>
-                      <th className="p-3">Pod Name</th>
-                      <th className="p-3">Namespace</th>
-                      <th className="p-3">Status</th>
-                      <th className="p-3">CPU / RAM</th>
-                      <th className="p-3">Restarts</th>
-                      <th className="p-3">Node</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 font-mono">
-                    {pods.map((pod) => (
-                      <tr key={pod.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                        <td className="p-3 font-semibold text-slate-900 dark:text-white font-mono flex items-center gap-2">
-                          <Activity className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                          {pod.name}
-                        </td>
-                        <td className="p-3 text-slate-700 dark:text-slate-300">{pod.namespace}</td>
-                        <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${
-                            pod.status === 'Running' 
-                              ? 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30' 
-                              : (pod.status === 'CrashLoopBackOff' ? 'bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/30' : 'bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/30')
-                          }`}>
-                            {pod.status}
-                          </span>
-                        </td>
-                        <td className="p-3 text-[11px] text-slate-700 dark:text-slate-300 font-bold">
-                          {pod.cpu_usage_m}m / {pod.ram_usage_mb}MB
-                        </td>
-                        <td className="p-3 text-slate-500 dark:text-slate-400">{pod.restarts}</td>
-                        <td className="p-3 text-slate-500 dark:text-slate-400">{pod.node}</td>
+              <div className="space-y-3">
+                <div className="overflow-x-auto min-w-full">
+                  <table className="w-full min-w-[650px] text-left text-xs">
+                    <thead className="bg-slate-50 dark:bg-slate-900/80 text-slate-600 dark:text-slate-400 font-mono text-[10px] uppercase border-b border-slate-200 dark:border-slate-800 font-extrabold select-none">
+                      <tr>
+                        <th className="p-3 cursor-pointer hover:text-slate-200" onClick={() => handlePodSort('name')}>
+                          Pod Name {renderPodSortIcon('name')}
+                        </th>
+                        <th className="p-3 cursor-pointer hover:text-slate-200" onClick={() => handlePodSort('namespace')}>
+                          Namespace {renderPodSortIcon('namespace')}
+                        </th>
+                        <th className="p-3 cursor-pointer hover:text-slate-200" onClick={() => handlePodSort('status')}>
+                          Status {renderPodSortIcon('status')}
+                        </th>
+                        <th className="p-3 cursor-pointer hover:text-slate-200" onClick={() => handlePodSort('cpu_usage_m')}>
+                          CPU / RAM {renderPodSortIcon('cpu_usage_m')}
+                        </th>
+                        <th className="p-3 cursor-pointer hover:text-slate-200" onClick={() => handlePodSort('restarts')}>
+                          Restarts {renderPodSortIcon('restarts')}
+                        </th>
+                        <th className="p-3 cursor-pointer hover:text-slate-200" onClick={() => handlePodSort('node')}>
+                          Node {renderPodSortIcon('node')}
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 font-mono">
+                      {paginatedPods.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-8 text-center text-slate-400 font-sans">
+                            No pods match your criteria
+                          </td>
+                        </tr>
+                      ) : (
+                        paginatedPods.map((pod) => (
+                          <tr key={pod.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                            <td className="p-3 font-semibold text-slate-900 dark:text-white font-mono flex items-center gap-2">
+                              <Activity className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                              {pod.name}
+                            </td>
+                            <td className="p-3 text-slate-700 dark:text-slate-300">{pod.namespace}</td>
+                            <td className="p-3">
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+                                pod.status === 'Running' 
+                                  ? 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30' 
+                                  : (pod.status === 'CrashLoopBackOff' ? 'bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/30' : 'bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/30')
+                              }`}>
+                                {pod.status}
+                              </span>
+                            </td>
+                            <td className="p-3 text-[11px] text-slate-700 dark:text-slate-300 font-bold">
+                              {pod.cpu_usage_m}m / {pod.ram_usage_mb}MB
+                            </td>
+                            <td className="p-3 text-slate-500 dark:text-slate-400">{pod.restarts}</td>
+                            <td className="p-3 text-slate-500 dark:text-slate-400">{pod.node}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <DataTablePagination
+                  currentPage={podPage}
+                  totalItems={sortedPods.length}
+                  pageSize={podPageSize}
+                  onPageChange={setPodPage}
+                  onPageSizeChange={(sz) => {
+                    setPodPageSize(sz);
+                    setPodPage(1);
+                  }}
+                  pageSizeOptions={[5, 10, 20]}
+                />
               </div>
             </>
           ) : (

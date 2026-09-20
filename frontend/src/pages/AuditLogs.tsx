@@ -3,8 +3,13 @@ import {
   Search, 
   RefreshCw, 
   Download, 
-  User
+  User,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  X
 } from 'lucide-react';
+import { DataTablePagination } from '../components/DataTablePagination';
 import { apiFetch } from '../config/api';
 
 interface AuditLogItem {
@@ -22,6 +27,12 @@ export const AuditLogs: React.FC<{ token: string | null }> = ({ token }) => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAction, setSelectedAction] = useState('all');
+
+  // Sorting & Pagination state
+  const [sortField, setSortField] = useState<string>('timestamp');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
 
   const fetchAuditLogs = async () => {
     setLoading(true);
@@ -52,6 +63,27 @@ export const AuditLogs: React.FC<{ token: string | null }> = ({ token }) => {
     downloadAnchor.remove();
   };
 
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+    setPage(1);
+  };
+
+  const renderSortIcon = (field: string) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-60 ml-1 inline" />;
+    }
+    return sortDir === 'asc' ? (
+      <ArrowUp className="w-3 h-3 text-blue-500 ml-1 inline" />
+    ) : (
+      <ArrowDown className="w-3 h-3 text-blue-500 ml-1 inline" />
+    );
+  };
+
   const filtered = (logs || []).filter(l => {
     if (!l) return false;
     const matchesSearch = (l.user_email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -62,6 +94,18 @@ export const AuditLogs: React.FC<{ token: string | null }> = ({ token }) => {
     const matchesAction = selectedAction === 'all' || (l.action || '').toLowerCase() === selectedAction.toLowerCase();
     return matchesSearch && matchesAction;
   });
+
+  const sorted = [...filtered].sort((a, b) => {
+    let aVal = (a as any)[sortField] ?? '';
+    let bVal = (b as any)[sortField] ?? '';
+    if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+    if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+    if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+    if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const paginatedLogs = sorted.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <div className="space-y-6 font-mono">
@@ -94,22 +138,39 @@ export const AuditLogs: React.FC<{ token: string | null }> = ({ token }) => {
 
       {/* Control Bar & Table */}
       <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
           <div className="relative w-full sm:w-80">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Search user email, action, IP, resource..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setPage(1);
+              }}
+              className="w-full pl-10 pr-8 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
             />
+            {searchTerm && (
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setPage(1);
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
-          <div className="flex items-center gap-2.5 w-full sm:w-auto justify-start sm:justify-end">
+          <div className="flex items-center gap-2.5 w-full sm:w-auto justify-start sm:justify-end flex-wrap">
             <select
               value={selectedAction}
-              onChange={(e) => setSelectedAction(e.target.value)}
+              onChange={(e) => {
+                setSelectedAction(e.target.value);
+                setPage(1);
+              }}
               className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
             >
               <option value="all">Action: All Events</option>
@@ -139,15 +200,35 @@ export const AuditLogs: React.FC<{ token: string | null }> = ({ token }) => {
         </div>
 
         {/* Audit Log Table */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto min-w-full">
           <table className="w-full min-w-[700px] text-left text-xs">
             <thead>
               <tr className="border-b border-slate-200 dark:border-slate-800 font-bold text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-900/50">
-                <th className="py-3 px-4">Timestamp (UTC)</th>
-                <th className="py-3 px-4">Actor (User)</th>
-                <th className="py-3 px-4">Action Type</th>
-                <th className="py-3 px-4">Target Resource</th>
-                <th className="py-3 px-4">IP Address</th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('timestamp')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Timestamp (UTC) {renderSortIcon('timestamp')}
+                  </button>
+                </th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('user_email')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Actor (User) {renderSortIcon('user_email')}
+                  </button>
+                </th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('action')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Action Type {renderSortIcon('action')}
+                  </button>
+                </th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('resource')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Target Resource {renderSortIcon('resource')}
+                  </button>
+                </th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('ip_address')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    IP Address {renderSortIcon('ip_address')}
+                  </button>
+                </th>
                 <th className="py-3 px-4">Audit Details</th>
               </tr>
             </thead>
@@ -166,7 +247,7 @@ export const AuditLogs: React.FC<{ token: string | null }> = ({ token }) => {
                   </td>
                 </tr>
               ) : (
-                filtered.map((log) => (
+                paginatedLogs.map((log) => (
                   <tr key={log.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
                     <td className="py-3.5 px-4 text-slate-500 text-[11px]">
                       {log.timestamp ? log.timestamp.replace('T', ' ').replace('Z', '').split('.')[0] : 'Just now'}
@@ -196,6 +277,16 @@ export const AuditLogs: React.FC<{ token: string | null }> = ({ token }) => {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        <DataTablePagination
+          currentPage={page}
+          pageSize={pageSize}
+          totalItems={filtered.length}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          itemName="audit events"
+        />
       </div>
     </div>
   );

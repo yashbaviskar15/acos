@@ -57,6 +57,7 @@ class GenerateInvoiceRequest(BaseModel):
 class AddFundsRequest(BaseModel):
     amount: float = Field(..., gt=0, description="Amount in INR to add (minimum ₹1)")
     payment_method: str = "SANDBOX_WALLET"
+    payment_method_id: Optional[str] = None
     description: str = ""
 
 class DebitFundsRequest(BaseModel):
@@ -222,6 +223,18 @@ def add_funds(
     account.status = "ACTIVE"
     account.updated_at = now
 
+    # Resolve payment method details
+    method_label = body.payment_method or "Saved Payment Method"
+    if body.payment_method_id:
+        pm_record = db.query(PaymentMethodRecord).filter(PaymentMethodRecord.id == body.payment_method_id).first()
+        if pm_record:
+            if pm_record.brand.lower() == "upi":
+                method_label = f"UPI ({pm_record.last4})"
+            elif pm_record.brand.lower() == "netbanking":
+                method_label = f"NetBanking ({pm_record.last4})"
+            else:
+                method_label = f"{pm_record.brand.upper()} (••••{pm_record.last4[-4:]})"
+
     inv_id = f"INV-TOPUP-{now.strftime('%Y%m%d')}-{uuid4().hex[:4].upper()}"
     topup_invoice = Invoice(
         id=inv_id,
@@ -236,7 +249,7 @@ def add_funds(
         total=amt,
         currency=account.currency,
         status="PAID",
-        payment_method=body.payment_method or "SANDBOX_WALLET",
+        payment_method=method_label,
         paid_at=now,
         created_at=now
     )
@@ -246,7 +259,7 @@ def add_funds(
         invoice_id=inv_id,
         resource_id=None,
         meter_name="wallet.topup",
-        description=f"Prepaid Wallet Balance Recharge via {body.payment_method or 'SANDBOX_WALLET'}",
+        description=f"Prepaid Recharge: Debited from {method_label} → Credited to Aravanta Cloud OS",
         quantity=1.0,
         unit="recharge",
         unit_price=amt,
@@ -262,14 +275,14 @@ def add_funds(
         amount_inr=amt,
         amount_usd=round(amt / 83.0, 2),
         status="PAID",
-        payment_method=body.payment_method or "SANDBOX_WALLET",
+        payment_method=method_label,
         date=now.strftime("%Y-%m-%d"),
         download_url=f"/api/v1/billing/invoices/{inv_id}/pdf",
         created_at=now
     )
     db.add(legacy_inv)
 
-    desc = body.description or f"Funds top-up via {body.payment_method} (₹{amt:.2f})"
+    desc = body.description or f"Prepaid Recharge: Debited ₹{amt:,.2f} from {method_label} → Credited to Aravanta Cloud OS Wallet"
     ledger_entry = BillingLedgerEntry(
         id=f"led-{uuid4().hex[:12]}",
         billing_account_id=account.id,

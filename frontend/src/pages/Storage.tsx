@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { HardDrive, Plus, Trash2, Folder, FileText, RefreshCw, Upload, CheckCircle2, Download, Eye, Copy, Check, Info, AlertCircle, X, Zap } from 'lucide-react';
+import { 
+  HardDrive, Plus, Trash2, Folder, FileText, RefreshCw, Upload, CheckCircle2, 
+  Download, Eye, Copy, Check, Info, AlertCircle, X, Zap, Search,
+  ArrowUpDown, ArrowUp, ArrowDown
+} from 'lucide-react';
 import { ModalPortal } from '../components/ModalPortal';
+import { DataTablePagination } from '../components/DataTablePagination';
 import { apiFetch } from '../config/api';
 import { deductClientServiceCharge } from '../utils/billingDebit';
 
@@ -18,6 +23,13 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [previewModalObj, setPreviewModalObj] = useState<any | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  // Objects Table Search, Sort & Pagination
+  const [objectSearch, setObjectSearch] = useState('');
+  const [objectSortField, setObjectSortField] = useState<string>('last_modified');
+  const [objectSortDir, setObjectSortDir] = useState<'asc' | 'desc'>('desc');
+  const [objectPage, setObjectPage] = useState<number>(1);
+  const [objectPageSize, setObjectPageSize] = useState<number>(10);
 
   // Form State — Create Bucket
   const [name, setName] = useState('');
@@ -213,6 +225,52 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
     }
   };
 
+  const handleObjectSort = (field: string) => {
+    if (objectSortField === field) {
+      setObjectSortDir(objectSortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setObjectSortField(field);
+      setObjectSortDir('asc');
+    }
+    setObjectPage(1);
+  };
+
+  const renderObjectSortIcon = (field: string) => {
+    if (objectSortField !== field) {
+      return <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-60 ml-1 inline" />;
+    }
+    return objectSortDir === 'asc' ? (
+      <ArrowUp className="w-3 h-3 text-emerald-500 ml-1 inline" />
+    ) : (
+      <ArrowDown className="w-3 h-3 text-emerald-500 ml-1 inline" />
+    );
+  };
+
+  const filteredObjects = (objects || []).filter(obj => {
+    if (!objectSearch) return true;
+    const q = objectSearch.toLowerCase();
+    return (
+      (obj.key && obj.key.toLowerCase().includes(q)) ||
+      (obj.content_type && obj.content_type.toLowerCase().includes(q)) ||
+      (obj.s3_uri && obj.s3_uri.toLowerCase().includes(q))
+    );
+  });
+
+  const sortedObjects = [...filteredObjects].sort((a, b) => {
+    let aVal = a[objectSortField] ?? '';
+    let bVal = b[objectSortField] ?? '';
+    if (typeof aVal === 'number' && typeof bVal === 'number') {
+      return objectSortDir === 'asc' ? aVal - bVal : bVal - aVal;
+    }
+    if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+    if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+    if (aVal < bVal) return objectSortDir === 'asc' ? -1 : 1;
+    if (aVal > bVal) return objectSortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const paginatedObjects = sortedObjects.slice((objectPage - 1) * objectPageSize, objectPage * objectPageSize);
+
   return (
     <div className="p-4 sm:p-6 space-y-6">
       {/* Top Action Bar */}
@@ -326,7 +384,7 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
         <div className="lg:col-span-2 bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4 shadow-sm">
           {selectedBucket ? (
             <>
-              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
                 <div>
                   <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider font-mono">
                     Objects in <span className="text-emerald-600 dark:text-emerald-400">{selectedBucket.name}</span>
@@ -347,6 +405,32 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
                 </div>
               </div>
 
+              {/* Object Search Bar */}
+              <div className="relative w-full">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Filter objects by filename, key path, or mime type..."
+                  value={objectSearch}
+                  onChange={(e) => {
+                    setObjectSearch(e.target.value);
+                    setObjectPage(1);
+                  }}
+                  className="w-full pl-10 pr-8 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+                {objectSearch && (
+                  <button
+                    onClick={() => {
+                      setObjectSearch('');
+                      setObjectPage(1);
+                    }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
               {/* How to Access Uploaded Files Guidance Card */}
               <div className="p-3.5 bg-gradient-to-r from-emerald-500/10 via-blue-500/10 to-transparent border border-emerald-500/20 rounded-xl text-xs font-mono space-y-1.5">
                 <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300 font-bold text-xs">
@@ -356,7 +440,7 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-slate-600 dark:text-slate-300 pt-1">
                   <div className="bg-white/60 dark:bg-slate-900/60 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
                     <span className="font-bold text-emerald-600 dark:text-emerald-400 block">1. Direct Web Download:</span>
-                    <span>Click the  Download button on any row below.</span>
+                    <span>Click the Download button on any row below.</span>
                   </div>
                   <div className="bg-white/60 dark:bg-slate-900/60 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
                     <span className="font-bold text-blue-600 dark:text-blue-400 block">2. S3 URI & SDKs:</span>
@@ -364,88 +448,122 @@ export const Storage: React.FC<StorageProps> = ({ token }) => {
                   </div>
                   <div className="bg-white/60 dark:bg-slate-900/60 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
                     <span className="font-bold text-purple-600 dark:text-purple-400 block">3. File Preview:</span>
-                    <span>Click ️ Preview to view file metadata & text inline.</span>
+                    <span>Click Preview to view file metadata & text inline.</span>
                   </div>
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+              <div className="overflow-x-auto min-w-full">
+                <table className="w-full min-w-[650px] text-left text-xs">
                   <thead className="bg-slate-50 dark:bg-slate-900/80 text-slate-600 dark:text-slate-400 font-mono text-[10px] uppercase border-b border-slate-200 dark:border-slate-800 font-extrabold">
                     <tr>
-                      <th className="p-3">Object Key Path</th>
-                      <th className="p-3">Content Type</th>
-                      <th className="p-3">Size</th>
-                      <th className="p-3">Last Modified</th>
+                      <th className="p-3">
+                        <button onClick={() => handleObjectSort('key')} className="font-bold flex items-center hover:text-emerald-600 transition cursor-pointer">
+                          Object Key Path {renderObjectSortIcon('key')}
+                        </button>
+                      </th>
+                      <th className="p-3">
+                        <button onClick={() => handleObjectSort('content_type')} className="font-bold flex items-center hover:text-emerald-600 transition cursor-pointer">
+                          Content Type {renderObjectSortIcon('content_type')}
+                        </button>
+                      </th>
+                      <th className="p-3">
+                        <button onClick={() => handleObjectSort('size_bytes')} className="font-bold flex items-center hover:text-emerald-600 transition cursor-pointer">
+                          Size {renderObjectSortIcon('size_bytes')}
+                        </button>
+                      </th>
+                      <th className="p-3">
+                        <button onClick={() => handleObjectSort('last_modified')} className="font-bold flex items-center hover:text-emerald-600 transition cursor-pointer">
+                          Last Modified {renderObjectSortIcon('last_modified')}
+                        </button>
+                      </th>
                       <th className="p-3 text-right">Actions & Access</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 font-mono">
-                    {objects.map((obj, i) => {
-                      const s3Uri = obj.s3_uri || `s3://${selectedBucket.name}/${obj.key}`;
-                      return (
-                        <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                          <td className="p-3 font-semibold text-slate-900 dark:text-white font-mono">
-                            <div className="flex items-center gap-2">
-                              <FileText className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                              <span className="truncate max-w-[200px]" title={obj.key}>{obj.key}</span>
-                            </div>
-                            <span className="text-[10px] text-slate-400 font-normal block pl-5">{s3Uri}</span>
-                          </td>
-                          <td className="p-3 text-slate-700 dark:text-slate-300">
-                            <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px]">
-                              {obj.content_type || 'application/octet-stream'}
-                            </span>
-                          </td>
-                          <td className="p-3 text-slate-700 dark:text-slate-300 font-bold">
-                            {(obj.size_bytes / 1024 / 1024).toFixed(2)} MB
-                          </td>
-                          <td className="p-3 text-slate-500 dark:text-slate-400">{obj.last_modified?.split('T')[0] || 'Today'}</td>
-                          <td className="p-3 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              {/* Preview Button */}
-                              <button
-                                onClick={() => setPreviewModalObj(obj)}
-                                className="p-1.5 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-500/20 rounded-lg transition-colors cursor-pointer"
-                                title="Preview File Content"
-                              >
-                                <Eye className="w-3.5 h-3.5" />
-                              </button>
+                    {filteredObjects.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-slate-400">
+                          {objectSearch ? 'No objects matching search query' : 'No objects in this bucket yet'}
+                        </td>
+                      </tr>
+                    ) : (
+                      paginatedObjects.map((obj, i) => {
+                        const s3Uri = obj.s3_uri || `s3://${selectedBucket.name}/${obj.key}`;
+                        return (
+                          <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                            <td className="p-3 font-semibold text-slate-900 dark:text-white font-mono">
+                              <div className="flex items-center gap-2">
+                                <FileText className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                <span className="truncate max-w-[200px]" title={obj.key}>{obj.key}</span>
+                              </div>
+                              <span className="text-[10px] text-slate-400 font-normal block pl-5">{s3Uri}</span>
+                            </td>
+                            <td className="p-3 text-slate-700 dark:text-slate-300">
+                              <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px]">
+                                {obj.content_type || 'application/octet-stream'}
+                              </span>
+                            </td>
+                            <td className="p-3 text-slate-700 dark:text-slate-300 font-bold">
+                              {(obj.size_bytes / 1024 / 1024).toFixed(2)} MB
+                            </td>
+                            <td className="p-3 text-slate-500 dark:text-slate-400">{obj.last_modified?.split('T')[0] || 'Today'}</td>
+                            <td className="p-3 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {/* Preview Button */}
+                                <button
+                                  onClick={() => setPreviewModalObj(obj)}
+                                  className="p-1.5 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-500/20 rounded-lg transition-colors cursor-pointer"
+                                  title="Preview File Content"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </button>
 
-                              {/* Copy S3 URI Button */}
-                              <button
-                                onClick={() => handleCopyText(s3Uri, `s3-${i}`)}
-                                className="p-1.5 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-500/20 rounded-lg transition-colors cursor-pointer"
-                                title="Copy S3 URI (s3://...)"
-                              >
-                                {copiedKey === `s3-${i}` ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                              </button>
+                                {/* Copy S3 URI Button */}
+                                <button
+                                  onClick={() => handleCopyText(s3Uri, `s3-${i}`)}
+                                  className="p-1.5 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-500/20 rounded-lg transition-colors cursor-pointer"
+                                  title="Copy S3 URI (s3://...)"
+                                >
+                                  {copiedKey === `s3-${i}` ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                                </button>
 
-                              {/* Download Button */}
-                              <button
-                                onClick={() => handleDownloadObject(obj)}
-                                className="px-2.5 py-1 text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 rounded-lg transition-colors flex items-center gap-1 cursor-pointer shadow-sm"
-                                title="Download File Attachment"
-                              >
-                                <Download className="w-3 h-3" /> Download
-                              </button>
+                                {/* Download Button */}
+                                <button
+                                  onClick={() => handleDownloadObject(obj)}
+                                  className="px-2.5 py-1 text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 rounded-lg transition-colors flex items-center gap-1 cursor-pointer shadow-sm"
+                                  title="Download File Attachment"
+                                >
+                                  <Download className="w-3 h-3" /> Download
+                                </button>
 
-                              {/* Delete Object Button */}
-                              <button
-                                onClick={() => handleDeleteObject(obj.key)}
-                                className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/20 rounded-lg transition-colors cursor-pointer"
-                                title="Delete Object"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                                {/* Delete Object Button */}
+                                <button
+                                  onClick={() => handleDeleteObject(obj.key)}
+                                  className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/20 rounded-lg transition-colors cursor-pointer"
+                                  title="Delete Object"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
+
+              {/* Object Table Pagination */}
+              <DataTablePagination
+                currentPage={objectPage}
+                pageSize={objectPageSize}
+                totalItems={filteredObjects.length}
+                onPageChange={setObjectPage}
+                onPageSizeChange={setObjectPageSize}
+                itemName="objects"
+              />
             </>
           ) : (
             <div className="py-12 text-center text-slate-500 font-mono text-xs">Select a bucket to browse contained objects</div>

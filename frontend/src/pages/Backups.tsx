@@ -7,12 +7,17 @@ import {
   RefreshCw, 
   CheckCircle2, 
   Trash2, 
-  Lock
+  Lock,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  X
 } from 'lucide-react';
 import { apiFetch } from '../config/api';
 import { StatusBadge } from '../components/StatusBadge';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { ModalPortal } from '../components/ModalPortal';
+import { DataTablePagination } from '../components/DataTablePagination';
 
 interface BackupItem {
   id: string;
@@ -33,6 +38,12 @@ export const Backups: React.FC<{ token: string | null }> = ({ token }) => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+  // Sorting & Pagination state
+  const [sortField, setSortField] = useState<string>('created_at');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
 
   // New Backup Form
   const [newResourceName, setNewResourceName] = useState('aravanta-core-db (PostgreSQL 16)');
@@ -152,12 +163,49 @@ export const Backups: React.FC<{ token: string | null }> = ({ token }) => {
     });
   };
 
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+    setPage(1);
+  };
+
+  const renderSortIcon = (field: string) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-60 ml-1 inline" />;
+    }
+    return sortDir === 'asc' ? (
+      <ArrowUp className="w-3 h-3 text-blue-500 ml-1 inline" />
+    ) : (
+      <ArrowDown className="w-3 h-3 text-blue-500 ml-1 inline" />
+    );
+  };
+
   const filtered = (backups || []).filter(b => {
     if (!b) return false;
     return (b.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
            (b.resource_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-           (b.resource_type || '').toLowerCase().includes(searchTerm.toLowerCase());
+           (b.resource_type || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+           (b.status || '').toLowerCase().includes(searchTerm.toLowerCase());
   });
+
+  const sortedBackups = [...filtered].sort((a, b) => {
+    let aVal = (a as any)[sortField] ?? '';
+    let bVal = (b as any)[sortField] ?? '';
+    if (typeof aVal === 'number' && typeof bVal === 'number') {
+      return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+    }
+    if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+    if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+    if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+    if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const paginatedBackups = sortedBackups.slice((page - 1) * pageSize, page * pageSize);
 
   const totalSizeGb = (backups.reduce((acc, curr) => acc + (curr.size_mb || 0), 0) / 1024).toFixed(1);
 
@@ -200,16 +248,30 @@ export const Backups: React.FC<{ token: string | null }> = ({ token }) => {
 
       {/* Control Bar & Table */}
       <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4 font-mono">
-        <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
           <div className="relative w-full sm:w-80">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Search snapshot name, resource..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setPage(1);
+              }}
+              className="w-full pl-10 pr-8 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+            {searchTerm && (
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setPage(1);
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-2.5 w-full sm:w-auto justify-start sm:justify-end">
@@ -232,17 +294,45 @@ export const Backups: React.FC<{ token: string | null }> = ({ token }) => {
         </div>
 
         {/* Backups Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+        <div className="overflow-x-auto min-w-full">
+          <table className="w-full min-w-[750px] text-left text-xs">
             <thead>
               <tr className="border-b border-slate-200 dark:border-slate-800 font-bold text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-900/50">
-                <th className="py-3 px-4">Snapshot Name & Resource</th>
-                <th className="py-3 px-4">Type</th>
-                <th className="py-3 px-4">Size</th>
-                <th className="py-3 px-4">Restore Point</th>
-                <th className="py-3 px-4">Retention</th>
-                <th className="py-3 px-4">Encryption</th>
-                <th className="py-3 px-4">Status</th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('name')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Snapshot Name & Resource {renderSortIcon('name')}
+                  </button>
+                </th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('resource_type')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Type {renderSortIcon('resource_type')}
+                  </button>
+                </th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('size_mb')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Size {renderSortIcon('size_mb')}
+                  </button>
+                </th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('restore_point')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Restore Point {renderSortIcon('restore_point')}
+                  </button>
+                </th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('retention_days')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Retention {renderSortIcon('retention_days')}
+                  </button>
+                </th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('encryption')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Encryption {renderSortIcon('encryption')}
+                  </button>
+                </th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('status')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Status {renderSortIcon('status')}
+                  </button>
+                </th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
@@ -261,7 +351,7 @@ export const Backups: React.FC<{ token: string | null }> = ({ token }) => {
                   </td>
                 </tr>
               ) : (
-                filtered.map((bsp) => (
+                paginatedBackups.map((bsp) => (
                   <tr key={bsp.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
                     <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">
                       <div className="flex items-center gap-2">
@@ -320,6 +410,16 @@ export const Backups: React.FC<{ token: string | null }> = ({ token }) => {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        <DataTablePagination
+          currentPage={page}
+          pageSize={pageSize}
+          totalItems={filtered.length}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          itemName="backup snapshots"
+        />
       </div>
 
       {/* Create Backup Modal */}

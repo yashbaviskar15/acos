@@ -6,12 +6,17 @@ import {
   Square, 
   RotateCcw, 
   Terminal, 
-  CheckCircle2
+  CheckCircle2,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  X
 } from 'lucide-react';
 import { apiFetch } from '../config/api';
 import { StatusBadge } from '../components/StatusBadge';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { ModalPortal } from '../components/ModalPortal';
+import { DataTablePagination } from '../components/DataTablePagination';
 
 interface ContainerItem {
   id: string;
@@ -32,6 +37,12 @@ export const Containers: React.FC<{ token: string | null }> = ({ token }) => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+
+  // Sorting & Pagination state
+  const [sortField, setSortField] = useState<string>('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
 
   // Logs modal
   const [activeLogsContainer, setActiveLogsContainer] = useState<ContainerItem | null>(null);
@@ -119,6 +130,27 @@ export const Containers: React.FC<{ token: string | null }> = ({ token }) => {
     }
   };
 
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+    setPage(1);
+  };
+
+  const renderSortIcon = (field: string) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-60 ml-1 inline" />;
+    }
+    return sortDir === 'asc' ? (
+      <ArrowUp className="w-3 h-3 text-blue-500 ml-1 inline" />
+    ) : (
+      <ArrowDown className="w-3 h-3 text-blue-500 ml-1 inline" />
+    );
+  };
+
   const filtered = (containers || []).filter(c => {
     if (!c) return false;
     const name = (c.name || '').toLowerCase();
@@ -132,6 +164,21 @@ export const Containers: React.FC<{ token: string | null }> = ({ token }) => {
     const matchesStatus = statusFilter === 'all' || status === statusFilter.toLowerCase();
     return matchesSearch && matchesStatus;
   });
+
+  const sortedContainers = [...filtered].sort((a, b) => {
+    let aVal = (a as any)[sortField] ?? '';
+    let bVal = (b as any)[sortField] ?? '';
+    if (typeof aVal === 'number' && typeof bVal === 'number') {
+      return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+    }
+    if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+    if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+    if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+    if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const paginatedContainers = sortedContainers.slice((page - 1) * pageSize, page * pageSize);
 
   const runningCount = (containers || []).filter(c => (c?.status || '').toUpperCase() === 'RUNNING').length;
   const crashCount = (containers || []).filter(c => (c?.status || '').toUpperCase() === 'CRASHLOOPBACKOFF').length;
@@ -175,22 +222,39 @@ export const Containers: React.FC<{ token: string | null }> = ({ token }) => {
 
       {/* Filter and Table Container */}
       <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
           <div className="relative w-full sm:w-80">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Search pod name, image, node..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setPage(1);
+              }}
+              className="w-full pl-10 pr-8 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+            {searchTerm && (
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setPage(1);
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-2.5 w-full sm:w-auto justify-start sm:justify-end">
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setPage(1);
+              }}
               className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
             >
               <option value="all">Status: All</option>
@@ -211,18 +275,50 @@ export const Containers: React.FC<{ token: string | null }> = ({ token }) => {
         </div>
 
         {/* Containers Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+        <div className="overflow-x-auto min-w-full">
+          <table className="w-full min-w-[800px] text-left text-xs">
             <thead>
               <tr className="border-b border-slate-200 dark:border-slate-800 font-mono font-bold text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-900/50">
-                <th className="py-3 px-4">Container Pod</th>
-                <th className="py-3 px-4">Image Tag</th>
-                <th className="py-3 px-4">Node Host</th>
-                <th className="py-3 px-4">CPU %</th>
-                <th className="py-3 px-4">Memory RAM</th>
-                <th className="py-3 px-4">Restarts</th>
-                <th className="py-3 px-4">Uptime</th>
-                <th className="py-3 px-4">Status</th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('name')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Container Pod {renderSortIcon('name')}
+                  </button>
+                </th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('image')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Image Tag {renderSortIcon('image')}
+                  </button>
+                </th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('node')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Node Host {renderSortIcon('node')}
+                  </button>
+                </th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('cpu_pct')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    CPU % {renderSortIcon('cpu_pct')}
+                  </button>
+                </th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('ram_mb')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Memory RAM {renderSortIcon('ram_mb')}
+                  </button>
+                </th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('restarts')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Restarts {renderSortIcon('restarts')}
+                  </button>
+                </th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('uptime')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Uptime {renderSortIcon('uptime')}
+                  </button>
+                </th>
+                <th className="py-3 px-4">
+                  <button onClick={() => handleSort('status')} className="font-bold flex items-center hover:text-blue-600 transition cursor-pointer">
+                    Status {renderSortIcon('status')}
+                  </button>
+                </th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
@@ -241,7 +337,7 @@ export const Containers: React.FC<{ token: string | null }> = ({ token }) => {
                   </td>
                 </tr>
               ) : (
-                filtered.map((ctr) => (
+                paginatedContainers.map((ctr) => (
                   <tr key={ctr.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
                     <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">
                       <div className="flex items-center gap-2">
@@ -306,6 +402,16 @@ export const Containers: React.FC<{ token: string | null }> = ({ token }) => {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        <DataTablePagination
+          currentPage={page}
+          pageSize={pageSize}
+          totalItems={filtered.length}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          itemName="container pods"
+        />
       </div>
 
       {/* Container Logs Terminal Modal */}

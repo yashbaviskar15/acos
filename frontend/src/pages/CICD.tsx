@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { GitBranch, Play, Plus, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
+import { GitBranch, Play, Plus, RefreshCw, CheckCircle, AlertCircle, Search, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { ModalPortal } from '../components/ModalPortal';
+import { DataTablePagination } from '../components/DataTablePagination';
 import { apiFetch } from '../config/api';
 
 export const CICD: React.FC = () => {
@@ -9,6 +10,13 @@ export const CICD: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [triggering, setTriggering] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+
+  // Search, Sorting & Pagination
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortField, setSortField] = useState<string>('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
 
   // New pipeline form
   const [pipeName, setPipeName] = useState('');
@@ -65,6 +73,53 @@ export const CICD: React.FC = () => {
     }
   };
 
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+    setCurrentPage(1);
+  };
+
+  const renderSortIcon = (field: string) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-60 ml-1 inline" />;
+    }
+    return sortDir === 'asc' ? (
+      <ArrowUp className="w-3 h-3 text-blue-500 ml-1 inline" />
+    ) : (
+      <ArrowDown className="w-3 h-3 text-blue-500 ml-1 inline" />
+    );
+  };
+
+  const query = searchTerm.toLowerCase().trim();
+  const filteredPipelines = query
+    ? pipelines.filter((p) =>
+        (p.name || '').toLowerCase().includes(query) ||
+        (p.branch || '').toLowerCase().includes(query) ||
+        (p.commit || '').toLowerCase().includes(query) ||
+        (p.trigger || '').toLowerCase().includes(query) ||
+        (p.status || '').toLowerCase().includes(query)
+      )
+    : pipelines;
+
+  const sortedPipelines = [...filteredPipelines].sort((a: any, b: any) => {
+    let aVal = a[sortField] ?? '';
+    let bVal = b[sortField] ?? '';
+    if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+    if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+    if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+    if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const paginatedPipelines = sortedPipelines.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
   return (
     <div className="p-4 sm:p-6 space-y-6">
       {/* Header */}
@@ -119,64 +174,125 @@ export const CICD: React.FC = () => {
 
       {/* Pipelines Table */}
       <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
-        <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800">
-          <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase font-mono tracking-wider">Active CI/CD Workflows</h3>
+        <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase font-mono tracking-wider">Active CI/CD Workflows</h3>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30">
+              {filteredPipelines.length}
+            </span>
+          </div>
+
+          <div className="relative w-full sm:w-64">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search pipelines..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full pl-8 pr-7 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  setCurrentPage(1);
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-mono font-extrabold text-[10px] uppercase">
+        <div className="overflow-x-auto min-w-full">
+          <table className="w-full min-w-[750px] text-left text-xs">
+            <thead className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-mono font-extrabold text-[10px] uppercase select-none">
               <tr>
-                <th className="p-4">Pipeline Name</th>
-                <th className="p-4">Branch / Commit</th>
-                <th className="p-4">Trigger</th>
-                <th className="p-4">Status</th>
-                <th className="p-4">Duration</th>
+                <th className="p-4 cursor-pointer hover:text-slate-200" onClick={() => handleSort('name')}>
+                  Pipeline Name {renderSortIcon('name')}
+                </th>
+                <th className="p-4 cursor-pointer hover:text-slate-200" onClick={() => handleSort('branch')}>
+                  Branch / Commit {renderSortIcon('branch')}
+                </th>
+                <th className="p-4 cursor-pointer hover:text-slate-200" onClick={() => handleSort('trigger')}>
+                  Trigger {renderSortIcon('trigger')}
+                </th>
+                <th className="p-4 cursor-pointer hover:text-slate-200" onClick={() => handleSort('status')}>
+                  Status {renderSortIcon('status')}
+                </th>
+                <th className="p-4 cursor-pointer hover:text-slate-200" onClick={() => handleSort('duration')}>
+                  Duration {renderSortIcon('duration')}
+                </th>
                 <th className="p-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 font-mono text-slate-900 dark:text-slate-100">
-              {pipelines.map((p) => (
-                <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                  <td className="p-4 font-bold text-slate-900 dark:text-white">
-                    <div className="flex items-center gap-2">
-                      <GitBranch className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
-                      <span>{p.name}</span>
-                    </div>
-                  </td>
-                  <td className="p-4 text-slate-600 dark:text-slate-400 font-bold">
-                    <span className="text-blue-600 dark:text-blue-400">{p.branch}</span> ({p.commit})
-                  </td>
-                  <td className="p-4 capitalize text-slate-600 dark:text-slate-400">{p.trigger}</td>
-                  <td className="p-4">
-                    {p.status === 'SUCCESS' ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30">
-                        <CheckCircle className="w-3 h-3" />
-                        SUCCESS
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-500/30">
-                        <AlertCircle className="w-3 h-3" />
-                        FAILED
-                      </span>
-                    )}
-                  </td>
-                  <td className="p-4 text-slate-600 dark:text-slate-400">{p.duration}</td>
-                  <td className="p-4 text-right">
-                    <button
-                      onClick={() => handleRunPipeline(p.id)}
-                      disabled={triggering === p.id}
-                      className="px-3.5 py-1.5 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
-                    >
-                      <Play className={`w-3 h-3 ${triggering === p.id ? 'animate-spin' : ''}`} />
-                      <span>{triggering === p.id ? 'Running...' : 'Trigger Run'}</span>
-                    </button>
+              {paginatedPipelines.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-slate-400 font-sans">
+                    No workflows match your criteria
                   </td>
                 </tr>
-              ))}
+              ) : (
+                paginatedPipelines.map((p) => (
+                  <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                    <td className="p-4 font-bold text-slate-900 dark:text-white">
+                      <div className="flex items-center gap-2">
+                        <GitBranch className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                        <span>{p.name}</span>
+                      </div>
+                    </td>
+                    <td className="p-4 text-slate-600 dark:text-slate-400 font-bold">
+                      <span className="text-blue-600 dark:text-blue-400">{p.branch}</span> ({p.commit})
+                    </td>
+                    <td className="p-4 capitalize text-slate-600 dark:text-slate-400">{p.trigger}</td>
+                    <td className="p-4">
+                      {p.status === 'SUCCESS' ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30">
+                          <CheckCircle className="w-3 h-3" />
+                          SUCCESS
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-500/30">
+                          <AlertCircle className="w-3 h-3" />
+                          FAILED
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-4 text-slate-600 dark:text-slate-400">{p.duration}</td>
+                    <td className="p-4 text-right">
+                      <button
+                        onClick={() => handleRunPipeline(p.id)}
+                        disabled={triggering === p.id}
+                        className="px-3.5 py-1.5 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                      >
+                        <Play className={`w-3 h-3 ${triggering === p.id ? 'animate-spin' : ''}`} />
+                        <span>{triggering === p.id ? 'Running...' : 'Trigger Run'}</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
+
+        <DataTablePagination
+          currentPage={currentPage}
+          totalItems={sortedPipelines.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={(sz) => {
+            setPageSize(sz);
+            setCurrentPage(1);
+          }}
+          pageSizeOptions={[5, 10, 20]}
+        />
       </div>
 
       {/* Create Pipeline Modal */}
