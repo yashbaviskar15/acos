@@ -1,101 +1,55 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Search, 
-  Server, 
-  Boxes, 
-  HardDrive, 
-  Database, 
-  GitBranch, 
-  Activity, 
-  ShieldCheck, 
-  CreditCard, 
-  User, 
-  BookOpen, 
-  Terminal, 
-  ArrowRight, 
-  X,
-  Layers,
-  Box,
-  FileText,
-  Bell,
-  ShieldAlert,
-  Zap,
-  Settings as SettingsIcon,
-  FileCheck
+  Search, Server, Box, HardDrive, Database, Play, Terminal, 
+  Settings, CreditCard, Shield, Activity, FileText,
+  User, Zap, Key, Radio,
+  LayoutDashboard, GitBranch,
+  Sun, X, Plus
 } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 
 interface CommandPaletteProps {
   isOpen: boolean;
   onClose: () => void;
-  onNavigate: (tab: string) => void;
+  onNavigate: (path: string) => void;
   initialQuery?: string;
 }
 
-export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onNavigate, initialQuery = '' }) => {
+interface CommandItem {
+  id: string;
+  label: string;
+  description: string;
+  icon: React.ElementType;
+  group: 'Quick Actions' | 'Cloud Services' | 'Settings & System';
+  action?: () => void;
+  path?: string;
+}
+
+export const CommandPalette: React.FC<CommandPaletteProps> = ({ 
+  isOpen, 
+  onClose, 
+  onNavigate,
+  initialQuery = '' 
+}) => {
+  const { toggleTheme } = useTheme();
   const [query, setQuery] = useState(initialQuery);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
       setQuery(initialQuery);
+      setSelectedIndex(0);
+      setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [isOpen, initialQuery]);
 
-  const commands = [
-    // Public & Docs Navigation
-    { id: 'page-home', label: 'Home — Unified Control Plane Landing', category: 'Public Pages', icon: BookOpen, tab: 'home', keywords: 'landing website main' },
-    { id: 'page-docs', label: 'Documentation — Guides, Tutorials & References', category: 'Public Pages', icon: BookOpen, tab: 'documentation', keywords: 'manual api reference docs' },
-    { id: 'page-features', label: 'Features — Capability Matrix & Platform Specs', category: 'Public Pages', icon: Zap, tab: 'features', keywords: 'specs capabilities overview' },
-    { id: 'page-developers', label: 'Developers — CLI, SDK & OpenAPI Schemas', category: 'Public Pages', icon: Terminal, tab: 'developers', keywords: 'sdk rest api cli swagger' },
-    { id: 'page-pricing', label: 'Pricing — Flexible Cloud Tiers & Cost Calculator', category: 'Public Pages', icon: CreditCard, tab: 'pricing', keywords: 'plans tiers estimate calculator' },
-    { id: 'page-about', label: 'Company — About Aravanta CloudOS', category: 'Public Pages', icon: ShieldCheck, tab: 'about', keywords: 'company info mission' },
-    { id: 'page-login', label: 'Sign In to Control Plane Console', category: 'Account', icon: User, tab: 'login', keywords: 'auth login signin' },
-    { id: 'page-register', label: 'Create Workspace — Start Free Trial', category: 'Account', icon: Zap, tab: 'register', keywords: 'signup register trial new account' },
-
-    // Operations & Control Plane Console
-    { id: 'dashboard', label: 'Dashboard & SRE Operations Console', category: 'Operations', icon: Activity, tab: 'dashboard', keywords: 'home overview fleet health services' },
-    { id: 'infrastructure', label: 'Infrastructure — Multi-Cloud Resource Inventory', category: 'Operations', icon: Server, tab: 'infrastructure', keywords: 'nodes cloud vms servers hardware' },
-    { id: 'applications', label: 'Applications — Microservices Catalog & Scaling', category: 'Operations', icon: Layers, tab: 'applications', keywords: 'apps services microservices deploy workloads' },
-    { id: 'deployments', label: 'Deployments — GitOps Pipeline & Rollback Engine', category: 'Operations', icon: GitBranch, tab: 'deployments', keywords: 'git release rollbacks continuous delivery' },
-    { id: 'containers', label: 'Containers — Kubernetes Pods & Live Logs', category: 'Operations', icon: Box, tab: 'containers', keywords: 'docker k8s pods images containers' },
-    
-    { id: 'monitoring', label: 'Monitoring — Observability & Telemetry Gauges', category: 'Observability', icon: Activity, tab: 'monitoring', keywords: 'cpu ram grafana metrics stats telemetry' },
-    { id: 'logs', label: 'Log Explorer — Real-Time Stdout/Stderr Stream', category: 'Observability', icon: FileText, tab: 'logs', keywords: 'loki stdout stderr traces streaming' },
-    { id: 'alerts', label: 'Alertmanager — Firing Alerts & Triage Rules', category: 'Observability', icon: Bell, tab: 'alerts', keywords: 'notifications firing pagerduty incidents triage' },
-    { id: 'incidents', label: 'Incidents — War-Room Command & RCA Notes', category: 'Observability', icon: ShieldAlert, tab: 'incidents', keywords: 'outage rca postmortem warroom critical' },
-    
-    { id: 'automation', label: 'Automation — Self-Healing Runbooks & Workflows', category: 'Reliability', icon: Zap, tab: 'automation', keywords: 'playbooks scripts cron jobs autoheal' },
-    { id: 'backups', label: 'Backups — Disaster Recovery & 1-Click Restore', category: 'Reliability', icon: HardDrive, tab: 'backups', keywords: 'snapshots dr restore s3 retention' },
-    { id: 'cicd', label: 'CI/CD Pipelines & Container Builds', category: 'Reliability', icon: GitBranch, tab: 'cicd', keywords: 'builds github actions pipelines automated' },
-
-    { id: 'compute', label: 'ArvCompute — Virtual Machines', category: 'Cloud Resources', icon: Server, tab: 'compute', keywords: 'ec2 vm instances compute cpu virtual' },
-    { id: 'kubernetes', label: 'ArvKube — Managed Kubernetes Clusters', category: 'Cloud Resources', icon: Boxes, tab: 'kubernetes', keywords: 'k8s clusters controlplane nodes pods' },
-    { id: 'storage', label: 'ArvStore — S3 Object Storage', category: 'Cloud Resources', icon: HardDrive, tab: 'storage', keywords: 's3 buckets volumes blob storage' },
-    { id: 'database', label: 'ArvDB — Managed Database Engines', category: 'Cloud Resources', icon: Database, tab: 'database', keywords: 'postgres sql mysql patroni redis db database' },
-
-    { id: 'security', label: 'Security & RBAC Permission Matrix', category: 'Governance', icon: ShieldCheck, tab: 'security', keywords: 'rbac roles access iam permissions' },
-    { id: 'audit', label: 'Audit Logs — Tamper-Evident Security Log', category: 'Governance', icon: FileCheck, tab: 'audit', keywords: 'compliance security events history audit' },
-    { id: 'billing', label: 'Billing & FinOps Cost Analytics (INR ₹)', category: 'Governance', icon: CreditCard, tab: 'billing', keywords: 'invoice receipts plan pricing cost finops payment tax gst' },
-    { id: 'settings', label: 'Platform Settings & SRE Microservice Health', category: 'Governance', icon: SettingsIcon, tab: 'settings', keywords: 'config workspace preferences system' },
-    { id: 'profile', label: 'User Profile & API Credentials', category: 'Governance', icon: User, tab: 'profile', keywords: 'account password keys role api credentials' },
-    { id: 'guide', label: 'Operations Guide & SOP Documentation', category: 'Help', icon: BookOpen, tab: 'guide', keywords: 'docs tutorial help manual sop' },
-    { id: 'community', label: 'Community Forum & Architecture Discussions', category: 'Help', icon: BookOpen, tab: 'community', keywords: 'forum posts discussion help runbooks community' },
-  ];
-
-  const filtered = commands.filter(c =>
-    c.label.toLowerCase().includes(query.toLowerCase()) ||
-    c.category.toLowerCase().includes(query.toLowerCase()) ||
-    c.tab.toLowerCase().includes(query.toLowerCase()) ||
-    ((c as any).keywords && (c as any).keywords.toLowerCase().includes(query.toLowerCase()))
-  );
-
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      if (!isOpen) return;
+      if (e.key === 'Escape') {
         e.preventDefault();
-        if (isOpen) onClose();
-        else setQuery('');
-      }
-      if (e.key === 'Escape' && isOpen) {
         onClose();
       }
     };
@@ -103,78 +57,210 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  const items: CommandItem[] = [
+    // Quick Actions
+    { 
+      id: 'qa-provision', 
+      label: 'Provision New Resource', 
+      description: 'Deploy a container, database, VM or VPC', 
+      icon: Plus, 
+      group: 'Quick Actions', 
+      action: () => {
+        onNavigate('dashboard');
+      } 
+    },
+    { 
+      id: 'qa-theme', 
+      label: 'Toggle Dark / Light Theme', 
+      description: 'Switch between Obsidian Dark and Pearl White mode', 
+      icon: Sun, 
+      group: 'Quick Actions', 
+      action: () => {
+        toggleTheme();
+      } 
+    },
+    { id: 'qa-vm', label: 'Launch VM Compute', description: 'Deploy a new ArvCompute instance', icon: Play, group: 'Quick Actions', path: 'compute' },
+    { id: 'qa-cli', label: 'Open Cloud Shell / Terminal', description: 'Interactive browser shell & CLI tools', icon: Terminal, group: 'Quick Actions', path: 'cli' },
+    { id: 'qa-billing', label: 'View Invoices & Billing', description: 'Check monthly usage and FinOps accrual', icon: CreditCard, group: 'Quick Actions', path: 'billing' },
+
+    // Cloud Services
+    { id: 'cs-dash', label: 'Operations Dashboard', description: 'Fleet overview and live telemetry', icon: LayoutDashboard, group: 'Cloud Services', path: 'dashboard' },
+    { id: 'cs-infra', label: 'Resources Inventory', description: 'Provisioned infrastructure workloads', icon: Server, group: 'Cloud Services', path: 'infrastructure' },
+    { id: 'cs-deploy', label: 'Deployments & Pipelines', description: 'GitOps CI/CD release engine', icon: GitBranch, group: 'Cloud Services', path: 'deployments' },
+    { id: 'cs-func', label: 'ArvFunctions (Serverless FaaS)', description: 'Event-driven serverless compute runtime', icon: Zap, group: 'Cloud Services', path: 'functions' },
+    { id: 'cs-vault', label: 'ArvVault (KMS & Secrets)', description: 'Hardware-grade secret and key management', icon: Key, group: 'Cloud Services', path: 'vault' },
+    { id: 'cs-events', label: 'ArvEvents (Event Bus & Queues)', description: 'Distributed messaging topics and queues', icon: Radio, group: 'Cloud Services', path: 'events' },
+    { id: 'cs-kube', label: 'ArvKube (Managed Kubernetes)', description: 'Container orchestration cluster control plane', icon: Box, group: 'Cloud Services', path: 'kubernetes' },
+    { id: 'cs-db', label: 'ArvDB (Managed Databases)', description: 'PostgreSQL, Redis, MySQL database engines', icon: Database, group: 'Cloud Services', path: 'database' },
+    { id: 'cs-store', label: 'ArvStore (S3 Storage)', description: 'Encrypted object storage buckets', icon: HardDrive, group: 'Cloud Services', path: 'storage' },
+
+    // Settings & System
+    { id: 'st-mon', label: 'ArvWatch Observability Hub', description: 'Prometheus metrics, alerts, and dashboards', icon: Activity, group: 'Settings & System', path: 'monitoring' },
+    { id: 'st-logs', label: 'Log Stream Explorer', description: 'Centralized live log stream and query console', icon: FileText, group: 'Settings & System', path: 'logs' },
+    { id: 'st-rbac', label: 'Access Control (RBAC)', description: 'Role-based access matrix and credentials', icon: Shield, group: 'Settings & System', path: 'security' },
+    { id: 'st-prof', label: 'User Profile & Identity', description: 'Personal security keys and profile details', icon: User, group: 'Settings & System', path: 'profile' },
+    { id: 'st-sett', label: 'Platform Settings', description: 'Global organization parameters and webhooks', icon: Settings, group: 'Settings & System', path: 'settings' },
+  ];
+
+  const filteredItems = items.filter(item => {
+    const q = query.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      item.label.toLowerCase().includes(q) ||
+      item.description.toLowerCase().includes(q) ||
+      item.group.toLowerCase().includes(q) ||
+      (item.path && item.path.toLowerCase().includes(q))
+    );
+  });
+
+  const handleSelect = (index: number) => {
+    const item = filteredItems[index];
+    if (!item) return;
+
+    if (item.action) {
+      item.action();
+    } else if (item.path) {
+      onNavigate(item.path);
+    }
+    onClose();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedIndex(prev => (prev + 1) % (filteredItems.length || 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedIndex(prev => (prev - 1 + filteredItems.length) % (filteredItems.length || 1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (filteredItems.length > 0) {
+        handleSelect(selectedIndex);
+      }
+    }
+  };
+
+  const groups = Array.from(new Set(filteredItems.map(item => item.group)));
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-start justify-center pt-16 sm:pt-24 px-4 animate-fadeIn">
-      <div 
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-xl bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden"
-      >
-        {/* Search Input Bar */}
-        <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-3">
-          <Search className="w-5 h-5 text-slate-400" />
-          <input
-            type="text"
-            autoFocus
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && filtered.length > 0) {
-                onNavigate(filtered[0].tab);
-                onClose();
-              }
-            }}
-            placeholder="Type a command or jump to page (e.g. 'incidents', 'logs', 'deploy', 'backups')..."
-            className="w-full bg-transparent text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none font-mono"
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-start justify-center pt-12 sm:pt-20 px-3 sm:px-4">
+          {/* Backdrop */}
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-2xs"
           />
-          <kbd className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 rounded border border-slate-200 dark:border-slate-700">ESC</kbd>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1 cursor-pointer">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
 
-        {/* Results List */}
-        <div className="max-h-80 overflow-y-auto p-2 space-y-1">
-          {filtered.length === 0 ? (
-            <p className="text-xs text-slate-500 text-center py-6 font-mono">No matching commands found</p>
-          ) : (
-            filtered.map((cmd) => {
-              const Icon = cmd.icon;
-              return (
-                <button
-                  key={cmd.id}
-                  onClick={() => {
-                    onNavigate(cmd.tab);
-                    onClose();
-                  }}
-                  className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-left transition-colors cursor-pointer group"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-900 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors font-mono">{cmd.label}</p>
-                      <p className="text-[10px] text-slate-400 font-mono">{cmd.category}</p>
-                    </div>
-                  </div>
-                  <ArrowRight className="w-4 h-4 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </button>
-              );
-            })
-          )}
-        </div>
+          {/* Modal Container */}
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0, y: -10 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.95, opacity: 0, y: -10 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
+            className="relative w-full max-w-xl bg-white dark:bg-[#0d1424] border border-slate-200 dark:border-[#22314d] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[82vh] z-10"
+          >
+            {/* Search Input Bar */}
+            <div className="flex items-center px-4 py-3.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-[#0a0f18]/60">
+              <Search className="w-5 h-5 text-[#C6923B] dark:text-[#D4A347] mr-3 shrink-0" />
+              <input
+                ref={inputRef}
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Search commands, services, resources... (e.g. 'functions', 'theme', 'billing')"
+                className="flex-1 bg-transparent border-none outline-none text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-sm sm:text-base font-medium font-sans"
+              />
+              <button 
+                onClick={onClose}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-        {/* Footer */}
-        <div className="p-3 bg-slate-50 dark:bg-slate-900/60 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-[10px] text-slate-500 font-mono">
-          <div className="flex items-center gap-2">
-            <Terminal className="w-3.5 h-3.5 text-blue-500" />
-            <span>Aravanta Cloud Operations Command Palette</span>
-          </div>
-          <span>Press <kbd className="px-1.5 py-0.5 bg-slate-200 dark:bg-slate-800 rounded font-bold text-slate-700 dark:text-slate-300">Ctrl+K</kbd> anytime</span>
+            {/* Results List */}
+            <div className="flex-1 overflow-y-auto p-2 scrollbar-thin">
+              {filteredItems.length === 0 ? (
+                <div className="px-4 py-12 text-center text-slate-500 font-mono text-xs">
+                  No matching services or commands for "{query}"
+                </div>
+              ) : (
+                groups.map(group => {
+                  const groupItems = filteredItems.filter(item => item.group === group);
+                  return (
+                    <div key={group} className="mb-3 last:mb-0">
+                      <div className="px-3 py-1.5 text-[10px] font-mono font-bold text-[#C6923B] dark:text-[#D4A347] uppercase tracking-wider">
+                        {group}
+                      </div>
+                      <div className="space-y-0.5">
+                        {groupItems.map(item => {
+                          const globalIndex = filteredItems.findIndex(i => i.id === item.id);
+                          const isSelected = globalIndex === selectedIndex;
+                          const Icon = item.icon;
+                          
+                          return (
+                            <button
+                              key={item.id}
+                              className={`w-full flex items-center px-3 py-2 rounded-xl text-left transition-all cursor-pointer ${
+                                isSelected 
+                                  ? 'bg-[#C6923B]/10 dark:bg-[#C6923B]/20 text-[#C6923B] dark:text-[#D4A347] border border-[#C6923B]/30' 
+                                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                              }`}
+                              onMouseEnter={() => setSelectedIndex(globalIndex)}
+                              onClick={() => handleSelect(globalIndex)}
+                            >
+                              <div className={`p-2 rounded-lg mr-3 shrink-0 ${
+                                isSelected 
+                                  ? 'bg-[#C6923B] text-white shadow-2xs' 
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                              }`}>
+                                <Icon className="w-4 h-4" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-xs sm:text-sm font-semibold truncate">{item.label}</div>
+                                <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{item.description}</div>
+                              </div>
+                              {isSelected && (
+                                <div className="text-[11px] font-mono text-[#C6923B] dark:text-[#D4A347] font-bold ml-2 shrink-0">
+                                  ↵ Select
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            
+            {/* Footer */}
+            <div className="px-4 py-2.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0a0f18] flex items-center justify-between text-[11px] font-mono text-slate-500">
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1">
+                  <kbd className="bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 text-[10px]">↑</kbd> 
+                  <kbd className="bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 text-[10px]">↓</kbd> navigate
+                </span>
+                <span className="flex items-center gap-1">
+                  <kbd className="bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 text-[10px]">↵</kbd> select
+                </span>
+                <span className="hidden sm:inline">
+                  <kbd className="bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 text-[10px]">esc</kbd> close
+                </span>
+              </div>
+              <span className="text-[10px] text-[#C6923B] dark:text-[#D4A347] font-bold">
+                Aravanta CloudOS
+              </span>
+            </div>
+          </motion.div>
         </div>
-      </div>
-    </div>
+      )}
+    </AnimatePresence>
   );
 };

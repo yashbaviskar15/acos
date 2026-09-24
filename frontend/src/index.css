@@ -363,6 +363,14 @@
 }
 
 /* ── Smooth momentum scrolling & safe areas ── */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 .overflow-x-auto, .overflow-y-auto {
   -webkit-overflow-scrolling: touch;
 }

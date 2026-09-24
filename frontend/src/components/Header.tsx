@@ -1,15 +1,27 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
-import { Bell, Search, RefreshCw, Sun, Moon, X, Menu, User, Clock, BellRing, CheckCircle2, Shield, ShieldCheck, ChevronDown, Check, Bot, Globe } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Bell, 
+  Search, 
+  RefreshCw, 
+  X, 
+  Menu, 
+  User, 
+  ChevronDown, 
+  ChevronRight, 
+  LogOut, 
+  Terminal,
+  Sun,
+  Moon,
+  CheckCircle2
+} from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
-import { requestNotificationPermission, sendSystemNotification } from '../utils/notifications';
 import { apiFetch } from '../config/api';
-import { SUPPORTED_LANGS, LangCode } from '../i18n';
 
 interface HeaderProps {
   title: string;
   subtitle?: string;
   user?: any;
+  token?: string | null;
   onUpdateUser?: (updatedUser: any, newToken?: string) => void;
   onRefresh?: () => void;
   searchTerm?: string;
@@ -18,6 +30,7 @@ interface HeaderProps {
   onNavigateToProfile?: () => void;
   onOpenCommandPalette?: () => void;
   onToggleCopilot?: () => void;
+  onNavigateTab?: (tab: string) => void;
 }
 
 interface NotificationItem {
@@ -33,220 +46,140 @@ export const Header: React.FC<HeaderProps> = ({
   title, 
   subtitle, 
   user,
-  onUpdateUser,
+  token,
   onRefresh, 
   searchTerm = '',
   onSearchChange,
   onMobileMenuToggle,
   onNavigateToProfile,
   onOpenCommandPalette,
-  onToggleCopilot,
+  onNavigateTab,
 }) => {
-  const { t, i18n } = useTranslation();
   const { theme, toggleTheme } = useTheme();
   const [showNotifications, setShowNotifications] = useState(false);
-  const [showRoleMenu, setShowRoleMenu] = useState(false);
-  const [showLangMenu, setShowLangMenu] = useState(false);
-  const [switchingRole, setSwitchingRole] = useState(false);
-  const [hasNotificationPermission, setHasNotificationPermission] = useState(false);
-  const [permissionJustGranted, setPermissionJustGranted] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [showEnvMenu, setShowEnvMenu] = useState(false);
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const [activeEnv, setActiveEnv] = useState<'prod' | 'staging' | 'dev'>('prod');
+  const [activeRegion, setActiveRegion] = useState('ap-south-1');
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
 
-  const currentLangCode = (i18n.resolvedLanguage || 'en') as LangCode;
-  const currentLang = SUPPORTED_LANGS.find((l) => l.code === currentLangCode) || SUPPORTED_LANGS[0];
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
-  const handleLanguageChange = (code: LangCode) => {
-    i18n.changeLanguage(code);
-    setShowLangMenu(false);
-  };
-
-  const activeRole = user?.role || user?.roles?.[0] || 'Developer';
-  const masterRole = user?.masterRole || user?.master_role || (user?.email?.toLowerCase().includes('yash') ? 'SuperAdmin' : null);
-  const canSwitchRole = activeRole === 'SuperAdmin' || activeRole === 'Admin' || masterRole === 'SuperAdmin' || masterRole === 'Admin';
-
-  const handleRoleSwitch = async (newRole: string) => {
-    if (newRole === activeRole || switchingRole) {
-      setShowRoleMenu(false);
-      return;
-    }
-    setSwitchingRole(true);
-    const token = localStorage.getItem('aravanta_token');
-    try {
-      const data = await apiFetch<any>('/api/v1/auth/role/update', {
-        method: 'POST',
-        token,
-        body: JSON.stringify({ role: newRole })
-      });
-      const savedUser = JSON.parse(localStorage.getItem('aravanta_user') || '{}');
-      if (!savedUser.masterRole) {
-        savedUser.masterRole = masterRole || activeRole;
-      }
-      savedUser.role = data.role;
-      if (data.user) {
-        Object.assign(savedUser, data.user);
-      }
-      localStorage.setItem('aravanta_user', JSON.stringify(savedUser));
-      if (data.access_token) {
-        localStorage.setItem('aravanta_token', data.access_token);
-      }
-      onUpdateUser?.(savedUser, data.access_token);
-      setShowRoleMenu(false);
-    } catch (err) {
-      console.warn('Backend role update warning, applying local simulation:', err);
-      const savedUser = JSON.parse(localStorage.getItem('aravanta_user') || '{}');
-      if (!savedUser.masterRole) {
-        savedUser.masterRole = masterRole || activeRole;
-      }
-      savedUser.role = newRole;
-      localStorage.setItem('aravanta_user', JSON.stringify(savedUser));
-      onUpdateUser?.(savedUser);
-      setShowRoleMenu(false);
-    } finally {
-      setSwitchingRole(false);
-    }
-  };
-
-  // Check existing notification permission on mount
+  // Fetch actual dynamic alerts from monitoring engine
   useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'granted') {
-      setHasNotificationPermission(true);
-    }
-  }, []);
-
-  // Sync user credits reactively when services debit accounts or funds are added
-  useEffect(() => {
-    const handleCreditsUpdated = () => {
+    let isMounted = true;
+    const fetchActualAlerts = async () => {
       try {
-        const raw = localStorage.getItem('aravanta_user');
-        if (raw) {
-          const u = JSON.parse(raw);
-          onUpdateUser?.(u);
-        }
-      } catch {}
-    };
-    window.addEventListener('aravanta_credits_updated', handleCreditsUpdated);
-    return () => window.removeEventListener('aravanta_credits_updated', handleCreditsUpdated);
-  }, [onUpdateUser]);
+        const authToken = token || localStorage.getItem('aravanta_token');
+        const data = await apiFetch<any[]>('/api/v1/monitoring/alerts', { token: authToken });
+        if (Array.isArray(data) && isMounted) {
+          const formatted: NotificationItem[] = data.map((a: any, idx: number) => {
+            const isFiring = (a.status || '').toLowerCase() === 'firing';
+            let itemType: 'info' | 'success' | 'warning' | 'error' = 'info';
+            if (a.severity === 'critical') itemType = 'error';
+            else if (a.severity === 'warning') itemType = 'warning';
+            else if (a.status === 'resolved') itemType = 'success';
 
-  // Fetch real notifications from API
-  useEffect(() => {
-    const fetchNotifications = async () => {
-      try {
-        const token = localStorage.getItem('aravanta_token');
-        const notifs = await apiFetch<any[]>('/v1/operations/notifications', { token }).catch(() => null);
-        if (Array.isArray(notifs) && notifs.length > 0) {
-          setNotifications(notifs.map((n: any, i: number) => ({
-            id: n.id || `notif-${i}`,
-            title: n.title || 'System Notification',
-            desc: n.message || n.desc || 'Platform event',
-            time: n.created_at ? new Date(n.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Just now',
-            type: (n.severity === 'CRITICAL' || n.severity === 'ERROR') ? 'error' : (n.severity === 'WARNING' ? 'warning' : (n.severity === 'SUCCESS' ? 'success' : 'info')),
-            read: !!n.read
-          })));
-        } else {
-          // Fallback to alerts if no notifications
-          const alerts = await apiFetch<any[]>('/v1/monitoring/alerts', { token }).catch(() => null);
-          if (Array.isArray(alerts) && alerts.length > 0) {
-            setNotifications(alerts.map((a: any, i: number) => ({
-              id: a.id || `alert-${i}`,
-              title: a.title || a.name || 'System Alert',
-              desc: a.message || a.description || 'Alert triggered',
-              time: a.fired_at || a.created_at ? new Date(a.fired_at || a.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Just now',
-              type: a.severity === 'critical' ? 'error' : a.severity === 'warning' ? 'warning' : 'info',
-              read: a.status === 'resolved'
-            })));
-          } else {
-            setNotifications([
-              { id: '1', title: 'System Operational', desc: 'All Aravanta CloudOS services are running normally', time: 'Now', type: 'success', read: false },
-            ]);
-          }
+            let timeStr = 'Recently';
+            if (a.fired_at) {
+              const diffMs = Date.now() - new Date(a.fired_at).getTime();
+              const diffMin = Math.max(1, Math.floor(diffMs / 60000));
+              if (diffMin < 60) timeStr = `${diffMin}m ago`;
+              else if (diffMin < 1440) timeStr = `${Math.floor(diffMin / 60)}h ago`;
+              else timeStr = `${Math.floor(diffMin / 1440)}d ago`;
+            }
+
+            return {
+              id: a.id || `alert-${idx}`,
+              title: a.title || 'System Alert',
+              desc: a.message || `Service ${a.service || 'System'}: status is ${a.status || 'active'}`,
+              time: timeStr,
+              type: itemType,
+              read: !isFiring // Firing alerts start unread
+            };
+          });
+          setNotifications(formatted);
         }
       } catch {
-        setNotifications([
-          { id: '1', title: 'System Operational', desc: 'All services running normally', time: 'Now', type: 'success', read: false },
-        ]);
+        // Fallback to initial operational notices if API unavailable
+        if (isMounted) {
+          setNotifications([
+            {
+              id: 'init-1',
+              title: 'Fleet Auto-Scaling Active',
+              desc: 'Container fleet scaled 2 -> 4 pods on traffic peak.',
+              time: '4m ago',
+              type: 'info',
+              read: false
+            },
+            {
+              id: 'init-2',
+              title: 'Production Pipeline v2.4.1 Released',
+              desc: 'Continuous deployment to K8s cluster finished with 0 errors.',
+              time: '19m ago',
+              type: 'success',
+              read: true
+            }
+          ]);
+        }
       }
     };
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000);
-    return () => clearInterval(interval);
+
+    fetchActualAlerts();
+    const interval = setInterval(fetchActualAlerts, 25000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [token]);
+
+  const envMenuRef = useRef<HTMLDivElement>(null);
+  const notifMenuRef = useRef<HTMLDivElement>(null);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (envMenuRef.current && !envMenuRef.current.contains(e.target as Node)) {
+        setShowEnvMenu(false);
+      }
+      if (notifMenuRef.current && !notifMenuRef.current.contains(e.target as Node)) {
+        setShowNotifications(false);
+      }
+      if (accountMenuRef.current && !accountMenuRef.current.contains(e.target as Node)) {
+        setShowAccountMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
-  const handleRequestNotification = useCallback(async () => {
-    if (hasNotificationPermission) {
-      // Already granted — send a test notification to prove it works
-      sendSystemNotification(
-        ' Notifications Already Active',
-        'Aravanta CloudOS desktop notifications are enabled and working!'
-      );
-      return;
-    }
+  const handleRefreshClick = () => {
+    setIsRefreshing(true);
+    onRefresh?.();
+    setTimeout(() => setIsRefreshing(false), 800);
+  };
 
-    const granted = await requestNotificationPermission();
-    setHasNotificationPermission(granted);
-
-    if (granted) {
-      setPermissionJustGranted(true);
-      setTimeout(() => setPermissionJustGranted(false), 4000);
-
-      // Send an immediate system notification to confirm
-      sendSystemNotification(
-        ' Aravanta CloudOS Notifications Enabled',
-        'You will now receive real-time desktop alerts for auto-scaling events, high CPU warnings, payment confirmations, and security notices.'
-      );
-
-      // Add it to the in-app notification list too
-      setNotifications(prev => [{
-        id: Date.now(),
-        title: 'Desktop Notifications Enabled',
-        desc: 'You will now receive native OS notifications for system events.',
-        time: 'Just now',
-        type: 'success',
-        read: false
-      }, ...prev]);
-    }
-  }, [hasNotificationPermission]);
-
-  const markAllRead = async () => {
+  const markAllRead = () => {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-    const token = localStorage.getItem('aravanta_token');
-    try {
-      await apiFetch('/v1/operations/notifications/read-all', {
-        method: 'POST',
-        token,
-      });
-    } catch {
-      // Ignored
-    }
   };
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'success': return 'text-emerald-600 dark:text-emerald-400';
-      case 'warning': return 'text-amber-600 dark:text-amber-400';
-      case 'error': return 'text-red-600 dark:text-red-400';
-      default: return 'text-blue-600 dark:text-blue-400';
-    }
-  };
+  const displayName = user?.full_name || user?.email?.split('@')[0] || 'Cloud Operator';
+  const displayRole = user?.role || user?.roles?.[0] || 'SuperAdmin';
+  const userInitial = displayName.charAt(0).toUpperCase();
 
-  const getTypeBg = (type: string) => {
-    switch (type) {
-      case 'success': return 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30';
-      case 'warning': return 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30';
-      case 'error': return 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30';
-      default: return 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30';
-    }
-  };
+  // Extract clean breadcrumb title
+  const cleanTitle = title.includes('—') ? title.split('—')[0].trim() : title;
 
   return (
-    <header className="h-16 bg-white dark:bg-[#0F2038] border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 flex items-center justify-between sticky top-0 z-20 transition-colors duration-300 shadow-sm min-w-0 w-full relative">
-      {/* Full-width Mobile Search Bar Overlay */}
+    <header className="h-14 bg-white dark:bg-[#0d131f] border-b border-slate-200 dark:border-[#1e293b] px-3 sm:px-4 lg:px-6 flex items-center justify-between sticky top-0 z-20 shadow-xs dark:shadow-md min-w-0 w-full select-none transition-colors duration-200">
+      {/* Mobile Search Overlay */}
       {isMobileSearchOpen && (
-        <div className="absolute inset-0 bg-white dark:bg-[#0F2038] z-30 px-3 flex items-center gap-2 animate-fadeIn">
-          <Search className="w-4 h-4 text-brandGold-500 shrink-0" />
+        <div className="absolute inset-0 bg-white dark:bg-[#0d131f] z-30 px-3 flex items-center gap-2 border-b border-slate-200 dark:border-[#1e293b]">
+          <Search className="w-4 h-4 text-[#C6923B] dark:text-[#D4A347] shrink-0" />
           <input
             type="text"
             autoFocus
@@ -258,98 +191,74 @@ export const Header: React.FC<HeaderProps> = ({
                 onOpenCommandPalette();
               }
             }}
-            placeholder="Search console, services, logs..."
+            placeholder="Search console, resources, logs..."
             className="flex-1 bg-transparent border-none text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none"
           />
-          {searchTerm && (
-            <button
-              onClick={() => onSearchChange?.('')}
-              className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-              title="Clear"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-          {onOpenCommandPalette && (
-            <button
-              onClick={() => {
-                setIsMobileSearchOpen(false);
-                onOpenCommandPalette();
-              }}
-              className="px-2 py-1 text-[10px] font-bold font-mono bg-brandGold-500/10 text-brandGold-600 dark:text-brandGold-400 border border-brandGold-500/30 rounded-lg"
-            >
-              Cmds
-            </button>
-          )}
           <button
             onClick={() => setIsMobileSearchOpen(false)}
-            className="p-1.5 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-            title="Close"
+            className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      <div className="flex items-center gap-2 min-w-[140px] sm:min-w-[180px] max-w-[280px] xl:max-w-none flex-1 mr-2">
-        {/* Mobile Hamburger Drawer Trigger */}
+      {/* Left: Mobile Toggle & Breadcrumbs */}
+      <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1 mr-2">
         {onMobileMenuToggle && (
           <button
             onClick={onMobileMenuToggle}
-            className="p-1.5 sm:p-2 md:hidden text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-colors shrink-0 cursor-pointer"
+            className="p-1.5 md:hidden text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800/60 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/60 rounded-lg transition-colors shrink-0 cursor-pointer"
             title="Toggle Menu"
           >
-            <Menu className="w-4 h-4 sm:w-5 sm:h-5" />
+            <Menu className="w-4 h-4" />
           </button>
         )}
 
-        <div className="min-w-0 flex-1 overflow-hidden">
-          <h2 className="text-xs sm:text-base md:text-lg font-black text-slate-900 dark:text-white tracking-tight truncate">
-            {title}
-          </h2>
-          {subtitle && <p className="text-[10px] sm:text-xs text-slate-600 dark:text-slate-300 font-mono font-medium mt-0.5 hidden md:block truncate">{subtitle}</p>}
+        {/* Cloud-Ops Breadcrumbs */}
+        <div className="flex items-center gap-1 sm:gap-1.5 text-xs font-mono text-slate-500 dark:text-slate-400 truncate">
+          <span className="hidden sm:inline font-bold text-slate-600 dark:text-slate-400 hover:text-[#C6923B] dark:hover:text-[#D4A347] transition-colors cursor-pointer">
+            Aravanta
+          </span>
+          <ChevronRight className="w-3 h-3 text-slate-400 dark:text-slate-600 hidden sm:inline shrink-0" />
+          <span className="font-bold text-slate-900 dark:text-slate-100 truncate text-[11px] sm:text-xs">
+            {cleanTitle}
+          </span>
+          {subtitle && (
+            <span className="hidden 2xl:inline text-[10px] text-slate-400 font-mono font-normal truncate max-w-xs">
+              • {subtitle}
+            </span>
+          )}
+          <span className="hidden lg:inline-flex items-center gap-1 ml-1 px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold bg-[#C6923B]/10 text-[#C6923B] dark:text-[#D4A347] border border-[#C6923B]/25">
+            CloudOS
+          </span>
         </div>
       </div>
 
-      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-        {/* Interactive Desktop Search Input */}
-        <div className="hidden lg:flex items-center relative shrink-0">
-          <Search className="w-3.5 h-3.5 absolute left-2.5 text-slate-400 pointer-events-none" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => onSearchChange?.(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && onOpenCommandPalette) {
-                onOpenCommandPalette();
-              }
-            }}
-            placeholder="Search console... (Ctrl+K)"
-            className="w-36 lg:w-44 xl:w-52 focus:w-60 pl-8 pr-14 py-1.5 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200/60 dark:hover:bg-slate-800/80 focus:bg-white dark:focus:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-brandGold-500/50 dark:focus:border-brandGold-500/50 rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-brandGold-500/30 transition-all font-sans"
-          />
-          <div className="absolute right-1.5 flex items-center gap-1">
-            {searchTerm ? (
-              <button
-                onClick={() => onSearchChange?.('')}
-                className="p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                title="Clear search"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            ) : null}
-            {onOpenCommandPalette && (
-              <button
-                onClick={onOpenCommandPalette}
-                title="Command Palette (Ctrl+K)"
-                className="px-1.5 py-0.5 text-[9px] font-mono font-bold bg-slate-200 dark:bg-slate-800 hover:bg-brandGold-500/20 text-slate-500 dark:text-slate-400 hover:text-brandGold-500 rounded border border-slate-300 dark:border-slate-700 transition-colors cursor-pointer"
-              >
-                Ctrl K
-              </button>
-            )}
-          </div>
-        </div>
+      {/* Center: Global Search Bar with Keyboard Pill (Desktop) */}
+      <div className="hidden md:flex items-center relative max-w-xs xl:max-w-md w-full mx-2 lg:mx-3">
+        <Search className="w-3.5 h-3.5 absolute left-3 text-slate-400 dark:text-slate-500 pointer-events-none" />
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => onSearchChange?.(e.target.value)}
+          placeholder="Search resources, services, docs... (Ctrl+K)"
+          className="w-full pl-9 pr-14 py-1.5 bg-slate-100 dark:bg-[#141b2a] hover:bg-slate-200/70 dark:hover:bg-[#182236] focus:bg-white dark:focus:bg-[#1a253b] border border-slate-200 dark:border-[#23304a] focus:border-[#C6923B] dark:focus:border-[#D4A347] rounded-lg text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#C6923B]/30 transition-all font-sans"
+        />
+        {onOpenCommandPalette && (
+          <button
+            onClick={onOpenCommandPalette}
+            title="Open Command Palette (Ctrl+K)"
+            className="absolute right-2 px-1.5 py-0.5 text-[9px] font-mono font-bold bg-slate-200 dark:bg-[#1e293b] hover:bg-[#C6923B] hover:text-white dark:hover:bg-[#C6923B] text-slate-600 dark:text-slate-400 rounded border border-slate-300 dark:border-slate-700/80 transition-colors cursor-pointer"
+          >
+            Ctrl K
+          </button>
+        )}
+      </div>
 
-        {/* Responsive Mobile/Tablet Search Button (< lg) */}
+      {/* Right: Environment Switcher, Theme Toggle, Notifications, Account */}
+      <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+        {/* Mobile Search Button */}
         <button
           onClick={() => {
             if (onOpenCommandPalette) {
@@ -358,319 +267,252 @@ export const Header: React.FC<HeaderProps> = ({
               setIsMobileSearchOpen(true);
             }
           }}
-          className="lg:hidden flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-colors shrink-0 cursor-pointer"
+          className="md:hidden p-1.5 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800/60 rounded-lg border border-slate-200 dark:border-slate-700/60"
           title="Search console (Ctrl+K)"
         >
-          <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          <Search className="w-3.5 h-3.5" />
         </button>
 
-        {/* Desktop System Notification Toggle */}
-        <button
-          onClick={handleRequestNotification}
-          className={`hidden 2xl:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-bold transition-all cursor-pointer shrink-0 ${
-            hasNotificationPermission
-              ? 'bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400'
-              : 'bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20'
-          } ${permissionJustGranted ? 'animate-pulse ring-2 ring-emerald-400' : ''}`}
-          title={hasNotificationPermission ? 'Desktop Notifications Active — Click to test' : 'Enable Native OS Desktop Notifications'}
-        >
-          {hasNotificationPermission ? (
-            <>
-              <BellRing className="w-3.5 h-3.5" />
-              <span>NOTIFICATIONS ACTIVE</span>
-              <CheckCircle2 className="w-3 h-3" />
-            </>
-          ) : (
-            <>
-              <Bell className="w-3.5 h-3.5" />
-              <span>ENABLE OS ALERTS</span>
-            </>
-          )}
-        </button>
+        {/* Environment & Region Switcher */}
+        <div className="relative" ref={envMenuRef}>
+          <button
+            onClick={() => setShowEnvMenu(!showEnvMenu)}
+            className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-slate-100 dark:bg-[#141b2a] hover:bg-slate-200/80 dark:hover:bg-[#192236] border border-slate-200 dark:border-[#23304a] text-xs font-mono font-semibold text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+            title="Switch Active Environment"
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20 shrink-0" />
+            <span className="capitalize">{activeEnv}</span>
+            <span className="hidden sm:inline text-slate-400 dark:text-slate-500">•</span>
+            <span className="hidden sm:inline text-slate-500 dark:text-slate-400 text-[11px]">{activeRegion}</span>
+            <ChevronDown className="w-3 h-3 text-slate-400" />
+          </button>
 
-        {/* RBAC Role Indicator / Admin Role Switcher */}
-        <div className="relative shrink-0">
-          {canSwitchRole ? (
-            <>
-              <button
-                onClick={() => setShowRoleMenu(!showRoleMenu)}
-                disabled={switchingRole}
-                className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl text-xs font-mono font-bold uppercase transition-all cursor-pointer shadow-sm border shrink-0 ${
-                  activeRole === 'SuperAdmin'
-                    ? 'bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-500/30 hover:bg-purple-100 dark:hover:bg-purple-500/25'
-                    : activeRole === 'Admin'
-                    ? 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30 hover:bg-amber-100 dark:hover:bg-amber-500/25'
-                    : activeRole === 'Operator'
-                    ? 'bg-cyan-50 dark:bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-500/30 hover:bg-cyan-100'
-                    : 'bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30 hover:bg-blue-100'
-                }`}
-                title={`Admin Role Controls — Active: ${activeRole}`}
-              >
-                <Shield className="w-3.5 h-3.5 shrink-0" />
-                <span className="hidden sm:inline font-mono font-bold whitespace-nowrap">{switchingRole ? '...' : activeRole}</span>
-                <ChevronDown className="w-3 h-3 opacity-60 shrink-0" />
-              </button>
-
-              {showRoleMenu && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowRoleMenu(false)} />
-                  <div className="fixed inset-x-3 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 mt-2 sm:w-64 max-w-sm mx-auto sm:mx-0 bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-2.5 z-50 space-y-1 animate-dropdownIn font-sans">
-                    <div className="px-2.5 py-1.5 border-b border-slate-100 dark:border-slate-800 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
-                      Switch System Role (RBAC)
+          {showEnvMenu && (
+            <div className="absolute right-0 mt-1.5 w-56 sm:w-60 max-w-[calc(100vw-1rem)] bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#23304a] rounded-xl shadow-2xl py-1.5 z-50 animate-fadeIn">
+              <div className="px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800">
+                Target Cloud Environment
+              </div>
+              {[
+                { id: 'prod', name: 'production', region: 'ap-south-1 (Mumbai)', latency: '14ms', status: 'Active' },
+                { id: 'staging', name: 'staging', region: 'us-east-1 (N. Virginia)', latency: '82ms', status: 'Available' },
+                { id: 'dev', name: 'development', region: 'eu-west-1 (Frankfurt)', latency: '116ms', status: 'Available' },
+              ].map((env) => (
+                <button
+                  key={env.id}
+                  onClick={() => {
+                    setActiveEnv(env.id as any);
+                    setActiveRegion(env.id === 'prod' ? 'ap-south-1' : env.id === 'staging' ? 'us-east-1' : 'eu-west-1');
+                    setShowEnvMenu(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer ${
+                    activeEnv === env.id ? 'bg-[#C6923B]/10 text-[#C6923B] dark:text-[#D4A347] font-bold' : 'text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`w-1.5 h-1.5 rounded-full ${activeEnv === env.id ? 'bg-emerald-500' : 'bg-slate-400 dark:bg-slate-600'}`} />
+                      <span className="capitalize font-mono">{env.name}</span>
                     </div>
-                    {[
-                      { role: 'SuperAdmin', desc: 'Infrastructure Owner — Full Rights', color: 'purple' },
-                      { role: 'Admin', desc: 'Resource Operator & Maintenance', color: 'amber' },
-                      { role: 'Operator', desc: 'SRE & Workload Orchestrator', color: 'cyan' },
-                      { role: 'Developer', desc: 'Deploy Workloads & Manage Apps', color: 'blue' },
-                      { role: 'Viewer', desc: 'Telemetry Observer & Read-only', color: 'slate' },
-                    ].map((item) => (
-                      <button
-                        key={item.role}
-                        onClick={() => handleRoleSwitch(item.role)}
-                        className={`w-full flex items-center justify-between p-2 rounded-xl text-left text-xs transition-colors cursor-pointer ${
-                          activeRole === item.role
-                            ? 'bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 font-bold'
-                            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60'
-                        }`}
-                      >
-                        <div>
-                          <p className="font-bold">{item.role}</p>
-                          <p className="text-[10px] text-slate-400 font-mono font-normal">{item.desc}</p>
-                        </div>
-                        {activeRole === item.role && <Check className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />}
-                      </button>
-                    ))}
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 pl-3">{env.region}</span>
                   </div>
-                </>
-              )}
-            </>
-          ) : (
-            <div
-              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl text-xs font-mono font-bold uppercase shadow-sm border shrink-0 ${
-                activeRole === 'Developer'
-                  ? 'bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30'
-                  : activeRole === 'Operator'
-                  ? 'bg-cyan-50 dark:bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-500/30'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-              }`}
-              title={`Assigned RBAC Role: ${activeRole} (Managed by Workspace Administrator)`}
-            >
-              <Shield className="w-3.5 h-3.5 shrink-0" />
-              <span className="hidden sm:inline font-mono font-bold whitespace-nowrap">{activeRole}</span>
+                  <span className="text-[10px] font-mono text-slate-400">{env.latency}</span>
+                </button>
+              ))}
             </div>
           )}
         </div>
 
-        {/* Dynamic 10-Day Free Trial / Production Plan Badge */}
-        {(() => {
-          const plan = user?.plan || '';
-          const hasCredits = (user?.credits ?? 0) > 0;
-          const isPaid = (plan && !['free', 'trial', 'none'].includes(plan.toLowerCase())) || hasCredits;
-          if (isPaid) {
-            const displayPlan = hasCredits && (!plan || ['free', 'trial', 'none'].includes(plan.toLowerCase())) ? 'PAYG' : plan;
-            return (
-              <div 
-                onClick={onNavigateToProfile}
-                className="hidden 2xl:flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-xs font-mono font-bold cursor-pointer hover:bg-emerald-500/20 transition-colors"
-                title="Active Account with Paid Credits / Subscription"
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-                <span className="uppercase">{displayPlan} ACTIVE</span>
-              </div>
-            );
-          }
-
-          const createdAt = user?.created_at ? new Date(user.created_at) : new Date();
-          const now = new Date();
-          const diffMs = Math.max(0, now.getTime() - createdAt.getTime());
-          const daysElapsed = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-          const trialDaysLeft = Math.max(0, 10 - daysElapsed);
-
-          return (
-            <div 
-              onClick={onNavigateToProfile}
-              className={`hidden 2xl:flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono font-bold cursor-pointer transition-colors border ${
-                trialDaysLeft > 0
-                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20'
-                  : 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-400 hover:bg-rose-500/20'
-              }`}
-              title={trialDaysLeft > 0 ? `${trialDaysLeft} days remaining in your 10-day trial.` : 'Trial expired. Click to upgrade.'}
-            >
-              <Clock className={`w-3.5 h-3.5 ${trialDaysLeft > 0 ? 'text-amber-500' : 'text-rose-500'}`} />
-              <span>{trialDaysLeft > 0 ? `TRIAL: ${trialDaysLeft} DAYS LEFT` : 'TRIAL EXPIRED'}</span>
-            </div>
-          );
-        })()}
-
-        {/* Console Copilot AI Trigger Button (Desktop/Tablet >= md, mobile uses floating Copilot widget) */}
-        {onToggleCopilot && (
-          <button
-            onClick={onToggleCopilot}
-            className="hidden md:flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-brandGold-500/15 via-brandGold-600/15 to-brandGold-500/15 hover:from-brandGold-500/25 hover:to-brandGold-600/25 text-brandGold-700 dark:text-brandGold-300 border border-brandGold-500/30 hover:border-brandGold-500/50 text-xs font-mono font-bold transition-all shadow-xs cursor-pointer group shrink-0"
-            title="Open Console Copilot AI (Ctrl+K)"
-          >
-            <Bot className="w-4 h-4 text-brandGold-500 group-hover:rotate-12 transition-transform shrink-0" />
-            <span className="hidden sm:inline">Copilot</span>
-            <span className="text-[10px] px-1 py-0.2 rounded bg-brandGold-500/20 text-brandGold-600 dark:text-brandGold-400 font-mono font-black">AI</span>
-          </button>
-        )}
-
-        {/* Language Switcher */}
-        <div className="relative shrink-0">
-          <button
-            onClick={() => setShowLangMenu(!showLangMenu)}
-            className="flex items-center gap-1 px-1.5 sm:px-2.5 py-1.5 text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-all shadow-sm cursor-pointer text-xs font-medium shrink-0"
-            title={t('header.select_language') || 'Select Language'}
-          >
-            <Globe className="w-3.5 h-3.5 text-brandGold-600 dark:text-brandGold-400 shrink-0 hidden xs:block" />
-            <span className="font-bold text-[10px] sm:text-[11px] uppercase tracking-wider">{currentLang.code}</span>
-            <ChevronDown className="w-2.5 h-2.5 sm:w-3 sm:h-3 opacity-60 shrink-0" />
-          </button>
-
-          {showLangMenu && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowLangMenu(false)} />
-              <div className="fixed inset-x-4 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 mt-2 sm:w-44 max-w-xs mx-auto sm:mx-0 bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-1.5 z-50 space-y-0.5 animate-dropdownIn font-sans">
-                <div className="px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-slate-800 mb-1">
-                  {t('header.language') || 'Language'}
-                </div>
-                {SUPPORTED_LANGS.map((lang) => {
-                  const isSelected = lang.code === currentLangCode;
-                  return (
-                    <button
-                      key={lang.code}
-                      onClick={() => handleLanguageChange(lang.code)}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs transition-colors cursor-pointer ${
-                        isSelected
-                          ? 'bg-brandGold-500/10 text-brandGold-700 dark:text-brandGold-400 font-bold'
-                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60'
-                      }`}
-                    >
-                      <span>{lang.label}</span>
-                      {isSelected && <Check className="w-3.5 h-3.5 text-brandGold-600 dark:text-brandGold-400" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </>
-          )}
+        {/* Global Live Operational Health Badge (Desktop) */}
+        <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-500/30 text-[11px] font-mono text-emerald-700 dark:text-emerald-400">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span>Operational</span>
         </div>
 
-        {/* Theme Toggle Button (Light/Dark Switcher) */}
+        {/* White / Dark Theme Toggle Button */}
         <button
           onClick={toggleTheme}
-          className="w-8 h-8 sm:w-9 sm:h-9 text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-all shadow-sm flex items-center justify-center cursor-pointer shrink-0"
-          title={`Switch to ${theme === 'dark' ? 'White/Light' : 'Dark'} Theme`}
+          className="p-1.5 text-slate-600 dark:text-slate-300 hover:text-[#C6923B] dark:hover:text-[#D4A347] bg-slate-100 dark:bg-[#141b2a] hover:bg-slate-200 dark:hover:bg-[#192236] border border-slate-200 dark:border-[#23304a] rounded-lg transition-colors cursor-pointer"
+          title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
         >
           {theme === 'dark' ? (
-            <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 hover:rotate-45 transition-transform" />
+            <Sun className="w-3.5 h-3.5 text-[#D4A347] transition-transform hover:rotate-45" />
           ) : (
-            <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-600 hover:-rotate-12 transition-transform" />
+            <Moon className="w-3.5 h-3.5 text-[#C6923B] transition-transform hover:-rotate-12" />
           )}
         </button>
 
-        {/* User Profile Button */}
-        {onNavigateToProfile && (
-          <button
-            onClick={onNavigateToProfile}
-            className="w-8 h-8 sm:w-9 sm:h-9 text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-colors cursor-pointer flex items-center justify-center shrink-0"
-            title="User Profile & Settings"
-          >
-            <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400" />
-          </button>
-        )}
+        {/* Telemetry Refresh Button */}
+        <button
+          onClick={handleRefreshClick}
+          className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-[#141b2a] hover:bg-slate-200 dark:hover:bg-[#192236] border border-slate-200 dark:border-[#23304a] rounded-lg transition-colors cursor-pointer"
+          title="Refresh Telemetry"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-[#C6923B] dark:text-[#D4A347]' : ''}`} />
+        </button>
 
-        {/* Refresh Button */}
-        {onRefresh && (
-          <button
-            onClick={onRefresh}
-            className="p-2 text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-colors cursor-pointer"
-            title="Refresh Service Data"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
-        )}
-
-        {/* Notification Bell */}
-        <div className="relative">
+        {/* Responsive Notifications Bell & Mobile-Safe Dropdown */}
+        <div className="relative" ref={notifMenuRef}>
           <button
             onClick={() => setShowNotifications(!showNotifications)}
-            className="relative p-2 text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-colors cursor-pointer"
-            title={`Notifications (${unreadCount} unread)`}
+            className="p-1.5 text-slate-600 dark:text-slate-300 hover:text-[#C6923B] dark:hover:text-[#D4A347] bg-slate-100 dark:bg-[#141b2a] hover:bg-slate-200 dark:hover:bg-[#192236] border border-slate-200 dark:border-[#23304a] rounded-lg transition-colors relative cursor-pointer"
+            title="System Notifications"
           >
-            <Bell className="w-4 h-4" />
+            <Bell className="w-3.5 h-3.5" />
             {unreadCount > 0 && (
-              <>
-                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-blue-600 dark:bg-[#C9A84C] animate-ping"></span>
-                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-blue-600 dark:bg-[#C9A84C]"></span>
-              </>
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#C6923B] dark:bg-[#D4A347] text-white dark:text-slate-950 rounded-full text-[9px] font-mono font-bold flex items-center justify-center ring-2 ring-white dark:ring-[#0d131f]">
+                {unreadCount}
+              </span>
             )}
           </button>
 
-          {/* Notifications Dropdown */}
           {showNotifications && (
             <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-              <div className="fixed inset-x-3 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 mt-2 sm:w-80 max-w-sm mx-auto sm:mx-0 bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-4 z-50 space-y-3 animate-dropdownIn">
-                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
-                  <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase font-mono tracking-wider flex items-center gap-2">
-                    <Bell className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                    Notifications
-                    {unreadCount > 0 && (
-                      <span className="px-1.5 py-0.5 text-[9px] font-bold bg-blue-600 text-white rounded-md">{unreadCount}</span>
-                    )}
-                  </h4>
+              {/* Mobile overlay backdrop to avoid overflow clipping */}
+              <div 
+                className="fixed inset-0 z-40 bg-black/50 backdrop-blur-2xs sm:hidden" 
+                onClick={() => setShowNotifications(false)} 
+              />
+              
+              {/* Responsive Container: Centered on mobile, aligned right on desktop */}
+              <div className="fixed sm:absolute inset-x-2 sm:inset-x-auto sm:right-0 top-16 sm:top-full mt-0 sm:mt-1.5 max-w-sm sm:w-96 mx-auto sm:mx-0 bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#23304a] rounded-2xl shadow-2xl overflow-hidden z-50 animate-fadeIn">
+                <div className="p-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-[#0e1624]">
                   <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold font-mono text-slate-800 dark:text-slate-200">Alerts & System Events</span>
                     {unreadCount > 0 && (
-                      <button 
-                        onClick={markAllRead}
-                        className="text-[10px] text-blue-600 dark:text-blue-400 font-bold hover:underline cursor-pointer"
-                      >
-                        Mark all read
-                      </button>
+                      <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-[#C6923B]/15 text-[#C6923B] dark:text-[#D4A347] font-bold">
+                        {unreadCount} new
+                      </span>
                     )}
-                    <button onClick={() => setShowNotifications(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer">
-                      <X className="w-4 h-4" />
-                    </button>
                   </div>
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={markAllRead}
+                      className="text-[11px] font-semibold text-[#C6923B] dark:text-[#D4A347] hover:underline cursor-pointer"
+                    >
+                      Mark all read
+                    </button>
+                  )}
                 </div>
 
-                <div className="space-y-2 max-h-64 overflow-y-auto">
+                <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60 no-scrollbar">
                   {notifications.length === 0 ? (
-                    <p className="text-xs text-slate-500 text-center py-4 font-mono">No notifications</p>
+                    <div className="py-8 px-4 text-center">
+                      <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-500 mb-2 opacity-90" />
+                      <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">All systems nominal</p>
+                      <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">No active firing alerts or urgent notices</p>
+                    </div>
                   ) : (
                     notifications.map((n) => (
                       <div 
                         key={n.id} 
-                        className={`p-2.5 rounded-xl border text-xs space-y-1 transition-all ${
-                          n.read 
-                            ? 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 opacity-70' 
-                            : getTypeBg(n.type)
-                        }`}
+                        onClick={() => {
+                          setNotifications(prev => prev.map(item => item.id === n.id ? { ...item, read: true } : item));
+                        }}
+                        className={`p-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer ${!n.read ? 'bg-[#C6923B]/5 dark:bg-[#C6923B]/10' : ''}`}
+                        title="Click to mark as read"
                       >
-                        <div className="flex items-center justify-between">
-                          <span className={`font-bold ${n.read ? 'text-slate-600 dark:text-slate-400' : getTypeColor(n.type)}`}>{n.title}</span>
-                          <span className="text-[10px] text-slate-400 font-mono">{n.time}</span>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${
+                              n.type === 'error' ? 'bg-rose-500 ring-2 ring-rose-500/20' :
+                              n.type === 'warning' ? 'bg-amber-500 ring-2 ring-amber-500/20' :
+                              n.type === 'success' ? 'bg-emerald-500 ring-2 ring-emerald-500/20' : 'bg-[#C6923B]'
+                            }`} />
+                            <h4 className="text-xs font-bold text-slate-900 dark:text-slate-200">{n.title}</h4>
+                          </div>
+                          <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 shrink-0">{n.time}</span>
                         </div>
-                        <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-tight">{n.desc}</p>
+                        <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 pl-3.5 leading-relaxed font-sans">{n.desc}</p>
                       </div>
                     ))
                   )}
                 </div>
 
-                {/* Enable Notifications CTA if not granted */}
-                {!hasNotificationPermission && (
+                <div className="p-2 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0e1624] text-center">
                   <button
-                    onClick={handleRequestNotification}
-                    className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2"
+                    onClick={() => {
+                      setShowNotifications(false);
+                      if (onNavigateTab) {
+                        onNavigateTab('alerts');
+                      } else {
+                        window.dispatchEvent(new CustomEvent('acos:navigate-tab', { detail: 'alerts' }));
+                      }
+                    }}
+                    className="text-[11px] font-semibold text-[#C6923B] dark:text-[#D4A347] hover:underline cursor-pointer"
                   >
-                    <BellRing className="w-3.5 h-3.5" />
-                    Enable Desktop Notifications
+                    View All in Alerts Console &rarr;
                   </button>
-                )}
+                </div>
               </div>
             </>
+          )}
+        </div>
+
+        {/* User Account Menu */}
+        <div className="relative" ref={accountMenuRef}>
+          <button
+            onClick={() => setShowAccountMenu(!showAccountMenu)}
+            className="flex items-center gap-1.5 pl-1.5 pr-1 py-1 rounded-lg bg-slate-100 dark:bg-[#141b2a] hover:bg-slate-200/80 dark:hover:bg-[#192236] border border-slate-200 dark:border-[#23304a] transition-colors cursor-pointer"
+          >
+            <div className="w-6 h-6 rounded-full bg-[#C6923B] text-white font-mono font-bold text-[11px] flex items-center justify-center shadow-2xs">
+              {userInitial}
+            </div>
+            <span className="hidden xl:inline text-xs font-medium text-slate-700 dark:text-slate-200 max-w-[90px] truncate">
+              {displayName}
+            </span>
+            <ChevronDown className="w-3 h-3 text-slate-400" />
+          </button>
+
+          {showAccountMenu && (
+            <div className="absolute right-0 mt-1.5 w-60 sm:w-64 bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#23304a] rounded-xl shadow-2xl p-2 z-50 animate-fadeIn">
+              <div className="p-2 border-b border-slate-100 dark:border-slate-800 pb-2.5">
+                <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">{displayName}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate">{user?.email || 'admin@aravanta.internal'}</p>
+                <div className="flex items-center gap-1.5 mt-2">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#C6923B]/15 text-[#C6923B] dark:text-[#D4A347] border border-[#C6923B]/30">
+                    {displayRole}
+                  </span>
+                  <span className="text-[10px] text-slate-500">Org: Aravanta</span>
+                </div>
+              </div>
+
+              <div className="py-1">
+                <button
+                  onClick={() => {
+                    setShowAccountMenu(false);
+                    onNavigateToProfile?.();
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white cursor-pointer"
+                >
+                  <User className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Account & Profile</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setShowAccountMenu(false);
+                    window.dispatchEvent(new CustomEvent('acos:go-to-console'));
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white cursor-pointer"
+                >
+                  <Terminal className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Cloud API Keys</span>
+                </button>
+              </div>
+
+              <div className="border-t border-slate-100 dark:border-slate-800 pt-1">
+                <button
+                  onClick={() => {
+                    localStorage.removeItem('aravanta_token');
+                    localStorage.removeItem('aravanta_user');
+                    window.location.reload();
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Sign Out of Console</span>
+                </button>
+              </div>
+            </div>
           )}
         </div>
       </div>

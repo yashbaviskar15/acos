@@ -29,6 +29,9 @@ from app.services.arvguard.router import router as arvguard_router
 from app.services.arvpulse.router import router as arvpulse_router
 from app.services.arvsandbox.router import router as arvsandbox_router
 from app.services.control_plane.router import router as control_plane_router
+from app.services.arvfunctions.router import router as arvfunctions_router
+from app.services.arvvault.router import router as arvvault_router
+from app.services.arvevents.router import router as arvevents_router
 import app.services.arvgate.models
 import app.control_plane.models
 import app.core.cloud_models
@@ -37,6 +40,9 @@ import app.services.arvcostiq.models
 import app.services.arvguard.models
 import app.services.arvpulse.models
 import app.services.arvsandbox.models
+import app.services.arvfunctions.models
+import app.services.arvvault.models
+import app.services.arvevents.models
 import app.billing.models
 
 logger = logging.getLogger("aravanta.startup")
@@ -159,6 +165,9 @@ app.include_router(arvguard_router)
 app.include_router(arvpulse_router)
 app.include_router(arvsandbox_router)
 app.include_router(control_plane_router)
+app.include_router(arvfunctions_router)
+app.include_router(arvvault_router)
+app.include_router(arvevents_router)
 
 @app.get("/", tags=["Root"])
 def root():

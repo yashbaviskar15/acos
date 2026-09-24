@@ -53,6 +53,9 @@ import { apiFetch } from './config/api';
 import { canAccessTab } from './utils/rbac';
 import { AccessDenied } from './components/AccessDenied';
 import { CLIPage } from './pages/CLIPage';
+import { FunctionsPage } from './pages/Functions';
+import { VaultPage } from './pages/Vault';
+import { EventsPage } from './pages/Events';
 
 export default function App() {
   const [inviteToken, setInviteToken] = useState<string | null>(() => {
@@ -167,9 +170,14 @@ export default function App() {
 
     window.addEventListener('acos:go-to-console', handleGoConsole);
     window.addEventListener('acos:go-to-landing', handleGoLanding);
+    const handleNavigateTab = (e: any) => {
+      if (e?.detail) setActiveTab(e.detail);
+    };
+    window.addEventListener('acos:navigate-tab', handleNavigateTab);
     return () => {
       window.removeEventListener('acos:go-to-console', handleGoConsole);
       window.removeEventListener('acos:go-to-landing', handleGoLanding);
+      window.removeEventListener('acos:navigate-tab', handleNavigateTab);
     };
   }, []);
 
@@ -177,6 +185,23 @@ export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('aravanta_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleSidebarCollapse = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('aravanta_sidebar_collapsed', String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   // Global Cmd+K (Command Palette), Cmd+J (Copilot), and Cmd+` (CLI Tab) shortcut listeners
   useEffect(() => {
@@ -538,6 +563,9 @@ export default function App() {
       case 'pulse': return 'ArvPulse — Predictive Infrastructure Health Engine';
       case 'sandbox': return 'ArvSandbox — Ephemeral Environment Engine';
       case 'cli': return 'Developer Tools — Aravanta CLI & Terminal';
+      case 'functions': return 'ArvFunctions — Serverless Compute Engine (Lambda/Cloud Functions)';
+      case 'vault': return 'ArvVault — Secrets & Key Management Service (KMS)';
+      case 'events': return 'ArvEvents — Distributed Event Bus & Message Queues';
       default: return 'Aravanta CloudOS Control Plane';
     }
   };
@@ -557,8 +585,8 @@ export default function App() {
   };
 
   return (
-    <div className="h-[100dvh] w-full max-w-[100vw] overflow-hidden bg-slate-100 dark:bg-[#0A1628] text-slate-900 dark:text-slate-100 flex font-sans transition-colors duration-300">
-      {/* Fixed Sidebar */}
+    <div className="h-[100dvh] w-full max-w-[100vw] overflow-hidden bg-[#f4f6f8] dark:bg-[#090e17] text-slate-900 dark:text-slate-100 flex font-sans transition-colors duration-300">
+      {/* Fixed Collapsible Sidebar */}
       <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -567,14 +595,17 @@ export default function App() {
         isOpen={isMobileMenuOpen}
         onClose={() => setIsMobileMenuOpen(false)}
         onGoToLanding={handleGoToLanding}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={handleToggleSidebarCollapse}
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-[100dvh] min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col h-[100dvh] min-w-0 overflow-hidden bg-[#f4f6f8] dark:bg-[#090e17]">
         <Header
           title={getTabTitle()}
           subtitle={getTabSubtitle()}
           user={user}
+          token={token}
           onUpdateUser={(updatedUser: any, newToken?: string) => {
             setUser(updatedUser);
             if (newToken) setToken(newToken);
@@ -585,10 +616,11 @@ export default function App() {
           onNavigateToProfile={() => setActiveTab('profile')}
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
           onToggleCopilot={() => setIsCopilotOpen(prev => !prev)}
+          onNavigateTab={(tab) => setActiveTab(tab)}
         />
 
         {/* Dynamic Route Pages with Error Boundary Protection */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 xs:p-4 sm:p-6 space-y-4 sm:space-y-6 min-w-0 pb-safe">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 xs:p-4 sm:p-5 lg:p-6 space-y-4 sm:space-y-6 min-w-0 pb-safe bg-[#f4f6f8] dark:bg-[#090e17]">
           <ErrorBoundary onReset={() => setActiveTab('dashboard')}>
             {!canAccessTab(activeTab, user?.role || user?.roles?.[0] || 'SuperAdmin') ? (
               <AccessDenied
@@ -638,6 +670,11 @@ export default function App() {
                 {activeTab === 'sandbox' && <Sandbox token={token} />}
                 {activeTab === 'cli' && <CLIPage token={token} user={user} />}
                 
+                {/* New Cloud Services */}
+                {activeTab === 'functions' && <FunctionsPage token={token} user={user} />}
+                {activeTab === 'vault' && <VaultPage token={token} user={user} />}
+                {activeTab === 'events' && <EventsPage token={token} user={user} />}
+                
                 {/* Fallback for unhandled tab */}
                 {![
                   'dashboard', 'infrastructure', 'applications', 'deployments', 
@@ -645,7 +682,8 @@ export default function App() {
                   'automation', 'backups', 'audit', 'settings', 'compute', 
                   'kubernetes', 'storage', 'database', 'cicd', 'security', 
                   'billing', 'profile', 'guide', 'community',
-                  'costiq', 'compliance', 'pulse', 'sandbox', 'cli'
+                  'costiq', 'compliance', 'pulse', 'sandbox', 'cli',
+                  'functions', 'vault', 'events'
                 ].includes(activeTab) && (
                   <Dashboard token={token} onNavigate={(tab) => setActiveTab(tab)} searchTerm={searchTerm} />
                 )}
