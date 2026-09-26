@@ -5,9 +5,9 @@ import datetime
 from contextlib import asynccontextmanager
 from sqlalchemy import text
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from prometheus_client import make_asgi_app
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from app.core.config import settings
 from app.core.database import Base, engine, DATABASE_URL
@@ -124,30 +124,6 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# Pure ASGI Security Headers Middleware (prevents Starlette BaseHTTPMiddleware crash on serverless)
-class SecurityHeadersMiddleware:
-    def __init__(self, app):
-        self.app = app
-
-    async def __call__(self, scope, receive, send):
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
-
-        async def send_wrapper(message):
-            if message["type"] == "http.response.start":
-                headers = list(message.get("headers", []))
-                headers.append((b"x-content-type-options", b"nosniff"))
-                headers.append((b"x-frame-options", b"DENY"))
-                headers.append((b"x-xss-protection", b"1; mode=block"))
-                headers.append((b"referrer-policy", b"strict-origin-when-cross-origin"))
-                message["headers"] = headers
-            await send(message)
-
-        await self.app(scope, receive, send_wrapper)
-
-app.add_middleware(SecurityHeadersMiddleware)
-
 # Configure CORS: explicitly allowed production origins + Aravanta Vercel previews only
 app.add_middleware(
     CORSMiddleware,
@@ -173,9 +149,9 @@ async def global_unhandled_exception_handler(request: Request, exc: Exception):
         }
     )
 
-# Mount Prometheus metrics endpoint
-metrics_app = make_asgi_app()
-app.mount("/metrics", metrics_app)
+@app.get("/metrics", tags=["Metrics"])
+def get_metrics():
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 # Include Arv* Service Routers (Routers already include /api/v1 in their prefix)
 app.include_router(arvgate_router)
