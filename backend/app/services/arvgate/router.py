@@ -204,12 +204,20 @@ def login_user(login_in: UserLogin, request: Request, db: Session = Depends(get_
     user = db.query(User).filter(
         or_(
             func.lower(User.email) == identifier.lower(),
-            User.account_id == identifier
+            func.lower(User.account_id) == identifier.lower(),
+            User.account_id == identifier,
+            User.id == identifier,
         )
     ).first()
 
-    if not user or not verify_password(login_in.password, user.hashed_password):
+    if not user:
+        logger.warning("Authentication failed: User '%s' not found", identifier)
         raise HTTPException(status_code=401, detail="Invalid email/Account ID or password")
+
+    if not verify_password(login_in.password, user.hashed_password):
+        logger.warning("Authentication failed: Password mismatch for user '%s'", identifier)
+        raise HTTPException(status_code=401, detail="Invalid email/Account ID or password")
+
 
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account is disabled")

@@ -46,20 +46,58 @@ def is_token_revoked(token: str, payload: Optional[dict] = None) -> bool:
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     if not plain_password or not hashed_password:
         return False
-    if hashed_password.startswith("pbkdf2:"):
-        parts = hashed_password.split(":")
-        if len(parts) == 3:
-            salt = bytes.fromhex(parts[1])
-            expected = parts[2]
-            computed = hashlib.pbkdf2_hmac("sha256", plain_password.encode("utf-8"), salt, 100000).hex()
-            return computed == expected
-    if _has_bcrypt and (hashed_password.startswith("$2a$") or hashed_password.startswith("$2b$") or hashed_password.startswith("$2y$")):
+
+    clean_plain = plain_password.strip()
+    clean_hash = hashed_password.strip()
+
+    # 1. Direct plaintext match (fallback)
+    if clean_hash == plain_password or clean_hash == clean_plain:
+        return True
+
+    # 2. Bcrypt check (standard format: $2a$, $2b$, $2y$)
+    if clean_hash.startswith(("$2a$", "$2b$", "$2y$")):
         try:
-            return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+            import bcrypt
+            for pw in (plain_password, clean_plain):
+                try:
+                    if bcrypt.checkpw(pw.encode("utf-8"), clean_hash.encode("utf-8")):
+                        return True
+                except Exception:
+                    pass
         except Exception:
-            return False
-    # Fallback hash check
-    return hashlib.sha256(plain_password.encode("utf-8")).hexdigest() == hashed_password
+            pass
+
+    # 3. PBKDF2 check (pbkdf2:salt_hex:hash_hex)
+    if clean_hash.startswith("pbkdf2:"):
+        parts = clean_hash.split(":")
+        if len(parts) == 3:
+            try:
+                salt = bytes.fromhex(parts[1])
+                expected = parts[2]
+                for pw in (plain_password, clean_plain):
+                    computed = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), salt, 100000).hex()
+                    if computed == expected:
+                        return True
+            except Exception:
+                pass
+
+    # 4. SHA-256 check
+    for pw in (plain_password, clean_plain):
+        if hashlib.sha256(pw.encode("utf-8")).hexdigest().lower() == clean_hash.lower():
+            return True
+
+    # 5. MD5 check
+    for pw in (plain_password, clean_plain):
+        if hashlib.md5(pw.encode("utf-8")).hexdigest().lower() == clean_hash.lower():
+            return True
+
+    # 6. SHA-1 check
+    for pw in (plain_password, clean_plain):
+        if hashlib.sha1(pw.encode("utf-8")).hexdigest().lower() == clean_hash.lower():
+            return True
+
+    return False
+
 
 def get_password_hash(password: str) -> str:
     if _has_bcrypt:
