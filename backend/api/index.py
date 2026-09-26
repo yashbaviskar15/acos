@@ -1,19 +1,16 @@
 import os
 import sys
+import json
+import traceback
 from pathlib import Path
 
-# Add backend directory and parent directory to sys.path
+# Add backend directory and root directory to sys.path
 backend_dir = Path(__file__).resolve().parent.parent
-if str(backend_dir) not in sys.path:
-    sys.path.insert(0, str(backend_dir))
-if str(backend_dir.parent) not in sys.path:
-    sys.path.insert(0, str(backend_dir.parent))
+root_dir = backend_dir.parent
 
-cwd = Path.cwd()
-if str(cwd / "backend") not in sys.path:
-    sys.path.insert(0, str(cwd / "backend"))
-if str(cwd) not in sys.path:
-    sys.path.insert(0, str(cwd))
+for p in [str(backend_dir), str(root_dir), str(Path.cwd()), str(Path.cwd() / "backend")]:
+    if p not in sys.path:
+        sys.path.insert(0, p)
 
 # Ensure production environment variables are present on serverless cold start
 if not os.environ.get("SECRET_KEY"):
@@ -22,33 +19,32 @@ if not os.environ.get("SECRET_KEY"):
 if not os.environ.get("DATABASE_URL"):
     os.environ["DATABASE_URL"] = "postgresql://neondb_owner:npg_rJL0kIVv7Xuj@ep-small-pond-a5i9ohyh-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
 
-# Import FastAPI instance
+# Import FastAPI instance with zero-dependency WSGI/ASGI fallback
 try:
     from app.main import app
 except Exception as exc:
-    import traceback
-    from fastapi import FastAPI
-    from fastapi.responses import JSONResponse
-
-    app = FastAPI(title="Aravanta Cold Start Diagnostic")
     _err_msg = str(exc)
     _err_trace = traceback.format_exc()
 
-    @app.api_route("/{path_name:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"])
-    def catch_all(path_name: str):
-        return JSONResponse(
-            status_code=500,
-            content={
-                "status": "error",
-                "message": "Backend import failure during serverless initialization",
-                "path": path_name,
-                "error": _err_msg,
-                "traceback": _err_trace,
-                "sys_path": sys.path,
-                "cwd": str(Path.cwd()),
-            }
-        )
+    # Pure Python stdlib WSGI application (zero external dependencies)
+    def app(environ, start_response):
+        status = '500 Internal Server Error'
+        response_headers = [
+            ('Content-Type', 'application/json'),
+            ('Access-Control-Allow-Origin', '*'),
+            ('Access-Control-Allow-Headers', '*'),
+            ('Access-Control-Allow-Methods', '*')
+        ]
+        start_response(status, response_headers)
+        body = json.dumps({
+            "status": "error",
+            "message": "Serverless Cold-Start Initialization Failure",
+            "error": _err_msg,
+            "traceback": _err_trace,
+            "sys_path": sys.path,
+            "cwd": str(Path.cwd()),
+        }, indent=2).encode('utf-8')
+        return [body]
 
-# Expose both app and handler for universal Vercel / ASGI compatibility
 handler = app
 application = app
