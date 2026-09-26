@@ -227,6 +227,8 @@ async def upload_file(
         old_size = existing.size_bytes
         existing.size_bytes = file_size
         existing.content_type = content_type
+        existing.data = content
+        existing.etag = f'"{hashlib.md5(content).hexdigest()}"'
         existing.last_modified = now
         bucket.size_gb = max(0.0, round(bucket.size_gb + (file_size - old_size) / (1024 ** 3), 4))
         bucket.monthly_cost = round(bucket.size_gb * 0.023, 2)
@@ -241,6 +243,7 @@ async def upload_file(
             size_bytes=file_size,
             content_type=content_type,
             storage_class=bucket.storage_class,
+            data=content,
             etag=f'"{hashlib.md5(content).hexdigest()}"',
             last_modified=now,
         )
@@ -283,19 +286,19 @@ def download_object(
     if user_role not in ["superadmin", "admin"] and bucket.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied to this bucket")
 
-    bname = bucket.name
-    sample_content = (
-        f"# Aravanta CloudOS S3 Object\n"
-        f"Bucket: {bname}\n"
-        f"Key: {object_key}\n"
-        f"Generated: {datetime.utcnow().isoformat()}Z\n"
-    ).encode("utf-8")
-    filename = object_key.split("/")[-1] or "object.bin"
-
+    obj = db.query(StorageObject).filter(
+        StorageObject.bucket_id == bucket_id,
+        StorageObject.key == object_key
+    ).first()
+    if not obj:
+        raise HTTPException(status_code=404, detail=f"Object '{object_key}' not found")
+    if not obj.data:
+        raise HTTPException(status_code=404, detail="Object data not available (uploaded before data persistence was enabled)")
+    filename = object_key.split('/')[-1] or 'object.bin'
     return StreamingResponse(
-        io.BytesIO(sample_content),
-        media_type="application/octet-stream",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        io.BytesIO(obj.data),
+        media_type=obj.content_type or 'application/octet-stream',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'}
     )
 
 
@@ -319,15 +322,26 @@ def preview_object(
         StorageObject.key == object_key
     ).first()
 
+    if not obj:
+        raise HTTPException(status_code=404, detail=f"Object '{object_key}' not found")
+
     bname = bucket.name
+    preview_text = f"Object: {object_key}\nBucket: {bname}\nClass: {bucket.storage_class}\nEncryption: AES-256 Enabled\nIntegrity: Verified SHA-256"
+    
+    if obj.data and obj.content_type and obj.content_type.startswith("text/"):
+        try:
+            preview_text = obj.data.decode("utf-8")[:500]
+        except Exception:
+            pass
+
     return {
         "key": object_key,
         "bucket": bname,
-        "size_bytes": obj.size_bytes if obj else 0,
-        "content_type": obj.content_type if obj else "application/octet-stream",
+        "size_bytes": obj.size_bytes,
+        "content_type": obj.content_type,
         "s3_uri": f"s3://{bname}/{object_key}",
         "download_url": f"/api/v1/storage/buckets/{bucket_id}/objects/{object_key}/download",
-        "content_preview": f"Object: {object_key}\nBucket: {bname}\nClass: {bucket.storage_class}\nEncryption: AES-256 Enabled\nIntegrity: Verified SHA-256",
+        "content_preview": preview_text,
     }
 
 

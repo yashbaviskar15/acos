@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, Text, Boolean, DateTime, ForeignKey, JSON
+from sqlalchemy import Column, String, Integer, Text, Boolean, DateTime, ForeignKey, JSON, LargeBinary
 from app.core.database import Base
 
 def gen_sec_id():
@@ -57,6 +57,7 @@ class ArvVaultKey(Base):
     purpose = Column(String, default="ENCRYPT_DECRYPT")
     status = Column(String, default="ACTIVE")
     key_material_hash = Column(String(64), nullable=True)
+    key_material = Column(LargeBinary, nullable=True)
     rotation_period_days = Column(Integer, default=0)
     last_rotated_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)

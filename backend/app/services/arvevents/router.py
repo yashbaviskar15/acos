@@ -89,6 +89,19 @@ def receive_message(id: str, db: Session = Depends(get_db)):
     if not queue:
         raise HTTPException(status_code=404, detail="Queue not found")
     
+    now = datetime.datetime.utcnow()
+    expired = db.query(ArvQueueMessage).filter(
+        ArvQueueMessage.queue_id == id,
+        ArvQueueMessage.status == "IN_FLIGHT",
+        ArvQueueMessage.visibility_deadline < now
+    ).all()
+    for m in expired:
+        if queue.dlq_target_id and m.receive_count >= queue.dlq_max_receive_count:
+            m.status = "DLQ"
+        else:
+            m.status = "AVAILABLE"
+    db.commit()
+    
     msg = db.query(ArvQueueMessage).filter(
         ArvQueueMessage.queue_id == id,
         ArvQueueMessage.status == "AVAILABLE"
@@ -97,13 +110,75 @@ def receive_message(id: str, db: Session = Depends(get_db)):
     if not msg:
         return []
     
-    msg.status = "IN_FLIGHT"
     msg.receive_count += 1
-    msg.last_received_at = datetime.datetime.utcnow()
-    msg.visibility_deadline = datetime.datetime.utcnow() + datetime.timedelta(seconds=queue.visibility_timeout_seconds)
+    if queue.dlq_target_id and msg.receive_count > queue.dlq_max_receive_count:
+        msg.status = "DLQ"
+        db.commit()
+        return []
+
+    msg.status = "IN_FLIGHT"
+    msg.last_received_at = now
+    msg.visibility_deadline = now + datetime.timedelta(seconds=queue.visibility_timeout_seconds)
     db.commit()
     
     return [msg.to_dict()]
+
+@router.delete("/queues/{id}/messages/{message_id}")
+def acknowledge_message(id: str, message_id: str, db: Session = Depends(get_db)):
+    """Acknowledge (delete) a message after successful processing."""
+    msg = db.query(ArvQueueMessage).filter(
+        ArvQueueMessage.id == message_id,
+        ArvQueueMessage.queue_id == id
+    ).first()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+    queue = db.query(ArvEventQueue).filter(ArvEventQueue.id == id).first()
+    if queue:
+        queue.message_count = max(0, queue.message_count - 1)
+    db.delete(msg)
+    db.commit()
+    return {"status": "acknowledged", "message_id": message_id}
+
+@router.post("/queues/{id}/receive-batch")
+def receive_message_batch(id: str, max_messages: int = Query(1, alias="max_messages"), db: Session = Depends(get_db)):
+    queue = db.query(ArvEventQueue).filter(ArvEventQueue.id == id).first()
+    if not queue:
+        raise HTTPException(status_code=404, detail="Queue not found")
+    
+    now = datetime.datetime.utcnow()
+    expired = db.query(ArvQueueMessage).filter(
+        ArvQueueMessage.queue_id == id,
+        ArvQueueMessage.status == "IN_FLIGHT",
+        ArvQueueMessage.visibility_deadline < now
+    ).all()
+    for m in expired:
+        if queue.dlq_target_id and m.receive_count >= queue.dlq_max_receive_count:
+            m.status = "DLQ"
+        else:
+            m.status = "AVAILABLE"
+    db.commit()
+    
+    msgs = db.query(ArvQueueMessage).filter(
+        ArvQueueMessage.queue_id == id,
+        ArvQueueMessage.status == "AVAILABLE"
+    ).limit(max_messages).all()
+    
+    if not msgs:
+        return []
+        
+    result = []
+    for msg in msgs:
+        msg.receive_count += 1
+        if queue.dlq_target_id and msg.receive_count > queue.dlq_max_receive_count:
+            msg.status = "DLQ"
+        else:
+            msg.status = "IN_FLIGHT"
+            msg.last_received_at = now
+            msg.visibility_deadline = now + datetime.timedelta(seconds=queue.visibility_timeout_seconds)
+            result.append(msg.to_dict())
+    
+    db.commit()
+    return result
 
 @router.post("/queues/{id}/purge")
 def purge_queue(id: str, db: Session = Depends(get_db)):
@@ -151,8 +226,59 @@ def publish_message(id: str, req: PublishMessageRequest, db: Session = Depends(g
     if not topic:
         raise HTTPException(status_code=404, detail="Topic not found")
     topic.message_count += 1
+    
+    rules = db.query(ArvEventRule).filter(
+        ArvEventRule.topic_id == id,
+        ArvEventRule.enabled == True
+    ).all()
+    for rule in rules:
+        if rule.target_type == "QUEUE":
+            target_queue = db.query(ArvEventQueue).filter(ArvEventQueue.id == rule.target_id).first()
+            if target_queue:
+                msg = ArvQueueMessage(
+                    queue_id=target_queue.id,
+                    body=req.message,
+                    attributes=req.attributes,
+                    status="AVAILABLE"
+                )
+                target_queue.message_count += 1
+                db.add(msg)
+                
     db.commit()
     return {"status": "published", "topic_id": id}
+
+class SubscribeTopicRequest(BaseModel):
+    target_type: str
+    target_id: str
+    name: str = ""
+    pattern: dict = {}
+
+@router.post("/topics/{id}/subscribe")
+def subscribe_topic(id: str, req: SubscribeTopicRequest, db: Session = Depends(get_db)):
+    topic = db.query(ArvEventTopic).filter(ArvEventTopic.id == id).first()
+    if not topic:
+        raise HTTPException(status_code=404, detail="Topic not found")
+    rule = ArvEventRule(
+        topic_id=id,
+        name=req.name or f"sub-{req.target_type}-{req.target_id}",
+        pattern=req.pattern,
+        target_type=req.target_type,
+        target_id=req.target_id,
+        enabled=True
+    )
+    topic.subscription_count += 1
+    db.add(rule)
+    db.commit()
+    db.refresh(rule)
+    return rule.to_dict()
+
+@router.get("/topics/{id}/subscriptions")
+def list_topic_subscriptions(id: str, db: Session = Depends(get_db)):
+    topic = db.query(ArvEventTopic).filter(ArvEventTopic.id == id).first()
+    if not topic:
+        raise HTTPException(status_code=404, detail="Topic not found")
+    rules = db.query(ArvEventRule).filter(ArvEventRule.topic_id == id).all()
+    return [r.to_dict() for r in rules]
 
 @router.get("/rules")
 def list_rules(db: Session = Depends(get_db)):

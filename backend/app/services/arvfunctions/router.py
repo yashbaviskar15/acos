@@ -5,7 +5,11 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.services.arvfunctions.models import ArvFunction, ArvFunctionInvocation
 import datetime
-import random
+import asyncio
+import subprocess
+import time
+import json
+import traceback
 
 router = APIRouter(prefix="/api/v1/functions", tags=["ArvFunctions"])
 
@@ -17,6 +21,7 @@ class CreateFunctionRequest(BaseModel):
     timeout_seconds: int = 30
     trigger_type: str = "http"
     env_vars: dict = {}
+    code: Optional[str] = None
 
 class InvokeFunctionRequest(BaseModel):
     payload: dict = {}
@@ -41,7 +46,8 @@ def create_function(req: CreateFunctionRequest, db: Session = Depends(get_db)):
         memory_mb=req.memory_mb,
         timeout_seconds=req.timeout_seconds,
         trigger_type=req.trigger_type,
-        env_vars=req.env_vars
+        env_vars=req.env_vars,
+        code=req.code
     )
     db.add(fn)
     db.commit()
@@ -67,6 +73,7 @@ def update_function(function_id: str, req: CreateFunctionRequest, db: Session = 
     fn.timeout_seconds = req.timeout_seconds
     fn.trigger_type = req.trigger_type
     fn.env_vars = req.env_vars
+    fn.code = req.code
     fn.updated_at = datetime.datetime.utcnow()
     db.commit()
     db.refresh(fn)
@@ -82,23 +89,83 @@ def delete_function(function_id: str, db: Session = Depends(get_db)):
     return {"status": "deleted"}
 
 @router.post("/{function_id}/invoke")
-def invoke_function(function_id: str, req: InvokeFunctionRequest, db: Session = Depends(get_db)):
+async def invoke_function(function_id: str, req: InvokeFunctionRequest, db: Session = Depends(get_db)):
     fn = db.query(ArvFunction).filter(ArvFunction.id == function_id).first()
     if not fn:
         raise HTTPException(status_code=404, detail="Function not found")
+    if fn.status != "ACTIVE":
+        raise HTTPException(status_code=400, detail=f"Function is {fn.status}, not ACTIVE")
     
-    duration = random.randint(50, 500)
+    if not fn.code:
+        # No code to execute — log as error
+        inv = ArvFunctionInvocation(
+            function_id=fn.id,
+            status="FAILED",
+            duration_ms=0,
+            billed_duration_ms=0,
+            memory_used_mb=0,
+            request_payload=json.dumps(req.payload),
+            response_payload=None,
+            error_message="No function code deployed. Upload code via PUT /functions/{id}",
+        )
+        db.add(inv)
+        db.commit()
+        return inv.to_dict()
+    
+    # Prepare sandboxed execution
+    payload_json = json.dumps(req.payload)
+    wrapper = f"""
+import json, sys
+event = json.loads(sys.argv[1]) if len(sys.argv) > 1 else {{}}
+{fn.code}
+result = {fn.handler.split('.')[0] if '.' in fn.handler else fn.handler}(event, {{}})
+print(json.dumps(result) if result is not None else '{{}}')
+"""
+    
+    start_time = time.monotonic()
+    try:
+        proc = subprocess.run(
+            ["python3", "-c", wrapper, payload_json],
+            capture_output=True,
+            text=True,
+            timeout=min(fn.timeout_seconds, 30),  # cap at 30s on serverless
+            env={"PATH": "/usr/bin:/bin"},  # minimal env
+        )
+        duration_ms = int((time.monotonic() - start_time) * 1000)
+        
+        if proc.returncode == 0:
+            inv_status = "SUCCESS"
+            response = proc.stdout.strip()
+            error = None
+        else:
+            inv_status = "FAILED"
+            response = proc.stdout.strip() or None
+            error = proc.stderr.strip() or f"Exit code {proc.returncode}"
+    except subprocess.TimeoutExpired:
+        duration_ms = fn.timeout_seconds * 1000
+        inv_status = "TIMEOUT"
+        response = None
+        error = f"Function timed out after {fn.timeout_seconds}s"
+    except Exception as e:
+        duration_ms = int((time.monotonic() - start_time) * 1000)
+        inv_status = "FAILED"
+        response = None
+        error = str(e)
+    
+    billed = ((duration_ms // 100) + 1) * 100
+    
     fn.invocation_count += 1
     fn.last_invoked_at = datetime.datetime.utcnow()
     
     inv = ArvFunctionInvocation(
         function_id=fn.id,
-        status="SUCCESS",
-        duration_ms=duration,
-        billed_duration_ms=((duration // 100) + 1) * 100,
-        memory_used_mb=random.randint(20, fn.memory_mb),
-        request_payload=str(req.payload),
-        response_payload='{"message": "success"}',
+        status=inv_status,
+        duration_ms=duration_ms,
+        billed_duration_ms=billed,
+        memory_used_mb=0,  # Real memory tracking not available in subprocess
+        request_payload=payload_json,
+        response_payload=response,
+        error_message=error,
     )
     db.add(inv)
     db.commit()

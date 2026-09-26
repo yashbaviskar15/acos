@@ -5,7 +5,6 @@ scoped to authenticated users, with real notification emission.
 """
 import hashlib
 import json
-import random
 from datetime import datetime
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Query, Depends, status
@@ -43,12 +42,6 @@ OS_IMAGES = [
 def _det_id(prefix: str, name: str) -> str:
     return f"{prefix}-{hashlib.md5(f'{name}-{datetime.utcnow().timestamp()}'.encode()).hexdigest()[:10]}"
 
-def _random_ip():
-    return f"10.{random.randint(0,255)}.{random.randint(1,254)}.{random.randint(1,254)}"
-
-def _random_public_ip():
-    return f"{random.randint(34,52)}.{random.randint(100,255)}.{random.randint(1,254)}.{random.randint(1,254)}"
-
 # ─── Schemas ────────────────────────────────────────────────────
 class CreateInstanceRequest(BaseModel):
     name: str
@@ -62,6 +55,14 @@ class ActionRequest(BaseModel):
     action: str  # start, stop, reboot, terminate
 
 # ─── Endpoints ──────────────────────────────────────────────────
+@router.get("/provider-status")
+def get_provider_status():
+    return {
+        "provider_configured": False,
+        "message": "No compute provider configured. Connect AWS/GCP/Azure credentials to provision real VMs.",
+        "supported_providers": ["aws_ec2", "gcp_compute", "azure_vm", "docker_local"]
+    }
+
 @router.get("/instances")
 def list_instances(
     region: Optional[str] = Query(None),
@@ -113,11 +114,11 @@ def create_instance(
         instance_type=req.instance_type,
         os_image=req.os_image,
         region=req.region,
-        status="RUNNING",
-        private_ip=_random_ip(),
-        public_ip=_random_public_ip(),
-        cpu_usage=round(random.uniform(5, 18), 1),
-        ram_usage=round(random.uniform(15, 35), 1),
+        status="PENDING_PROVIDER",
+        private_ip="awaiting-assignment",
+        public_ip=None,
+        cpu_usage=0.0,
+        ram_usage=0.0,
         disk_gb=req.disk_gb,
         tags=json.dumps(req.tags or {}),
         created_at=now,
@@ -211,9 +212,7 @@ def instance_action(
         raise HTTPException(status_code=400, detail=f"Unknown action: {action}")
 
     if action == "start":
-        inst.status = "RUNNING"
-        inst.cpu_usage = round(random.uniform(8, 25), 1)
-        inst.ram_usage = round(random.uniform(20, 45), 1)
+        inst.status = "START_REQUESTED"
         inst.updated_at = datetime.utcnow()
         try:
             from app.billing.metering_service import MeteringService
@@ -229,8 +228,8 @@ def instance_action(
             db=db,
             user_id=current_user.id,
             workspace_id=current_user.workspace_id,
-            title="Instance Started",
-            desc=f"VM instance {inst.name} is now RUNNING in {inst.region}.",
+            title="Instance Start Requested",
+            desc=f"VM instance {inst.name} is requesting to start in {inst.region}.",
             type="info"
         )
     elif action == "stop":
@@ -252,8 +251,7 @@ def instance_action(
             type="warning"
         )
     elif action == "reboot":
-        inst.status = "RUNNING"
-        inst.cpu_usage = round(random.uniform(10, 20), 1)
+        inst.status = "REBOOT_REQUESTED"
         inst.updated_at = datetime.utcnow()
         emit_notification(
             db=db,

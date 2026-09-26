@@ -11,12 +11,12 @@ router = APIRouter(prefix="/api/v1/vault", tags=["ArvVault"])
 class CreateSecretRequest(BaseModel):
     name: str
     description: Optional[str] = None
-    encrypted_value: str
+    value: str
     encryption_algorithm: str = "AES-256-GCM"
     auto_rotate_days: int = 0
 
 class UpdateSecretRequest(BaseModel):
-    encrypted_value: str
+    value: str
 
 class CreateKeyRequest(BaseModel):
     name: str
@@ -39,10 +39,12 @@ def list_secrets(db: Session = Depends(get_db)):
 
 @router.post("/secrets")
 def create_secret(req: CreateSecretRequest, db: Session = Depends(get_db)):
+    from app.core.crypto import encrypt_aes256gcm, PLATFORM_MASTER_KEY
+    encrypted_val = encrypt_aes256gcm(PLATFORM_MASTER_KEY, req.value)
     secret = ArvVaultSecret(
         name=req.name,
         description=req.description,
-        encrypted_value=req.encrypted_value,
+        encrypted_value=encrypted_val,
         encryption_algorithm=req.encryption_algorithm,
         auto_rotate_days=req.auto_rotate_days
     )
@@ -70,14 +72,23 @@ def access_secret(secret_id: str, db: Session = Depends(get_db)):
     db.commit()
     log_audit(db, secret_id, "ACCESS")
     
-    return secret.to_dict(include_val=True)
+    data = secret.to_dict(include_val=True)
+    if secret.encrypted_value:
+        from app.core.crypto import decrypt_aes256gcm, PLATFORM_MASTER_KEY
+        try:
+            data["value"] = decrypt_aes256gcm(PLATFORM_MASTER_KEY, secret.encrypted_value)
+            del data["encrypted_value"]
+        except Exception:
+            pass # Keep encrypted_value if decryption fails (e.g. old unencrypted data in dev)
+    return data
 
 @router.put("/secrets/{secret_id}")
 def update_secret(secret_id: str, req: UpdateSecretRequest, db: Session = Depends(get_db)):
     secret = db.query(ArvVaultSecret).filter(ArvVaultSecret.id == secret_id).first()
     if not secret:
         raise HTTPException(status_code=404, detail="Secret not found")
-    secret.encrypted_value = req.encrypted_value
+    from app.core.crypto import encrypt_aes256gcm, PLATFORM_MASTER_KEY
+    secret.encrypted_value = encrypt_aes256gcm(PLATFORM_MASTER_KEY, req.value)
     secret.key_version += 1
     secret.updated_at = datetime.datetime.utcnow()
     db.commit()
@@ -99,7 +110,8 @@ def rotate_secret(secret_id: str, req: UpdateSecretRequest, db: Session = Depend
     secret = db.query(ArvVaultSecret).filter(ArvVaultSecret.id == secret_id).first()
     if not secret:
         raise HTTPException(status_code=404, detail="Secret not found")
-    secret.encrypted_value = req.encrypted_value
+    from app.core.crypto import encrypt_aes256gcm, PLATFORM_MASTER_KEY
+    secret.encrypted_value = encrypt_aes256gcm(PLATFORM_MASTER_KEY, req.value)
     secret.key_version += 1
     secret.last_rotated_at = datetime.datetime.utcnow()
     db.commit()
@@ -113,11 +125,15 @@ def list_keys(db: Session = Depends(get_db)):
 
 @router.post("/keys")
 def create_key(req: CreateKeyRequest, db: Session = Depends(get_db)):
+    from app.core.crypto import generate_key_material
+    raw_key, key_hash = generate_key_material()
     key = ArvVaultKey(
         name=req.name,
         algorithm=req.algorithm,
         purpose=req.purpose,
-        rotation_period_days=req.rotation_period_days
+        rotation_period_days=req.rotation_period_days,
+        key_material=raw_key,
+        key_material_hash=key_hash,
     )
     db.add(key)
     db.commit()
@@ -130,16 +146,29 @@ def encrypt_with_key(key_id: str, req: CryptoRequest, db: Session = Depends(get_
     key = db.query(ArvVaultKey).filter(ArvVaultKey.id == key_id).first()
     if not key:
         raise HTTPException(status_code=404, detail="Key not found")
+    if key.status != "ACTIVE":
+        raise HTTPException(status_code=400, detail="Key is not active")
+    if not key.key_material:
+        raise HTTPException(status_code=400, detail="Key has no material — regenerate key")
+    from app.core.crypto import encrypt_aes256gcm
+    encrypted = encrypt_aes256gcm(key.key_material, req.data)
     log_audit(db, key_id, "ENCRYPT")
-    return {"encrypted_data": f"encrypted_{req.data}"}
+    return {"ciphertext": encrypted, "algorithm": key.algorithm, "key_id": key_id}
 
 @router.post("/keys/{key_id}/decrypt")
 def decrypt_with_key(key_id: str, req: CryptoRequest, db: Session = Depends(get_db)):
     key = db.query(ArvVaultKey).filter(ArvVaultKey.id == key_id).first()
     if not key:
         raise HTTPException(status_code=404, detail="Key not found")
+    if not key.key_material:
+        raise HTTPException(status_code=400, detail="Key has no material")
+    from app.core.crypto import decrypt_aes256gcm
+    try:
+        plaintext = decrypt_aes256gcm(key.key_material, req.data)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Decryption failed: {str(e)}")
     log_audit(db, key_id, "DECRYPT")
-    return {"decrypted_data": req.data.replace("encrypted_", "")}
+    return {"plaintext": plaintext, "algorithm": key.algorithm, "key_id": key_id}
 
 @router.get("/audit-log")
 def get_audit_log(db: Session = Depends(get_db)):

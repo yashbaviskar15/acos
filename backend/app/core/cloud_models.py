@@ -8,7 +8,7 @@ import uuid
 import json
 from typing import Optional, List, Dict, Any
 from sqlalchemy import (
-    Column, String, Integer, Float, Boolean, DateTime, Text, ForeignKey
+    Column, String, Integer, Float, Boolean, DateTime, Text, ForeignKey, LargeBinary
 )
 from app.core.database import Base
 
@@ -160,6 +160,8 @@ class StorageObject(Base):
     size_bytes = Column(Integer, default=0)
     storage_class = Column(String(50), default="STANDARD")
     content_type = Column(String(100), default="application/octet-stream")
+    data = Column(LargeBinary, nullable=True)  # Real file bytes
+    etag = Column(String(100), nullable=True)
     last_modified = Column(DateTime, default=datetime.datetime.utcnow)
 
     def to_dict(self) -> dict:

@@ -21,6 +21,7 @@ class ArvFunction(Base):
     memory_mb = Column(Integer, default=256)
     timeout_seconds = Column(Integer, default=30)
     code_bundle_url = Column(String, nullable=True)
+    code = Column(Text, nullable=True)
     env_vars = Column(JSON, default=dict)
     trigger_type = Column(String, default="http")
     trigger_config = Column(JSON, default=dict)
@@ -42,6 +43,7 @@ class ArvFunction(Base):
             "memory_mb": self.memory_mb,
             "timeout_seconds": self.timeout_seconds,
             "code_bundle_url": self.code_bundle_url,
+            "code": self.code,
             "env_vars": self.env_vars,
             "trigger_type": self.trigger_type,
             "trigger_config": self.trigger_config,

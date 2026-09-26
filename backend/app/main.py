@@ -110,6 +110,24 @@ def init_db():
             except Exception:
                 pass
 
+        try:
+            from app.core.add_storage_data_column import ensure_storage_data_column
+            ensure_storage_data_column(engine)
+        except Exception:
+            pass
+
+        try:
+            from app.core.add_vault_columns import add_key_material_column
+            add_key_material_column()
+        except Exception as e:
+            logger.warning("add_vault_columns error: %s", e)
+
+        try:
+            from app.core.add_functions_code_column import main as add_functions_code_col
+            add_functions_code_col()
+        except Exception:
+            pass
+
         from app.core.database import SessionLocal
 
         db = SessionLocal()
