@@ -14,7 +14,16 @@ import {
   CreditCard, 
   Search, 
   ArrowRight, 
-  Sparkles
+  Sparkles,
+  Network,
+  Globe,
+  Users,
+  Box,
+  Layers,
+  FileText,
+  Terminal,
+  Shield,
+  Clock
 } from 'lucide-react';
 import { apiFetch } from '../config/api';
 import { recordServiceAccess } from '../utils/recentServices';
@@ -24,11 +33,19 @@ interface ServiceCatalogProps {
   onNavigate?: (tab: string) => void;
 }
 
+export type CloudCategory = 
+  | 'Compute & Containers' 
+  | 'Storage & Databases' 
+  | 'Networking & Content Delivery' 
+  | 'Security, Identity & Governance' 
+  | 'Observability & Operations' 
+  | 'Developer Tools & Integration';
+
 interface CatalogServiceItem {
   id: string;
   name: string;
   tagline: string;
-  category: 'Compute & Containers' | 'Storage & Databases' | 'Serverless & Integration' | 'DevOps & Blueprints' | 'Observability & Security';
+  category: CloudCategory;
   icon: React.ElementType;
   route: string;
   description: string;
@@ -65,6 +82,7 @@ export const ServiceCatalog: React.FC<ServiceCatalogProps> = ({ token, onNavigat
   }, [token]);
 
   const allServices: CatalogServiceItem[] = [
+    // 1. Compute & Containers
     {
       id: 'compute',
       name: 'ArvCompute',
@@ -92,18 +110,33 @@ export const ServiceCatalog: React.FC<ServiceCatalogProps> = ({ token, onNavigat
       capabilities: ['Kubernetes v1.30', 'Auto-scaler', 'Cilium CNI', 'Prometheus Metrics']
     },
     {
-      id: 'database',
-      name: 'ArvDB',
-      tagline: 'Managed High-Availability Database Engine',
-      category: 'Storage & Databases',
-      icon: Database,
-      route: 'database',
-      description: 'Fully managed PostgreSQL 16, MySQL 8.4, and Redis with automatic failover, read replicas, and continuous point-in-time recovery.',
-      pricingSummary: 'Starts at ₹1,850/mo with daily automated backup',
+      id: 'functions',
+      name: 'ArvFunctions',
+      tagline: 'Event-Driven Serverless Compute Engine (FaaS)',
+      category: 'Compute & Containers',
+      icon: Zap,
+      route: 'functions',
+      description: 'Execute backend code without provisioning servers. Trigger microservices from HTTP requests, message queues, and schedules.',
+      pricingSummary: '₹0.000002 / ms invocation + 1M free invocations/mo',
       status: 'Operational',
-      badge: 'HA Ready',
-      capabilities: ['PgBouncer Pooling', 'Multi-AZ Standby', 'Automated Failover', 'SSL/TLS Enforced']
+      badge: 'Serverless',
+      capabilities: ['Node.js 20, Python 3.11, Go', 'Sub-millisecond Cold Starts', 'Auto-concurrency', 'Native Observability']
     },
+    {
+      id: 'containers',
+      name: 'ArvContainers',
+      tagline: 'Serverless Container Workloads & Microservices',
+      category: 'Compute & Containers',
+      icon: Box,
+      route: 'containers',
+      description: 'Run containerized workloads directly from Docker images with zero cluster maintenance, automatic TLS, and horizontal pod scaling.',
+      pricingSummary: '₹0.003 / GB-RAM hour',
+      status: 'Operational',
+      badge: 'Instant Run',
+      capabilities: ['OCI Compliant', 'Zero Control Plane Fee', 'Live Log Streaming', 'Custom Domains']
+    },
+
+    // 2. Storage & Databases
     {
       id: 'storage',
       name: 'ArvStore',
@@ -118,23 +151,92 @@ export const ServiceCatalog: React.FC<ServiceCatalogProps> = ({ token, onNavigat
       capabilities: ['AWS S3 API Compatible', 'Multi-part Uploads', 'Bucket Encryption', 'Lifecycle Policies']
     },
     {
-      id: 'functions',
-      name: 'ArvFunctions',
-      tagline: 'Event-Driven Serverless Compute Engine (FaaS)',
-      category: 'Serverless & Integration',
-      icon: Zap,
-      route: 'functions',
-      description: 'Run code without provisioning servers. Execute microservices responding to HTTP events, message queues, and scheduled cron jobs.',
-      pricingSummary: '₹0.000002 / ms invocation + 1M free invocations/mo',
+      id: 'database',
+      name: 'ArvDB',
+      tagline: 'Managed High-Availability Database Engine',
+      category: 'Storage & Databases',
+      icon: Database,
+      route: 'database',
+      description: 'Fully managed PostgreSQL 16, MySQL 8.4, and Redis with automatic failover, read replicas, and continuous point-in-time recovery.',
+      pricingSummary: 'Starts at ₹1,850/mo with daily automated backup',
       status: 'Operational',
-      badge: 'Serverless',
-      capabilities: ['Node.js 20, Python 3.11, Go', 'Sub-millisecond Cold Starts', 'Auto-concurrency', 'Native Observability']
+      badge: 'HA Ready',
+      capabilities: ['PgBouncer Pooling', 'Multi-AZ Standby', 'Automated Failover', 'SSL/TLS Enforced']
+    },
+    {
+      id: 'backups',
+      name: 'ArvBackups',
+      tagline: 'Disaster Recovery & 1-Click Snapshot Restore',
+      category: 'Storage & Databases',
+      icon: Layers,
+      route: 'backups',
+      description: 'Enterprise backup vault providing immutable snapshots, point-in-time state recovery, and cross-region replication for stateful volumes.',
+      pricingSummary: '₹0.015 / GB-month snapshot storage',
+      status: 'Operational',
+      badge: 'Immutable',
+      capabilities: ['Block-level Diffs', 'Zero Downtime Snapshots', 'Retention Policies', 'Cross-AZ Replication']
+    },
+
+    // 3. Networking & Content Delivery
+    {
+      id: 'networking',
+      name: 'ArvVPC',
+      tagline: 'Virtual Private Cloud & Software-Defined Networking',
+      category: 'Networking & Content Delivery',
+      icon: Network,
+      route: 'networking',
+      description: 'Isolated virtual networks, multi-AZ subnets, custom CIDR allocations, routing tables, and granular security group firewall rules.',
+      pricingSummary: 'Included free with all tenant workspaces',
+      status: 'Operational',
+      badge: 'Multi-AZ',
+      capabilities: ['Custom IPv4 CIDRs', 'Security Group Firewalls', 'Multi-AZ Subnets', 'Internet Gateways']
+    },
+    {
+      id: 'load-balancers',
+      name: 'ArvLB',
+      tagline: 'Elastic Application & Network Load Balancing',
+      category: 'Networking & Content Delivery',
+      icon: Radio,
+      route: 'load-balancers',
+      description: 'Distribute incoming traffic across instances and Kubernetes services. High-availability L7 path routing and L4 TCP ultra-low latency.',
+      pricingSummary: '₹750/mo flat per active load balancer',
+      status: 'Operational',
+      badge: 'L4 / L7 High-Speed',
+      capabilities: ['HTTP/HTTPS & TCP Routing', 'Automated Health Checks', 'SSL Termination', 'Zero Packet Loss']
+    },
+    {
+      id: 'dns',
+      name: 'ArvDNS',
+      tagline: 'Authoritative Anycast Cloud DNS & Zone Management',
+      category: 'Networking & Content Delivery',
+      icon: Globe,
+      route: 'dns',
+      description: 'Ultra-low-latency global Anycast DNS hosting with sub-second propagation, A/AAAA/CNAME/TXT/MX sets, and health-checked failover.',
+      pricingSummary: 'First 5 hosted zones free • ₹35 / zone-mo thereafter',
+      status: 'Operational',
+      badge: 'Anycast DNS',
+      capabilities: ['Sub-second Propagation', 'Public & Private Zones', 'Automated DNSSEC', 'Global POP Mesh']
+    },
+
+    // 4. Security, Identity & Governance
+    {
+      id: 'iam',
+      name: 'ArvIAM',
+      tagline: 'Identity & Access Management & Team Governance',
+      category: 'Security, Identity & Governance',
+      icon: Users,
+      route: 'iam',
+      description: 'Enterprise multi-tenant RBAC with SuperAdmin, Admin, Operator, Developer, and Viewer tiers, cryptographic invitations, and role elevation.',
+      pricingSummary: 'Unlimited workspace members included',
+      status: 'Operational',
+      badge: 'Zero-Trust RBAC',
+      capabilities: ['5-Tier Privilege Matrix', 'Cryptographic Invites', 'Audit Trail', 'Session Invalidation']
     },
     {
       id: 'vault',
       name: 'ArvVault',
       tagline: 'Hardware Key Management (KMS) & Secret Store',
-      category: 'Observability & Security',
+      category: 'Security, Identity & Governance',
       icon: KeyRound,
       route: 'vault',
       description: 'Centralized encryption key management with FIPS-compliant AES-256-GCM envelope encryption, automated secret rotation, and audit logs.',
@@ -144,13 +246,108 @@ export const ServiceCatalog: React.FC<ServiceCatalogProps> = ({ token, onNavigat
       capabilities: ['AES-256-GCM / RSA-4096', 'Automated Rotation', 'Audit Trail', 'Environment Injection']
     },
     {
+      id: 'compliance',
+      name: 'ArvGuard',
+      tagline: 'Continuous Compliance & Sovereign Data Governance',
+      category: 'Security, Identity & Governance',
+      icon: ShieldCheck,
+      route: 'compliance',
+      description: 'Automated policy enforcement aligning workloads with SOC2 Type II, ISO 27001, PCI-DSS, and Indian Digital Personal Data Protection (DPDP).',
+      pricingSummary: 'Built-in security governance for all organizations',
+      status: 'Operational',
+      badge: 'SOC2 / DPDP',
+      capabilities: ['Real-time Drift Checks', 'Audit Reports', 'Data Sovereignty', 'CIS Benchmarks']
+    },
+    {
+      id: 'audit',
+      name: 'ArvAudit',
+      tagline: 'Cryptographic Security Audit Trail & Telemetry',
+      category: 'Security, Identity & Governance',
+      icon: Clock,
+      route: 'audit',
+      description: 'Tamper-resistant append-only event log capturing every API interaction, user sign-in, permission change, and infrastructure modification.',
+      pricingSummary: '365 days retention included',
+      status: 'Operational',
+      badge: 'Append-Only',
+      capabilities: ['Actor Attribution', 'IP & Timestamp Stamping', 'Export to S3', 'Full Text Search']
+    },
+
+    // 5. Observability & Operations
+    {
+      id: 'monitoring',
+      name: 'ArvWatch',
+      tagline: 'Prometheus Telemetry & Real-Time Metrics Engine',
+      category: 'Observability & Operations',
+      icon: Activity,
+      route: 'monitoring',
+      description: 'Real-time infrastructure telemetry, Prometheus-compatible metrics stream, custom alerting thresholds, and unified incident triage.',
+      pricingSummary: 'Real-time telemetry included with all workloads',
+      status: 'Operational',
+      badge: 'Prometheus Inside',
+      capabilities: ['10s Metrics Scrape', 'Alertmanager Integration', 'P95 / P99 Latency Track', 'Multi-tenant Isolation']
+    },
+    {
+      id: 'logs',
+      name: 'Log Explorer',
+      tagline: 'Centralized Log Ingestion & Distributed Search',
+      category: 'Observability & Operations',
+      icon: FileText,
+      route: 'logs',
+      description: 'Aggregate application logs, kernel events, and API audit logs into an indexed real-time search interface with regex query filters.',
+      pricingSummary: 'First 10GB/mo free • ₹15/GB thereafter',
+      status: 'Operational',
+      badge: 'Real-Time',
+      capabilities: ['Live Tail Mode', 'Structured JSON Parsing', 'Fast Text Indexing', 'Incident Correlation']
+    },
+    {
+      id: 'alerts',
+      name: 'Alertmanager & Incidents',
+      tagline: 'Firing Alert Matrix & War Room Incident Command',
+      category: 'Observability & Operations',
+      icon: Shield,
+      route: 'alerts',
+      description: 'Automated triage and escalation engine routing SLA alerts to Slack, webhooks, and email with interactive post-mortem tracking.',
+      pricingSummary: 'Unlimited alerts included',
+      status: 'Operational',
+      badge: 'SRE Command',
+      capabilities: ['Severity Routing (P1-P4)', 'Webhook Dispatch', 'War Room Mode', 'Auto-mitigation']
+    },
+    {
+      id: 'pulse',
+      name: 'ArvPulse',
+      tagline: 'Predictive Infrastructure Health & AI Diagnostics',
+      category: 'Observability & Operations',
+      icon: Sparkles,
+      route: 'pulse',
+      description: 'Machine learning heuristics monitoring memory leaks, CPU saturation, disk starvation, and noisy neighbors before outages occur.',
+      pricingSummary: 'Included in enterprise tier',
+      status: 'Operational',
+      badge: 'Predictive AI',
+      capabilities: ['Anomaly Detection', 'Early Outage Warning', 'Resource Right-Sizing', 'Automated Triage']
+    },
+    {
+      id: 'billing',
+      name: 'CostIQ & FinOps',
+      tagline: 'Usage Metering, Prepaid Wallet & Invoice Engine',
+      category: 'Observability & Operations',
+      icon: CreditCard,
+      route: 'billing',
+      description: 'Real-time consumption breakdown, prepaid wallet credits, budget alert caps, GST-compliant invoice generation, and Razorpay checkout.',
+      pricingSummary: 'Real-time ledger transparency • Zero hidden charges',
+      status: 'Operational',
+      badge: 'FinOps Hub',
+      capabilities: ['Prepaid Wallet Balance', 'Real-time Burn Rate', 'Automated GST Invoicing', 'Budget Overrun Alerts']
+    },
+
+    // 6. Developer Tools & Integration
+    {
       id: 'events',
       name: 'ArvEvents',
       tagline: 'Distributed Message Queues & Event Bus',
-      category: 'Serverless & Integration',
+      category: 'Developer Tools & Integration',
       icon: Radio,
       route: 'events',
-      description: 'Fully decoupled asynchronous messaging with Standard & strict FIFO queues, dead-letter routing, and high-throughput event topics.',
+      description: 'Decoupled asynchronous messaging with Standard & strict FIFO queues, dead-letter routing, and high-throughput fanout event topics.',
       pricingSummary: '₹0.40 per 1 million message requests',
       status: 'Operational',
       badge: 'High Throughput',
@@ -160,7 +357,7 @@ export const ServiceCatalog: React.FC<ServiceCatalogProps> = ({ token, onNavigat
       id: 'deployments',
       name: 'CI/CD Deployments',
       tagline: 'Continuous Delivery & Rollback Automation',
-      category: 'DevOps & Blueprints',
+      category: 'Developer Tools & Integration',
       icon: GitBranch,
       route: 'deployments',
       description: 'GitOps deployment engine with automated GitHub/GitLab webhooks, canary releases, blue/green deployments, and 1-click rollbacks.',
@@ -173,7 +370,7 @@ export const ServiceCatalog: React.FC<ServiceCatalogProps> = ({ token, onNavigat
       id: 'automation',
       name: 'IaC Blueprints',
       tagline: 'Declarative Cloud Infrastructure as Code',
-      category: 'DevOps & Blueprints',
+      category: 'Developer Tools & Integration',
       icon: Code2,
       route: 'automation',
       description: 'Production-ready Terraform and OpenTofu stack blueprints for VPC meshes, high-availability clusters, and compliance baselines.',
@@ -183,43 +380,17 @@ export const ServiceCatalog: React.FC<ServiceCatalogProps> = ({ token, onNavigat
       capabilities: ['Terraform / OpenTofu', 'Drift Detection', 'State Lock Management', 'Self-Healing Runbooks']
     },
     {
-      id: 'monitoring',
-      name: 'ArvWatch',
-      tagline: 'Prometheus Telemetry & Grafana Observability',
-      category: 'Observability & Security',
-      icon: Activity,
-      route: 'monitoring',
-      description: 'Real-time infrastructure telemetry, Prometheus-compatible metrics stream, custom alerting thresholds, and unified incident triage.',
-      pricingSummary: 'Real-time telemetry included with all workloads',
+      id: 'cloud-api',
+      name: 'Cloud API & SDKs',
+      tagline: 'Programmatic REST Gateway & Multi-Language SDKs',
+      category: 'Developer Tools & Integration',
+      icon: Terminal,
+      route: 'cloud-api',
+      description: 'Manage every cloud resource programmatically via Swagger-documented REST APIs, Python/Go SDKs, and cryptographic API tokens.',
+      pricingSummary: 'Full API access included',
       status: 'Operational',
-      badge: 'Prometheus Inside',
-      capabilities: ['10s Metrics Scrape', 'Alertmanager Integration', 'P95 / P99 Latency Track', 'Multi-tenant Isolation']
-    },
-    {
-      id: 'security',
-      name: 'ArvGuard',
-      tagline: 'Identity, Role-Based Access Control & Governance',
-      category: 'Observability & Security',
-      icon: ShieldCheck,
-      route: 'security',
-      description: 'Fine-grained RBAC matrix with SuperAdmin, Admin, Operator, Developer, and Viewer roles, API token permissions, and SOC2 compliance.',
-      pricingSummary: 'Built-in governance for all organizations',
-      status: 'Operational',
-      badge: 'RBAC Enforced',
-      capabilities: ['5 Tier Role Matrix', 'Cryptographic API Keys', 'Session Invalidation', 'Tenant Isolation']
-    },
-    {
-      id: 'billing',
-      name: 'CostIQ & FinOps',
-      tagline: 'Usage Metering, Prepaid Wallet & Invoice Engine',
-      category: 'Observability & Security',
-      icon: CreditCard,
-      route: 'billing',
-      description: 'Real-time consumption breakdown, prepaid wallet credits, budget alert caps, GST-compliant invoice generation, and Razorpay checkout.',
-      pricingSummary: 'Real-time ledger transparency • Zero hidden charges',
-      status: 'Operational',
-      badge: 'FinOps Hub',
-      capabilities: ['Prepaid Wallet Balance', 'Real-time Burn Rate', 'Automated GST Invoicing', 'Budget Overrun Alerts']
+      badge: 'REST & CLI',
+      capabilities: ['FastAPI REST v1', 'OpenAPI 3.1 Spec', 'Scoped API Tokens', 'Aravanta CLI Client']
     }
   ];
 
@@ -227,9 +398,10 @@ export const ServiceCatalog: React.FC<ServiceCatalogProps> = ({ token, onNavigat
     'All',
     'Compute & Containers',
     'Storage & Databases',
-    'Serverless & Integration',
-    'DevOps & Blueprints',
-    'Observability & Security'
+    'Networking & Content Delivery',
+    'Security, Identity & Governance',
+    'Observability & Operations',
+    'Developer Tools & Integration'
   ];
 
   const filteredServices = useMemo(() => {
@@ -277,21 +449,21 @@ export const ServiceCatalog: React.FC<ServiceCatalogProps> = ({ token, onNavigat
         <div className="relative z-10 max-w-3xl space-y-3">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono font-semibold bg-[#C6923B]/20 text-[#D4A347] border border-[#C6923B]/40">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>ARAVANTA CLOUD OS • UNIFIED SERVICE DIRECTORY</span>
+            <span>ARAVANTA CLOUD OS • HYPERSCALE CLOUD SERVICES</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-            Single Cloud Service Catalog
+            Cloud Service Catalog
           </h1>
           <p className="text-xs sm:text-sm text-slate-300 font-sans leading-relaxed">
-            Discover, configure, and launch all cloud infrastructure, data pipelines, serverless runtimes, and security governance engines from a single centralized console.
+            Enterprise cloud platform offering compute, storage, databases, VPC networking, Anycast DNS, serverless functions, and zero-trust IAM governance.
           </p>
         </div>
 
         {/* Global Quick Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-6 border-t border-slate-800 text-xs font-mono">
           <div>
-            <span className="text-slate-400 block text-[11px]">SERVICES AVAILABLE</span>
-            <span className="text-lg font-bold text-white">12 Core Services</span>
+            <span className="text-slate-400 block text-[11px]">ACTIVE SERVICES</span>
+            <span className="text-lg font-bold text-white">{allServices.length} Production Services</span>
           </div>
           <div>
             <span className="text-slate-400 block text-[11px]">PLATFORM STATUS</span>
@@ -301,12 +473,12 @@ export const ServiceCatalog: React.FC<ServiceCatalogProps> = ({ token, onNavigat
             </span>
           </div>
           <div>
-            <span className="text-slate-400 block text-[11px]">PRICING MODEL</span>
-            <span className="text-slate-200 font-semibold">Pay-As-You-Go & Prepaid</span>
+            <span className="text-slate-400 block text-[11px]">SERVICE CATEGORIES</span>
+            <span className="text-slate-200 font-semibold">6 Hyperscale Categories</span>
           </div>
           <div>
-            <span className="text-slate-400 block text-[11px]">REGION</span>
-            <span className="text-[#D4A347] font-semibold">ap-south-1 (Mumbai)</span>
+            <span className="text-slate-400 block text-[11px]">PRIMARY REGION</span>
+            <span className="text-[#D4A347] font-semibold">arv-us-east-1 & ap-south-1</span>
           </div>
         </div>
       </div>
@@ -337,7 +509,7 @@ export const ServiceCatalog: React.FC<ServiceCatalogProps> = ({ token, onNavigat
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search services (e.g. compute, s3, pg, faas)..."
+            placeholder="Search cloud services (e.g. vpc, dns, pg, faas)..."
             className="w-full pl-9 pr-4 py-2 text-xs bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#C6923B] focus:ring-2 focus:ring-[#C6923B]/20 shadow-xs transition-all font-sans"
           />
           {search && (

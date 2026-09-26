@@ -434,13 +434,13 @@ export const CloudAPIPage: React.FC<CloudAPIPageProps> = ({ token }) => {
               onClick={() => {
                 let code = '';
                 if (activeSnippetTab === 'curl') {
-                  code = `curl -X GET "https://api.aravanta.cloud/api/v1/operations/infrastructure/inventory" \\\n  -H "X-API-Key: ${activeKeySample}" \\\n  -H "Accept: application/json"`;
+                  code = `curl -X GET "https://arv-backend.vercel.app/api/v1/operations/infrastructure/inventory" \\\n  -H "X-API-Key: ${activeKeySample}" \\\n  -H "Accept: application/json"`;
                 } else if (activeSnippetTab === 'python') {
-                  code = `import requests\n\nheaders = {\n    "X-API-Key": "${activeKeySample}",\n    "Accept": "application/json"\n}\nresponse = requests.get("https://api.aravanta.cloud/api/v1/operations/infrastructure/inventory", headers=headers)\nprint(response.json())`;
+                  code = `import requests\n\nheaders = {\n    "X-API-Key": "${activeKeySample}",\n    "Accept": "application/json"\n}\nresponse = requests.get("https://arv-backend.vercel.app/api/v1/operations/infrastructure/inventory", headers=headers)\nprint(response.json())`;
                 } else if (activeSnippetTab === 'node') {
-                  code = `const response = await fetch("https://api.aravanta.cloud/api/v1/operations/infrastructure/inventory", {\n  headers: {\n    "X-API-Key": "${activeKeySample}",\n    "Accept": "application/json"\n  }\n});\nconst data = await response.json();\nconsole.log(data);`;
+                  code = `const response = await fetch("https://arv-backend.vercel.app/api/v1/operations/infrastructure/inventory", {\n  headers: {\n    "X-API-Key": "${activeKeySample}",\n    "Accept": "application/json"\n  }\n});\nconst data = await response.json();\nconsole.log(data);`;
                 } else {
-                  code = `package main\n\nimport (\n    "fmt"\n    "net/http"\n    "io/ioutil"\n)\n\nfunc main() {\n    req, _ := http.NewRequest("GET", "https://api.aravanta.cloud/api/v1/operations/infrastructure/inventory", nil)\n    req.Header.Set("X-API-Key", "${activeKeySample}")\n    resp, _ := http.DefaultClient.Do(req)\n    defer resp.Body.Close()\n    body, _ := ioutil.ReadAll(resp.Body)\n    fmt.Println(string(body))\n}`;
+                  code = `package main\n\nimport (\n    "fmt"\n    "net/http"\n    "io/ioutil"\n)\n\nfunc main() {\n    req, _ := http.NewRequest("GET", "https://arv-backend.vercel.app/api/v1/operations/infrastructure/inventory", nil)\n    req.Header.Set("X-API-Key", "${activeKeySample}")\n    resp, _ := http.DefaultClient.Do(req)\n    defer resp.Body.Close()\n    body, _ := ioutil.ReadAll(resp.Body)\n    fmt.Println(string(body))\n}`;
                 }
                 copyToClipboard(code, 'snippet');
               }}
@@ -452,7 +452,7 @@ export const CloudAPIPage: React.FC<CloudAPIPageProps> = ({ token }) => {
 
             {activeSnippetTab === 'curl' && (
               <pre className="text-emerald-400">
-                <span className="text-blue-400">curl</span> -X GET <span className="text-amber-300">"https://api.aravanta.cloud/api/v1/operations/infrastructure/inventory"</span> \<br />
+                <span className="text-blue-400">curl</span> -X GET <span className="text-amber-300">"https://arv-backend.vercel.app/api/v1/operations/infrastructure/inventory"</span> \<br />
                 &nbsp;&nbsp;-H <span className="text-amber-300">"X-API-Key: {activeKeySample}"</span> \<br />
                 &nbsp;&nbsp;-H <span className="text-amber-300">"Accept: application/json"</span>
               </pre>
@@ -466,7 +466,7 @@ export const CloudAPIPage: React.FC<CloudAPIPageProps> = ({ token }) => {
                 &nbsp;&nbsp;<span className="text-amber-300">"Accept"</span>: <span className="text-amber-300">"application/json"</span><br />
                 &#125;<br /><br />
                 response = requests.<span className="text-blue-400">get</span>(<br />
-                &nbsp;&nbsp;<span className="text-amber-300">"https://api.aravanta.cloud/api/v1/operations/infrastructure/inventory"</span>,<br />
+                &nbsp;&nbsp;<span className="text-amber-300">"https://arv-backend.vercel.app/api/v1/operations/infrastructure/inventory"</span>,<br />
                 &nbsp;&nbsp;headers=headers<br />
                 )<br />
                 <span className="text-blue-400">print</span>(response.json())
@@ -475,7 +475,7 @@ export const CloudAPIPage: React.FC<CloudAPIPageProps> = ({ token }) => {
 
             {activeSnippetTab === 'node' && (
               <pre className="text-slate-200">
-                <span className="text-purple-400">const</span> response = <span className="text-purple-400">await</span> <span className="text-blue-400">fetch</span>(<span className="text-amber-300">"https://api.aravanta.cloud/api/v1/operations/infrastructure/inventory"</span>, &#123;<br />
+                <span className="text-purple-400">const</span> response = <span className="text-purple-400">await</span> <span className="text-blue-400">fetch</span>(<span className="text-amber-300">"https://arv-backend.vercel.app/api/v1/operations/infrastructure/inventory"</span>, &#123;<br />
                 &nbsp;&nbsp;headers: &#123;<br />
                 &nbsp;&nbsp;&nbsp;&nbsp;<span className="text-amber-300">"X-API-Key"</span>: <span className="text-amber-300">"{activeKeySample}"</span>,<br />
                 &nbsp;&nbsp;&nbsp;&nbsp;<span className="text-amber-300">"Accept"</span>: <span className="text-amber-300">"application/json"</span><br />
@@ -495,7 +495,7 @@ export const CloudAPIPage: React.FC<CloudAPIPageProps> = ({ token }) => {
                 &nbsp;&nbsp;<span className="text-amber-300">"io/ioutil"</span><br />
                 )<br /><br />
                 <span className="text-purple-400">func</span> <span className="text-blue-400">main</span>() &#123;<br />
-                &nbsp;&nbsp;req, _ := http.<span className="text-blue-400">NewRequest</span>(<span className="text-amber-300">"GET"</span>, <span className="text-amber-300">"https://api.aravanta.cloud/api/v1/operations/infrastructure/inventory"</span>, nil)<br />
+                &nbsp;&nbsp;req, _ := http.<span className="text-blue-400">NewRequest</span>(<span className="text-amber-300">"GET"</span>, <span className="text-amber-300">"https://arv-backend.vercel.app/api/v1/operations/infrastructure/inventory"</span>, nil)<br />
                 &nbsp;&nbsp;req.Header.<span className="text-blue-400">Set</span>(<span className="text-amber-300">"X-API-Key"</span>, <span className="text-amber-300">"{activeKeySample}"</span>)<br />
                 &nbsp;&nbsp;resp, _ := http.DefaultClient.<span className="text-blue-400">Do</span>(req)<br />
                 &nbsp;&nbsp;<span className="text-purple-400">defer</span> resp.Body.<span className="text-blue-400">Close</span>()<br />

@@ -788,6 +788,60 @@ def update_workspace_member_role(
         }
     }
 
+@router.delete("/workspace/members/{member_id}")
+def remove_workspace_member(
+    member_id: str,
+    request: Request,
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin"])),
+    db: Session = Depends(get_db)
+):
+    # Check if this is a pending invitation
+    invite = db.query(InvitationRecord).filter(
+        or_(
+            InvitationRecord.id == member_id,
+            InvitationRecord.email == member_id.lower()
+        ),
+        InvitationRecord.workspace_id == current_user.workspace_id
+    ).first()
+    if invite:
+        db.delete(invite)
+        db.commit()
+        log_audit(
+            db, current_user.email, "MEMBER_INVITE_REVOKED", "Workspace", request,
+            f"Revoked invitation for {invite.email}",
+            workspace_id=current_user.workspace_id
+        )
+        return {"message": f"Invitation for {invite.email} revoked successfully", "id": member_id}
+
+    target_user = db.query(User).filter(
+        or_(
+            User.id == member_id,
+            func.lower(User.email) == member_id.lower()
+        )
+    ).first()
+
+    if not target_user or target_user.workspace_id != current_user.workspace_id:
+        raise HTTPException(status_code=404, detail="Workspace member not found")
+
+    if target_user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot remove yourself from your own workspace")
+
+    if target_user.role == "SuperAdmin" and current_user.role != "SuperAdmin":
+        raise HTTPException(status_code=403, detail="Only SuperAdmins can remove other SuperAdmins")
+
+    # Disassociate user from workspace
+    target_user.workspace_id = None
+    target_user.workspace_name = None
+    db.commit()
+
+    log_audit(
+        db, current_user.email, "MEMBER_REMOVED", "Workspace", request,
+        f"Removed member {target_user.email} ({target_user.full_name}) from workspace",
+        workspace_id=current_user.workspace_id
+    )
+
+    return {"message": f"Member {target_user.email} removed from workspace successfully", "id": member_id}
+
 class RoleChangeRequest(BaseModel):
     requested_role: str
     reason: str

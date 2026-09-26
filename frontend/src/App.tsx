@@ -59,6 +59,10 @@ import { FunctionsPage } from './pages/Functions';
 import { VaultPage } from './pages/Vault';
 import { EventsPage } from './pages/Events';
 import { CloudAPIPage } from './pages/CloudAPI';
+import { Networking } from './pages/Networking';
+import { LoadBalancers } from './pages/LoadBalancers';
+import { DNS } from './pages/DNS';
+import { IAM } from './pages/IAM';
 
 export default function App() {
   const [inviteToken, setInviteToken] = useState<string | null>(() => {
@@ -574,6 +578,10 @@ export default function App() {
       case 'events': return 'ArvEvents — Distributed Event Bus & Message Queues';
       case 'api-keys':
       case 'cloud-api': return 'Cloud API Keys & Programmatic Gateway Access';
+      case 'networking': return 'ArvVPC — Virtual Private Cloud & Software-Defined Networking';
+      case 'load-balancers': return 'ArvLB — Elastic Load Balancing & Traffic Ingress';
+      case 'dns': return 'ArvDNS — Authoritative Cloud DNS & Zone Management';
+      case 'iam': return 'ArvIAM — Identity, Access & Governance Engine';
       default: return 'Aravanta CloudOS Control Plane';
     }
   };
@@ -678,11 +686,16 @@ export default function App() {
                 {activeTab === 'sandbox' && <Sandbox token={token} />}
                 {activeTab === 'cli' && <CLIPage token={token} user={user} />}
                 
-                {/* New Cloud Services */}
+                {/* Core Cloud Services */}
                 {activeTab === 'functions' && <FunctionsPage token={token} user={user} />}
                 {activeTab === 'vault' && <VaultPage token={token} user={user} />}
                 {activeTab === 'events' && <EventsPage token={token} user={user} />}
                 {(activeTab === 'api-keys' || activeTab === 'cloud-api') && <CloudAPIPage token={token} user={user} />}
+                {activeTab === 'networking' && <Networking token={token} />}
+                {activeTab === 'load-balancers' && <LoadBalancers token={token} />}
+                {activeTab === 'dns' && <DNS token={token} />}
+                {activeTab === 'iam' && <IAM token={token} user={user} />}
+                
                 {/* Unified Cloud Service Catalog */}
                 {(activeTab === 'catalog' || activeTab === 'services') && (
                   <ServiceCatalog token={token} onNavigate={(tab) => setActiveTab(tab)} />
@@ -696,7 +709,8 @@ export default function App() {
                   'kubernetes', 'storage', 'database', 'cicd', 'security', 
                   'billing', 'profile', 'guide', 'community',
                   'costiq', 'compliance', 'pulse', 'sandbox', 'cli',
-                  'functions', 'vault', 'events', 'api-keys', 'cloud-api'
+                  'functions', 'vault', 'events', 'api-keys', 'cloud-api',
+                  'networking', 'load-balancers', 'dns', 'iam'
                 ].includes(activeTab) && (
                   <Dashboard token={token} onNavigate={(tab) => setActiveTab(tab)} searchTerm={searchTerm} />
                 )}

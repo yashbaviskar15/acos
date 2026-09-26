@@ -119,6 +119,51 @@ export const SERVICE_REGISTRY: Record<string, Omit<RecentServiceItem, 'accessedA
     iconName: 'CreditCard',
     description: 'Metered usage analytics, prepaid credits and invoice payments',
     status: 'Operational'
+  },
+  networking: {
+    id: 'networking',
+    name: 'ArvVPC (Networking)',
+    category: 'Networking',
+    route: 'networking',
+    iconName: 'Network',
+    description: 'Virtual Private Clouds, Subnets & Security Groups',
+    status: 'Operational'
+  },
+  'load-balancers': {
+    id: 'load-balancers',
+    name: 'ArvLB (Load Balancers)',
+    category: 'Networking',
+    route: 'load-balancers',
+    iconName: 'Radio',
+    description: 'Elastic Application (L7) & Network (L4) load balancing',
+    status: 'Operational'
+  },
+  dns: {
+    id: 'dns',
+    name: 'ArvDNS (Hosted Zones)',
+    category: 'Networking',
+    route: 'dns',
+    iconName: 'Globe',
+    description: 'Authoritative Anycast DNS and record set routing',
+    status: 'Operational'
+  },
+  iam: {
+    id: 'iam',
+    name: 'ArvIAM (Identity)',
+    category: 'Security',
+    route: 'iam',
+    iconName: 'Users',
+    description: 'Zero-trust RBAC access governance, team invites and audit trail',
+    status: 'Operational'
+  },
+  'cloud-api': {
+    id: 'cloud-api',
+    name: 'Cloud API & SDKs',
+    category: 'Developer',
+    route: 'cloud-api',
+    iconName: 'Terminal',
+    description: 'Programmatic REST gateway credentials and developer SDKs',
+    status: 'Operational'
   }
 };
 

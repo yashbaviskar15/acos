@@ -47,6 +47,13 @@ export const TAB_PERMISSIONS: Record<string, UserRole[]> = {
   cli: ['SuperAdmin', 'Admin', 'Operator', 'Developer', 'Viewer'],
   'api-keys': ['SuperAdmin', 'Admin', 'Operator', 'Developer', 'Viewer'],
   'cloud-api': ['SuperAdmin', 'Admin', 'Operator', 'Developer', 'Viewer'],
+  networking: ['SuperAdmin', 'Admin', 'Operator', 'Developer', 'Viewer'],
+  'load-balancers': ['SuperAdmin', 'Admin', 'Operator', 'Developer', 'Viewer'],
+  dns: ['SuperAdmin', 'Admin', 'Operator', 'Developer', 'Viewer'],
+  iam: ['SuperAdmin', 'Admin', 'Operator', 'Developer', 'Viewer'],
+  functions: ['SuperAdmin', 'Admin', 'Operator', 'Developer', 'Viewer'],
+  vault: ['SuperAdmin', 'Admin', 'Operator', 'Developer', 'Viewer'],
+  events: ['SuperAdmin', 'Admin', 'Operator', 'Developer', 'Viewer'],
 };
 
 /**

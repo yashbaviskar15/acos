@@ -32,6 +32,8 @@ from app.services.control_plane.router import router as control_plane_router
 from app.services.arvfunctions.router import router as arvfunctions_router
 from app.services.arvvault.router import router as arvvault_router
 from app.services.arvevents.router import router as arvevents_router
+from app.services.arvnetwork.router import router as arvnetwork_router
+from app.services.arvdns.router import router as arvdns_router
 import app.services.arvgate.models
 import app.control_plane.models
 import app.core.cloud_models
@@ -43,6 +45,8 @@ import app.services.arvsandbox.models
 import app.services.arvfunctions.models
 import app.services.arvvault.models
 import app.services.arvevents.models
+import app.services.arvnetwork.models
+import app.services.arvdns.models
 import app.billing.models
 
 logger = logging.getLogger("aravanta.startup")
@@ -168,6 +172,8 @@ app.include_router(control_plane_router)
 app.include_router(arvfunctions_router)
 app.include_router(arvvault_router)
 app.include_router(arvevents_router)
+app.include_router(arvnetwork_router)
+app.include_router(arvdns_router)
 
 @app.get("/", tags=["Root"])
 def root():

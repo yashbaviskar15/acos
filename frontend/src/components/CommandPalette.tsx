@@ -85,6 +85,10 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
     // Cloud Services
     { id: 'cs-dash', label: 'Operations Dashboard', description: 'Fleet overview and live telemetry', icon: LayoutDashboard, group: 'Cloud Services', path: 'dashboard' },
+    { id: 'cs-vpc', label: 'ArvVPC (Virtual Private Clouds)', description: 'Isolated software-defined networks and subnets', icon: Server, group: 'Cloud Services', path: 'networking' },
+    { id: 'cs-lb', label: 'ArvLB (Elastic Load Balancers)', description: 'Application (L7) and Network (L4) load balancers', icon: Radio, group: 'Cloud Services', path: 'load-balancers' },
+    { id: 'cs-dns', label: 'ArvDNS (Authoritative Anycast DNS)', description: 'Global hosted zones and DNS record sets', icon: Activity, group: 'Cloud Services', path: 'dns' },
+    { id: 'cs-iam', label: 'ArvIAM (Identity & Access Management)', description: 'RBAC user management, roles, and invites', icon: User, group: 'Cloud Services', path: 'iam' },
     { id: 'cs-infra', label: 'Resources Inventory', description: 'Provisioned infrastructure workloads', icon: Server, group: 'Cloud Services', path: 'infrastructure' },
     { id: 'cs-deploy', label: 'Deployments & Pipelines', description: 'GitOps CI/CD release engine', icon: GitBranch, group: 'Cloud Services', path: 'deployments' },
     { id: 'cs-func', label: 'ArvFunctions (Serverless FaaS)', description: 'Event-driven serverless compute runtime', icon: Zap, group: 'Cloud Services', path: 'functions' },
@@ -93,6 +97,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     { id: 'cs-kube', label: 'ArvKube (Managed Kubernetes)', description: 'Container orchestration cluster control plane', icon: Box, group: 'Cloud Services', path: 'kubernetes' },
     { id: 'cs-db', label: 'ArvDB (Managed Databases)', description: 'PostgreSQL, Redis, MySQL database engines', icon: Database, group: 'Cloud Services', path: 'database' },
     { id: 'cs-store', label: 'ArvStore (S3 Storage)', description: 'Encrypted object storage buckets', icon: HardDrive, group: 'Cloud Services', path: 'storage' },
+    { id: 'cs-api', label: 'Cloud API Keys & SDKs', description: 'Programmatic REST gateway credentials', icon: Terminal, group: 'Cloud Services', path: 'cloud-api' },
 
     // Settings & System
     { id: 'st-mon', label: 'ArvWatch Observability Hub', description: 'Prometheus metrics, alerts, and dashboards', icon: Activity, group: 'Settings & System', path: 'monitoring' },
