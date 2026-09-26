@@ -30,8 +30,9 @@ except Exception as e:
 
     app = FastAPI()
 
+    @app.api_route("/", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"])
     @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"])
-    async def _catch_all(path: str):
+    async def _catch_all(path: str = ""):
         return JSONResponse(
             status_code=500,
             content={
