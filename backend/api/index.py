@@ -50,6 +50,13 @@ except Exception as e:
                 "more_body": False
             })
 
-# Export application for ASGI / WSGI runners (Vercel uses native ASGI runner for app)
+# Export application for ASGI / WSGI / AWS Lambda runners
 application = app
+
+try:
+    from mangum import Mangum
+    handler = Mangum(app, lifespan="off")
+except Exception:
+    handler = app
+
 
