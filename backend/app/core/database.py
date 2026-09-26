@@ -1,7 +1,9 @@
 import os
+import re
 import logging
 from pathlib import Path
 from sqlalchemy import create_engine
+from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import sessionmaker, declarative_base
 from app.core.config import settings
 
@@ -23,6 +25,12 @@ def _resolve_database_url(url: str) -> str:
     # Normalize legacy postgres:// scheme to postgresql:// for SQLAlchemy 2.x
     if url.startswith("postgres://"):
         url = url.replace("postgres://", "postgresql://", 1)
+
+    # Strip channel_binding query param if present (incompatible with PgBouncer pooler and psycopg2)
+    if "channel_binding=" in url:
+        url = re.sub(r"[?&]channel_binding=[^&]*", "", url)
+        if "?" not in url and "&" in url:
+            url = url.replace("&", "?", 1)
 
     is_serverless = bool(
         os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
@@ -63,6 +71,7 @@ DATABASE_URL = _resolve_database_url(settings.DATABASE_URL)
 
 # Configure engine based on database type
 is_sqlite = DATABASE_URL.startswith("sqlite")
+is_serverless_env = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
 
 if is_sqlite:
     # SQLite requires check_same_thread=False when used across FastAPI's threadpool.
@@ -71,8 +80,15 @@ if is_sqlite:
         connect_args={"check_same_thread": False},
         pool_pre_ping=True,
     )
+elif is_serverless_env:
+    # Serverless PostgreSQL: NullPool eliminates zombie connection deadlocks across cold starts
+    engine = create_engine(
+        DATABASE_URL,
+        poolclass=NullPool,
+        connect_args={"connect_timeout": 5},
+    )
 else:
-    # PostgreSQL: proper connection pooling for serverless with fast timeout
+    # PostgreSQL: proper connection pooling for servers with fast timeout
     engine = create_engine(
         DATABASE_URL,
         pool_pre_ping=True,
