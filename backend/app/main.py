@@ -107,17 +107,13 @@ def init_db():
             logger.error("Database initialization failed: %s.", exc)
 
 
-@asynccontextmanager
-async def lifespan(_app: FastAPI):
-    """Run DB schema setup. create_all(checkfirst=True) is idempotent and creates newly added tables."""
-    is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
-    should_init = (not is_serverless) or _is_sqlite or (os.environ.get("AUTO_INIT_DB", "").lower() in ("true", "1"))
-    if should_init:
-        try:
-            init_db()
-        except Exception as exc:
-            logger.warning("Startup database initialization: %s", exc)
-    yield
+# Database initialization: run on explicit request or local development, not on serverless cold starts
+is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+if not is_serverless:
+    try:
+        init_db()
+    except Exception as exc:
+        logger.warning("Startup database initialization: %s", exc)
 
 
 app = FastAPI(
@@ -125,8 +121,7 @@ app = FastAPI(
     version=settings.VERSION,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     docs_url="/docs",
-    redoc_url="/redoc",
-    lifespan=lifespan
+    redoc_url="/redoc"
 )
 
 # Pure ASGI Security Headers Middleware (prevents Starlette BaseHTTPMiddleware crash on serverless)

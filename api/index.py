@@ -27,7 +27,15 @@ try:
 except Exception as e:
     err_tb = traceback.format_exc()
     async def app(scope, receive, send):
-        if scope["type"] == "http":
+        if scope["type"] == "lifespan":
+            while True:
+                message = await receive()
+                if message["type"] == "lifespan.startup":
+                    await send({"type": "lifespan.startup.complete"})
+                elif message["type"] == "lifespan.shutdown":
+                    await send({"type": "lifespan.shutdown.complete"})
+                    break
+        elif scope["type"] == "http":
             body = json.dumps({
                 "status": "error",
                 "message": "Serverless Startup Failure",
