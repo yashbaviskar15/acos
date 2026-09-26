@@ -158,6 +158,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.exception_handler(Exception)
+async def global_unhandled_exception_handler(request: Request, exc: Exception):
+    import traceback
+    logger.error("Unhandled API exception on %s %s: %s\n%s", request.method, request.url.path, exc, traceback.format_exc())
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=500,
+        content={
+            "status": "error",
+            "message": "Internal server error occurred",
+            "detail": str(exc),
+            "path": request.url.path
+        }
+    )
+
 # Mount Prometheus metrics endpoint
 metrics_app = make_asgi_app()
 app.mount("/metrics", metrics_app)

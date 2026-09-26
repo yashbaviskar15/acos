@@ -1,13 +1,13 @@
 import os
 import sys
-import json
-import traceback
 from pathlib import Path
 
-# Add backend directory to sys.path
+# Add backend directory and parent directory to sys.path
 backend_dir = Path(__file__).resolve().parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
+if str(backend_dir.parent) not in sys.path:
+    sys.path.insert(0, str(backend_dir.parent))
 
 cwd = Path.cwd()
 if str(cwd / "backend") not in sys.path:
@@ -15,85 +15,40 @@ if str(cwd / "backend") not in sys.path:
 if str(cwd) not in sys.path:
     sys.path.insert(0, str(cwd))
 
-# Ensure a secure SECRET_KEY is set in serverless runtime if omitted from Vercel dashboard
-curr_secret = os.environ.get("SECRET_KEY", "").strip()
-if not curr_secret or len(curr_secret) < 32 or curr_secret == "aravanta_super_secret_jwt_key_change_in_production_2026":
+# Ensure production environment variables are present on serverless cold start
+if not os.environ.get("SECRET_KEY"):
     os.environ["SECRET_KEY"] = "aravanta_prod_live_sec_key_9f82b71e84a20c4e8d35f76a1b94c032e578"
 
-# Import FastAPI ASGI application
+if not os.environ.get("DATABASE_URL"):
+    os.environ["DATABASE_URL"] = "postgresql://neondb_owner:npg_rJL0kIVv7Xuj@ep-small-pond-a5i9ohyh-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+
+# Import FastAPI instance
 try:
     from app.main import app
-except Exception as e:
-    err_tb = traceback.format_exc()
-    async def app(scope, receive, send):
-        if scope["type"] == "lifespan":
-            while True:
-                message = await receive()
-                if message["type"] == "lifespan.startup":
-                    await send({"type": "lifespan.startup.complete"})
-                elif message["type"] == "lifespan.shutdown":
-                    await send({"type": "lifespan.shutdown.complete"})
-                    break
-        elif scope["type"] == "http":
-            body = json.dumps({
+except Exception as exc:
+    import traceback
+    from fastapi import FastAPI
+    from fastapi.responses import JSONResponse
+
+    app = FastAPI(title="Aravanta Cold Start Diagnostic")
+    _err_msg = str(exc)
+    _err_trace = traceback.format_exc()
+
+    @app.api_route("/{path_name:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"])
+    def catch_all(path_name: str):
+        return JSONResponse(
+            status_code=500,
+            content={
                 "status": "error",
-                "message": "Serverless Startup Failure",
-                "detail": str(e),
-                "traceback": err_tb,
+                "message": "Backend import failure during serverless initialization",
+                "path": path_name,
+                "error": _err_msg,
+                "traceback": _err_trace,
                 "sys_path": sys.path,
                 "cwd": str(Path.cwd()),
-            }, indent=2).encode("utf-8")
-            await send({
-                "type": "http.response.start",
-                "status": 500,
-                "headers": [
-                    [b"content-type", b"application/json"],
-                    [b"access-control-allow-origin", b"*"],
-                    [b"content-length", str(len(body)).encode("utf-8")]
-                ]
-            })
-            await send({
-                "type": "http.response.body",
-                "body": body,
-                "more_body": False
-            })
+            }
+        )
 
-_raw_app = app
-
-async def app(scope, receive, send):
-    try:
-        await _raw_app(scope, receive, send)
-    except Exception as exc:
-        err_tb = traceback.format_exc()
-        if scope["type"] == "http":
-            body = json.dumps({
-                "status": "error",
-                "message": "Unhandled Exception during ASGI invocation",
-                "exception": str(exc),
-                "type": type(exc).__name__,
-                "traceback": err_tb,
-            }, indent=2).encode("utf-8")
-            try:
-                await send({
-                    "type": "http.response.start",
-                    "status": 500,
-                    "headers": [
-                        [b"content-type", b"application/json"],
-                        [b"access-control-allow-origin", b"*"],
-                        [b"content-length", str(len(body)).encode("utf-8")]
-                    ]
-                })
-                await send({
-                    "type": "http.response.body",
-                    "body": body,
-                    "more_body": False
-                })
-            except Exception:
-                pass
-        else:
-            raise
-
-# Export application for ASGI runners (Vercel uses native ASGI runner for app)
+# Expose both app and handler for universal Vercel / ASGI compatibility
+handler = app
 application = app
-
-
