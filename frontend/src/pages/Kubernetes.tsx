@@ -61,21 +61,16 @@ export const Kubernetes: React.FC<KubernetesProps> = ({ token, onNavigate }) => 
   };
 
   const handleRunTerminalCmd = () => {
-    if (terminalCmd.includes('get nodes')) {
-      setTerminalLogs(`NAME                     STATUS   ROLES    AGE   VERSION
-node-1.arv-us-east-1     Ready    master   42d   v1.30.1
-node-2.arv-us-east-1     Ready    worker   42d   v1.30.1
-node-3.arv-us-east-1     Ready    worker   42d   v1.30.1`);
-    } else if (terminalCmd.includes('get pods')) {
+    if (connectCluster?.status === 'AWAITING_PROVIDER_SETUP' || !connectCluster?.endpoint) {
+      setTerminalLogs(`Error: Control plane endpoint is not reachable.\nCluster is in ${connectCluster?.status || 'AWAITING_PROVIDER_SETUP'} state.\nConfigure AWS EKS / GCP GKE in Settings → Cloud Providers, or import a live cluster via Kubeconfig to run commands.`);
+      return;
+    }
+    if (terminalCmd.includes('get pods')) {
       setTerminalLogs(
-        (pods || []).map(p => `${(p?.namespace || 'default').padEnd(16)} ${(p?.name || 'pod').padEnd(28)} ${(p?.status || 'Running').padEnd(12)} restarts=${p?.restarts || 0}`).join('\n') || 'No pods found in namespace.'
+        (pods || []).map(p => `${(p?.namespace || 'default').padEnd(16)} ${(p?.name || 'pod').padEnd(28)} ${(p?.status || 'Running').padEnd(12)}`).join('\n') || 'No pods found on connected cluster.'
       );
-    } else if (terminalCmd.includes('cluster-info')) {
-      setTerminalLogs(`Kubernetes control plane is running at ${connectCluster?.endpoint || 'https://k8s.aravanta.cloud:6443'}
-CoreDNS is running at ${connectCluster?.endpoint || 'https://k8s.aravanta.cloud:6443'}/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
-Metrics-server is running and healthy.`);
     } else {
-      setTerminalLogs(`$ ${terminalCmd}\nExecuting against ${connectCluster?.name || 'cluster'}...\nHTTP 200 OK — Command executed successfully via ArvGate RBAC proxy.`);
+      setTerminalLogs(`$ ${terminalCmd}\nExecuting query against ${connectCluster?.endpoint}...\nLive cluster status: ${connectCluster?.status}.`);
     }
   };
 
@@ -659,37 +654,51 @@ Metrics-server is running and healthy.`);
             </div>
 
             {/* Explanatory Notice */}
-            <div className="p-3 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-xl space-y-1">
-              <div className="flex items-center gap-1.5 text-blue-700 dark:text-blue-300 font-bold text-[11px]">
-                <Info className="w-3.5 h-3.5 text-blue-500" />
-                <span>Control Plane API Access (Private VPC)</span>
+            {connectCluster.status === 'AWAITING_PROVIDER_SETUP' || !connectCluster.endpoint ? (
+              <div className="p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl space-y-2 font-sans">
+                <div className="flex items-center gap-2 text-amber-800 dark:text-amber-400 font-bold text-xs">
+                  <Info className="w-4 h-4 text-amber-500 shrink-0" />
+                  <span>Awaiting Kubernetes Cloud Provider or Kubeconfig</span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                  No live Kubernetes API endpoint is currently provisioned for this cluster. To manage a real cluster, configure your AWS EKS, GCP GKE, or Azure AKS credentials in <strong>Settings → Cloud Providers</strong>, or connect an existing live cluster via the <strong>Connect Cluster (Kubeconfig)</strong> API.
+                </p>
               </div>
-              <p className="text-[10px] text-slate-600 dark:text-slate-300">
-                Kubernetes API servers run on port 6443 and communicate via <code className="text-blue-500">kubectl</code>, Helm, and Kubeconfig tokens. They are not direct web URLs.
-              </p>
-            </div>
+            ) : (
+              <>
+                <div className="p-3 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-xl space-y-1">
+                  <div className="flex items-center gap-1.5 text-blue-700 dark:text-blue-300 font-bold text-[11px]">
+                    <Info className="w-3.5 h-3.5 text-blue-500" />
+                    <span>Control Plane API Access ({connectCluster.endpoint})</span>
+                  </div>
+                  <p className="text-[10px] text-slate-600 dark:text-slate-300">
+                    Kubernetes API servers run on port 6443 and communicate via <code className="text-blue-500">kubectl</code>, Helm, and Kubeconfig tokens.
+                  </p>
+                </div>
 
-            {/* 1. kubectl CLI command */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-slate-400 uppercase font-bold">1. Quick kubectl CLI Connect</span>
-                <button
-                  onClick={() => handleCopyText(`kubectl config set-cluster ${connectCluster.name} --server=${connectCluster.endpoint}\nkubectl config set-credentials arv-user --token=${token || 'arv_token_demo'}\nkubectl get nodes`, 'k8s-cli')}
-                  className="px-2 py-0.5 bg-purple-50 dark:bg-purple-500/20 text-purple-600 dark:text-purple-300 rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer"
-                >
-                  {copiedKey === 'k8s-cli' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                  Copy Commands
-                </button>
-              </div>
-              <pre className="p-3 bg-slate-900 text-slate-200 rounded-xl text-[10px] overflow-x-auto border border-slate-800 font-mono">
+                {/* 1. kubectl CLI command */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold">1. Quick kubectl CLI Connect</span>
+                    <button
+                      onClick={() => handleCopyText(`kubectl config set-cluster ${connectCluster.name} --server=${connectCluster.endpoint}\nkubectl config set-credentials arv-user --token=${token || 'arv_token'}\nkubectl get nodes`, 'k8s-cli')}
+                      className="px-2 py-0.5 bg-purple-50 dark:bg-purple-500/20 text-purple-600 dark:text-purple-300 rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedKey === 'k8s-cli' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                      Copy Commands
+                    </button>
+                  </div>
+                  <pre className="p-3 bg-slate-900 text-slate-200 rounded-xl text-[10px] overflow-x-auto border border-slate-800 font-mono">
 {`# Configure kubectl context for ${connectCluster.name}
 kubectl config set-cluster ${connectCluster.name} --server=${connectCluster.endpoint}
 kubectl config set-credentials arv-user --token=${token ? token.substring(0, 16) + '...' : 'arv_jwt_token'}
 kubectl config set-context ${connectCluster.name} --cluster=${connectCluster.name} --user=arv-user
 kubectl config use-context ${connectCluster.name}
 kubectl get nodes`}
-              </pre>
-            </div>
+                  </pre>
+                </div>
+              </>
+            )}
 
             {/* 2. Interactive Web Terminal */}
             <div className="space-y-1.5">

@@ -14,7 +14,40 @@ export const Databases: React.FC<DatabaseProps> = ({ token }) => {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [connectDb, setConnectDb] = useState<any | null>(null);
+  const [realCreds, setRealCreds] = useState<any | null>(null);
+  const [queryRunning, setQueryRunning] = useState(false);
+  const [queryOutput, setQueryOutput] = useState<any | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const handleOpenConnectModal = async (dbItem: any) => {
+    setConnectDb(dbItem);
+    setRealCreds(null);
+    setQueryOutput(null);
+    try {
+      const creds = await apiFetch<any>(`/v1/databases/instances/${dbItem.id}/credentials`, { token });
+      setRealCreds(creds);
+    } catch {
+      setRealCreds(null);
+    }
+  };
+
+  const handleTestQuery = async () => {
+    if (!connectDb) return;
+    setQueryRunning(true);
+    setQueryOutput(null);
+    try {
+      const res = await apiFetch<any>(`/v1/databases/instances/${connectDb.id}/query`, {
+        method: 'POST',
+        token,
+        body: JSON.stringify({ sql: "SELECT 1 as live_ping, current_database() as database_name, current_user as role, version() as engine_version, now() as server_timestamp;" })
+      });
+      setQueryOutput(res);
+    } catch (err: any) {
+      setQueryOutput({ status: 'error', message: err.message || 'Query execution failed' });
+    } finally {
+      setQueryRunning(false);
+    }
+  };
 
   // Form State
   const [name, setName] = useState('');
@@ -181,15 +214,17 @@ export const Databases: React.FC<DatabaseProps> = ({ token }) => {
               </div>
               <div>
                 <span className="text-slate-500 text-[10px] uppercase font-bold block">Endpoint</span>
-                <span className="text-slate-700 dark:text-slate-300 text-[11px] truncate block">{db.endpoint}:{db.port}</span>
+                <span className="text-slate-700 dark:text-slate-300 text-[11px] truncate block">{db.endpoint ? `${db.endpoint}:${db.port}` : 'Awaiting Provider'}</span>
               </div>
               <div>
                 <span className="text-slate-500 text-[10px] uppercase font-bold block">Connections</span>
                 <span className="text-amber-600 dark:text-amber-400 font-bold">{db.connections_active} / {db.connections_max}</span>
               </div>
               <div>
-                <span className="text-slate-500 text-[10px] uppercase font-bold block">Latency & IOPS</span>
-                <span className="text-emerald-600 dark:text-emerald-400 font-bold">{db.latency_ms}ms • {db.iops} IOPS</span>
+                <span className="text-slate-500 text-[10px] uppercase font-bold block">Latency</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                  {db.latency_ms ? `${db.latency_ms}ms ping` : 'No telemetry'}
+                </span>
               </div>
             </div>
 
@@ -211,11 +246,11 @@ export const Databases: React.FC<DatabaseProps> = ({ token }) => {
 
             <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 font-mono">
               <button
-                onClick={() => setConnectDb(db)}
+                onClick={() => handleOpenConnectModal(db)}
                 className="px-2.5 py-1 bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-100 flex items-center gap-1 font-bold cursor-pointer"
-                title="View SQL connection string and CLI commands"
+                title="View SQL connection string, credentials, and live query tester"
               >
-                <Terminal className="w-3 h-3" /> Connect & CLI
+                <Terminal className="w-3 h-3" /> Connect & Query
               </button>
               <button
                 onClick={() => handleDeleteDB(db.id)}
@@ -412,81 +447,100 @@ export const Databases: React.FC<DatabaseProps> = ({ token }) => {
                 <Database className="w-4 h-4 text-amber-500" />
                 Connect to {connectDb.name} ({connectDb.engine})
               </h3>
-              <button onClick={() => setConnectDb(null)} className="text-slate-400 hover:text-white font-bold text-base cursor-pointer"></button>
+              <button onClick={() => setConnectDb(null)} className="text-slate-400 hover:text-white font-bold text-base cursor-pointer">×</button>
             </div>
 
-            <div className="p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl space-y-1">
-              <div className="flex items-center gap-1.5 text-amber-800 dark:text-amber-300 font-bold text-[11px]">
-                <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
-                <span>Internal VPC Database Cluster</span>
+            {connectDb.status === 'AWAITING_PROVIDER_SETUP' ? (
+              <div className="p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl space-y-2 font-sans">
+                <div className="flex items-center gap-2 text-amber-800 dark:text-amber-400 font-bold text-xs">
+                  <ShieldCheck className="w-4 h-4 text-amber-500 shrink-0" />
+                  <span>Awaiting Cloud Database Provider Configuration</span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                  PostgreSQL engines are natively provisioned on the cluster. Engines such as MySQL, Redis, and MongoDB require an external cloud database provider. Configure your AWS RDS or GCP Cloud SQL credentials in <strong>Settings → Cloud Providers</strong> to provision this resource.
+                </p>
               </div>
-              <p className="text-[10px] text-slate-600 dark:text-slate-300">
-                Database engines communicate over dedicated TCP ports ({connectDb.port || '5432'}) using database clients (psql, redis-cli, mongosh, DBeaver) or application connection strings.
-              </p>
-            </div>
+            ) : (
+              <>
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-xl space-y-1">
+                  <div className="flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300 font-bold text-[11px]">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Real Provisioned PostgreSQL Instance</span>
+                  </div>
+                  <p className="text-[10px] text-slate-600 dark:text-slate-300">
+                    Host: <strong className="font-mono">{realCreds?.host || connectDb.endpoint}</strong> • Port: <strong className="font-mono">{realCreds?.port || connectDb.port || 5432}</strong> • Database: <strong className="font-mono">{realCreds?.database || connectDb.name}</strong>
+                  </p>
+                </div>
 
-            {/* Connection URI */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-slate-400 uppercase font-bold">1. Application Connection String</span>
-                <button
-                  onClick={() => handleCopyText(
-                    connectDb.engine.includes('Redis')
-                      ? `redis://default:arv_db_pass@${connectDb.endpoint}:${connectDb.port || 6379}/0`
-                      : (connectDb.engine.includes('MongoDB')
-                        ? `mongodb://admin:arv_db_pass@${connectDb.endpoint}:${connectDb.port || 27017}/${connectDb.name}?authSource=admin`
-                        : `postgresql://admin:arv_db_pass@${connectDb.endpoint}:${connectDb.port || 5432}/${connectDb.name}?sslmode=require`),
-                    'db-uri'
+                {/* Connection URI */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold">1. Verified Connection String</span>
+                    <button
+                      onClick={() => handleCopyText(
+                        realCreds?.connection_uri || `postgresql://admin:***@${connectDb.endpoint}:${connectDb.port || 5432}/${connectDb.name}?sslmode=require`,
+                        'db-uri'
+                      )}
+                      className="px-2 py-0.5 bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedKey === 'db-uri' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                      Copy URI
+                    </button>
+                  </div>
+                  <pre className="p-3 bg-slate-900 text-amber-400 rounded-xl text-[10px] overflow-x-auto border border-slate-800 font-mono">
+                    {realCreds?.connection_uri || `postgresql://admin:***@${connectDb.endpoint}:${connectDb.port || 5432}/${connectDb.name}?sslmode=require`}
+                  </pre>
+                </div>
+
+                {/* CLI Command */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold">2. Native psql CLI Command</span>
+                    <button
+                      onClick={() => handleCopyText(
+                        realCreds?.psql_command || `psql "${realCreds?.connection_uri || ''}"`,
+                        'db-cli'
+                      )}
+                      className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedKey === 'db-cli' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                      Copy Command
+                    </button>
+                  </div>
+                  <pre className="p-3 bg-black text-emerald-400 rounded-xl text-[10px] overflow-x-auto border border-slate-800 font-mono">
+                    {realCreds?.psql_command || `psql "postgresql://..."`}
+                  </pre>
+                </div>
+
+                {/* Live Query Connectivity Tester */}
+                <div className="p-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5 font-sans">
+                      <Terminal className="w-3.5 h-3.5 text-blue-500" /> Live Interactive Query Tester
+                    </span>
+                    <button
+                      onClick={handleTestQuery}
+                      disabled={queryRunning}
+                      className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-bold transition-colors cursor-pointer font-sans"
+                    >
+                      {queryRunning ? 'Executing...' : 'Run Live Ping Query'}
+                    </button>
+                  </div>
+                  {queryOutput && (
+                    <pre className="p-2.5 bg-black text-emerald-400 rounded-lg text-[10px] overflow-x-auto border border-slate-800 max-h-36">
+                      {JSON.stringify(queryOutput, null, 2)}
+                    </pre>
                   )}
-                  className="px-2 py-0.5 bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer"
-                >
-                  {copiedKey === 'db-uri' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                  Copy URI
-                </button>
-              </div>
-              <pre className="p-3 bg-slate-900 text-amber-400 rounded-xl text-[10px] overflow-x-auto border border-slate-800 font-mono">
-                {connectDb.engine.includes('Redis')
-                  ? `redis://default:arv_db_pass@${connectDb.endpoint}:${connectDb.port || 6379}/0`
-                  : (connectDb.engine.includes('MongoDB')
-                    ? `mongodb://admin:arv_db_pass@${connectDb.endpoint}:${connectDb.port || 27017}/${connectDb.name}?authSource=admin`
-                    : `postgresql://admin:arv_db_pass@${connectDb.endpoint}:${connectDb.port || 5432}/${connectDb.name}?sslmode=require`)}
-              </pre>
-            </div>
-
-            {/* CLI Command */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-slate-400 uppercase font-bold">2. Native CLI Command</span>
-                <button
-                  onClick={() => handleCopyText(
-                    connectDb.engine.includes('Redis')
-                      ? `redis-cli -h ${connectDb.endpoint} -p ${connectDb.port || 6379}`
-                      : (connectDb.engine.includes('MongoDB')
-                        ? `mongosh "mongodb://${connectDb.endpoint}:${connectDb.port || 27017}/${connectDb.name}"`
-                        : `psql -h ${connectDb.endpoint} -p ${connectDb.port || 5432} -U admin -d ${connectDb.name}`),
-                    'db-cli'
-                  )}
-                  className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer"
-                >
-                  {copiedKey === 'db-cli' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                  Copy Command
-                </button>
-              </div>
-              <pre className="p-3 bg-black text-emerald-400 rounded-xl text-[10px] overflow-x-auto border border-slate-800 font-mono">
-                {connectDb.engine.includes('Redis')
-                  ? `redis-cli -h ${connectDb.endpoint} -p ${connectDb.port || 6379}`
-                  : (connectDb.engine.includes('MongoDB')
-                    ? `mongosh "mongodb://${connectDb.endpoint}:${connectDb.port || 27017}/${connectDb.name}"`
-                    : `psql -h ${connectDb.endpoint} -p ${connectDb.port || 5432} -U admin -d ${connectDb.name}`)}
-              </pre>
-            </div>
+                </div>
+              </>
+            )}
 
             <div className="pt-2 flex justify-end">
               <button
                 onClick={() => setConnectDb(null)}
-                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold cursor-pointer"
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold cursor-pointer font-sans"
               >
-                Close Connection Helper
+                Close
               </button>
             </div>
           </div>

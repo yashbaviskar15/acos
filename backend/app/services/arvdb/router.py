@@ -83,6 +83,17 @@ def get_database(
     return _format_db_dict(instance)
 
 
+import time
+import random
+import string
+import json
+import re
+from urllib.parse import urlparse
+from sqlalchemy import create_engine, text
+from app.core.crypto import PLATFORM_MASTER_KEY, encrypt_aes256gcm
+
+NEON_DATABASE_URL = "postgresql://neondb_owner:npg_rJL0kIVv7Xuj@ep-small-pond-a5i9ohyh-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require"
+
 @router.post("/instances", status_code=201)
 def create_database(
     req: CreateDatabaseRequest,
@@ -91,8 +102,71 @@ def create_database(
 ):
     """Provision a new managed database instance."""
     db_id = f"arv-db-{hashlib.md5(f'{req.name}-{datetime.utcnow().timestamp()}'.encode()).hexdigest()[:8]}"
-    port = "6379" if "Redis" in req.engine else ("27017" if "MongoDB" in req.engine else "5432")
-
+    
+    is_postgres = req.engine.startswith("PostgreSQL")
+    
+    status = "AVAILABLE"
+    endpoint = None
+    port = None
+    latency_ms = None
+    iops = None
+    storage_used_gb = 0.0
+    credentials_encrypted = None
+    
+    if is_postgres:
+        parsed = urlparse(NEON_DATABASE_URL)
+        real_host = parsed.hostname
+        real_port = parsed.port or 5432
+        default_db_name = parsed.path.lstrip("/")
+        
+        clean_name = re.sub(r'[^a-zA-Z0-9]', '', req.name.lower())
+        short_hash = hashlib.md5(f"{datetime.utcnow().timestamp()}".encode()).hexdigest()[:4]
+        clean_db_name = f"{clean_name}_{short_hash}"
+        
+        password = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
+        
+        engine_pg = create_engine(NEON_DATABASE_URL)
+        real_db_name = None
+        
+        try:
+            with engine_pg.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+                conn.execute(text(f'CREATE DATABASE "{clean_db_name}"'))
+            real_db_name = clean_db_name
+        except Exception:
+            with engine_pg.begin() as conn:
+                conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{clean_db_name}"'))
+            real_db_name = f"{default_db_name}?currentSchema={clean_db_name}"
+            
+        t0 = time.monotonic()
+        with engine_pg.connect() as conn:
+            conn.execute(text("SELECT 1"))
+            try:
+                res = conn.execute(text("SELECT pg_database_size(current_database())"))
+                size_bytes = res.scalar() or 0
+                storage_used_gb = size_bytes / (1024**3)
+            except Exception:
+                storage_used_gb = 0.01
+        t1 = time.monotonic()
+        
+        real_ping_ms = round((t1 - t0) * 1000, 2)
+        
+        creds = {
+            "username": parsed.username,
+            "password": password,
+            "real_db_name": real_db_name
+        }
+        credentials_encrypted = encrypt_aes256gcm(PLATFORM_MASTER_KEY, json.dumps(creds))
+        
+        endpoint = real_host
+        port = str(real_port)
+        latency_ms = real_ping_ms
+        storage_used_gb = max(0.01, round(storage_used_gb, 2))
+        message = f"Managed database '{req.name}' ({req.engine}) provisioned in region {req.region}."
+        
+    else:
+        status = "AWAITING_PROVIDER_SETUP"
+        message = "MySQL/Redis/MongoDB engines require external cloud provider credentials (AWS RDS or GCP Cloud SQL). Configure credentials in Settings -> Cloud Providers to provision."
+    
     instance = DatabaseInstance(
         id=db_id,
         user_id=current_user.id,
@@ -102,42 +176,141 @@ def create_database(
         tier=req.tier,
         region=req.region,
         storage_gb=req.storage_gb,
-        storage_used_gb=round(req.storage_gb * 0.1, 1) if req.storage_gb > 0 else 0.0,
-        status="AVAILABLE",
-        endpoint=f"{req.name}.db.aravanta.cloud",
+        storage_used_gb=storage_used_gb,
+        status=status,
+        endpoint=endpoint,
         port=port,
-        connection_count=1,
-        max_connections=200,
-        latency_ms=1.2,
-        iops=3000,
+        connection_count=1 if is_postgres else 0,
+        max_connections=200 if is_postgres else 0,
+        latency_ms=latency_ms,
+        iops=iops,
+        credentials_encrypted=credentials_encrypted,
         created_at=datetime.utcnow(),
     )
     db.add(instance)
     db.commit()
     db.refresh(instance)
 
-    try:
-        from app.billing.metering_service import MeteringService
-        MeteringService.start_resource_meter(
-            db=db,
-            resource_id=instance.id,
-            resource_type="database",
-            organization_id=instance.workspace_id or "default"
-        )
-    except Exception:
-        pass
+    if status == "AVAILABLE":
+        try:
+            from app.billing.metering_service import MeteringService
+            MeteringService.start_resource_meter(
+                db=db,
+                resource_id=instance.id,
+                resource_type="database",
+                organization_id=instance.workspace_id or "default"
+            )
+        except Exception:
+            pass
 
     emit_notification(
         db,
-        title="Database Instance Provisioned",
-        message=f"Managed database '{instance.name}' ({instance.engine}) provisioned in region {instance.region}.",
-        severity="INFO",
+        title="Database Instance Provisioned" if status == "AVAILABLE" else "Database Provisioning Pending",
+        message=message,
+        severity="INFO" if status == "AVAILABLE" else "WARNING",
         source="ArvDB",
         user_id=current_user.id,
         workspace_id=instance.workspace_id,
     )
 
     return _format_db_dict(instance)
+
+
+class DatabaseQueryRequest(BaseModel):
+    sql: str
+
+
+@router.get("/instances/{db_id}/credentials")
+def get_database_credentials(
+    db_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from app.core.crypto import PLATFORM_MASTER_KEY, decrypt_aes256gcm
+    instance = db.query(DatabaseInstance).filter(DatabaseInstance.id == db_id).first()
+    if not instance:
+        raise HTTPException(status_code=404, detail="Database not found")
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"] and instance.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied to this database")
+    if not instance.credentials_encrypted:
+        raise HTTPException(status_code=400, detail="No credentials available for this instance.")
+        
+    try:
+        creds_json = decrypt_aes256gcm(PLATFORM_MASTER_KEY, instance.credentials_encrypted)
+        creds = json.loads(creds_json)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to decrypt credentials")
+        
+    username = creds["username"]
+    password = creds["password"]
+    database = creds["real_db_name"]
+    host = instance.endpoint
+    port = instance.port
+    
+    conn_uri = f"postgresql://{username}:{password}@{host}:{port}/{database}"
+    if "?" not in database:
+        conn_uri += "?sslmode=require"
+    else:
+        conn_uri += "&sslmode=require"
+        
+    psql_cmd = f'psql "{conn_uri}"'
+    
+    return {
+        "engine": instance.engine,
+        "host": host,
+        "port": port,
+        "database": database,
+        "username": username,
+        "password": password,
+        "connection_uri": conn_uri,
+        "psql_command": psql_cmd
+    }
+
+
+@router.post("/instances/{db_id}/query")
+def execute_database_query(
+    db_id: str,
+    req: DatabaseQueryRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from app.core.crypto import PLATFORM_MASTER_KEY, decrypt_aes256gcm
+    instance = db.query(DatabaseInstance).filter(DatabaseInstance.id == db_id).first()
+    if not instance:
+        raise HTTPException(status_code=404, detail="Database not found")
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"] and instance.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied to this database")
+    if not instance.credentials_encrypted:
+        raise HTTPException(status_code=400, detail="No credentials available to execute query.")
+        
+    try:
+        creds_json = decrypt_aes256gcm(PLATFORM_MASTER_KEY, instance.credentials_encrypted)
+        creds = json.loads(creds_json)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to decrypt credentials")
+        
+    username = creds["username"]
+    password = creds["password"]
+    database = creds["real_db_name"]
+    host = instance.endpoint
+    port = instance.port
+    
+    conn_uri = f"postgresql://{username}:{password}@{host}:{port}/{database}"
+    if "?" not in database:
+        conn_uri += "?sslmode=require"
+    else:
+        conn_uri += "&sslmode=require"
+        
+    engine_pg = create_engine(conn_uri)
+    try:
+        with engine_pg.connect() as conn:
+            result = conn.execute(text(req.sql))
+            rows = [dict(row._mapping) for row in result.fetchall()]
+            return {"status": "success", "results": rows, "count": len(rows)}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 
 @router.delete("/instances/{db_id}")
@@ -156,6 +329,25 @@ def delete_database(
 
     name = instance.name
     workspace_id = instance.workspace_id
+    
+    if instance.engine.startswith("PostgreSQL") and instance.credentials_encrypted:
+        from app.core.crypto import PLATFORM_MASTER_KEY, decrypt_aes256gcm
+        try:
+            creds_json = decrypt_aes256gcm(PLATFORM_MASTER_KEY, instance.credentials_encrypted)
+            creds = json.loads(creds_json)
+            real_db_name = creds["real_db_name"]
+            
+            engine_pg = create_engine(NEON_DATABASE_URL)
+            if "?currentSchema=" in real_db_name:
+                schema_name = real_db_name.split("?currentSchema=")[1]
+                with engine_pg.begin() as conn:
+                    conn.execute(text(f'DROP SCHEMA IF EXISTS "{schema_name}" CASCADE;'))
+            else:
+                with engine_pg.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+                    conn.execute(text(f'DROP DATABASE IF EXISTS "{real_db_name}";'))
+        except Exception:
+            pass
+            
     db.delete(instance)
     db.commit()
 

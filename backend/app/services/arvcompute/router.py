@@ -9,12 +9,14 @@ from datetime import datetime
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Query, Depends, status
 from pydantic import BaseModel
+from cryptography.hazmat.primitives.asymmetric import ed25519
+from cryptography.hazmat.primitives import serialization
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.services.arvgate.models import User, AuditLog
 from app.services.arvgate.dependencies import get_current_user, require_roles
-from app.core.cloud_models import ComputeInstance, emit_notification
+from app.core.cloud_models import ComputeInstance, emit_notification, SSHKeyPair
 
 router = APIRouter(prefix="/api/v1/compute", tags=["ArvCompute"])
 
@@ -54,6 +56,9 @@ class CreateInstanceRequest(BaseModel):
 class ActionRequest(BaseModel):
     action: str  # start, stop, reboot, terminate
 
+class CreateKeypairRequest(BaseModel):
+    name: str
+
 # ─── Endpoints ──────────────────────────────────────────────────
 @router.get("/provider-status")
 def get_provider_status():
@@ -62,6 +67,120 @@ def get_provider_status():
         "message": "No compute provider configured. Connect AWS/GCP/Azure credentials to provision real VMs.",
         "supported_providers": ["aws_ec2", "gcp_compute", "azure_vm", "docker_local"]
     }
+
+import base64
+
+@router.post("/keypairs")
+def create_keypair(
+    req: CreateKeypairRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    private_key = ed25519.Ed25519PrivateKey.generate()
+    private_bytes = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.OpenSSH,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+    public_key = private_key.public_key()
+    public_bytes = public_key.public_bytes(
+        encoding=serialization.Encoding.OpenSSH,
+        format=serialization.PublicFormat.OpenSSH
+    )
+    digest = hashlib.sha256(public_bytes).digest()
+    fingerprint = "SHA256:" + base64.b64encode(digest).decode('utf-8').rstrip('=')
+
+    kp = SSHKeyPair(
+        user_id=current_user.id,
+        workspace_id=current_user.workspace_id or "default",
+        name=req.name,
+        public_key=public_bytes.decode('utf-8'),
+        fingerprint=fingerprint
+    )
+    db.add(kp)
+    db.commit()
+    db.refresh(kp)
+
+    return {
+        "id": kp.id,
+        "name": kp.name,
+        "fingerprint": kp.fingerprint,
+        "private_key": private_bytes.decode('utf-8')
+    }
+
+@router.get("/keypairs")
+def list_keypairs(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = db.query(SSHKeyPair)
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"]:
+        query = query.filter(
+            (SSHKeyPair.user_id == current_user.id) |
+            (SSHKeyPair.workspace_id == current_user.workspace_id)
+        )
+    return [kp.to_dict() for kp in query.all()]
+
+@router.delete("/keypairs/{name}")
+def delete_keypair(
+    name: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = db.query(SSHKeyPair).filter(SSHKeyPair.name == name)
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"]:
+        query = query.filter(
+            (SSHKeyPair.user_id == current_user.id) |
+            (SSHKeyPair.workspace_id == current_user.workspace_id)
+        )
+    kp = query.first()
+    if not kp:
+        raise HTTPException(status_code=404, detail="Keypair not found")
+    db.delete(kp)
+    db.commit()
+    return {"message": "Keypair deleted"}
+
+@router.get("/instances/{instance_id}/connect")
+def connect_instance(
+    instance_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    inst = db.query(ComputeInstance).filter(ComputeInstance.id == instance_id).first()
+    if not inst:
+        raise HTTPException(status_code=404, detail=f"Instance {instance_id} not found")
+    
+    if inst.public_ip:
+        return {
+            "connectable": True,
+            "ssh_command": f"ssh -i ~/.ssh/aravanta-key.pem ubuntu@{inst.public_ip}",
+            "public_ip": inst.public_ip,
+            "username": "ubuntu",
+            "port": 22
+        }
+    else:
+        return {
+            "connectable": False,
+            "reason": f"Instance is currently {inst.status} and has no public IP assigned. Configure a cloud provider to provision real compute.",
+            "status": inst.status
+        }
+
+@router.post("/instances/{instance_id}/reconcile")
+def reconcile_instance(
+    instance_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    inst = db.query(ComputeInstance).filter(ComputeInstance.id == instance_id).first()
+    if not inst:
+        raise HTTPException(status_code=404, detail=f"Instance {instance_id} not found")
+    
+    if inst.status in ["PENDING_PROVIDER", "AWAITING_PROVIDER_SETUP"]:
+        inst.status = "AWAITING_PROVIDER_SETUP"
+        db.commit()
+    return inst.to_dict()
 
 @router.get("/instances")
 def list_instances(
@@ -114,11 +233,11 @@ def create_instance(
         instance_type=req.instance_type,
         os_image=req.os_image,
         region=req.region,
-        status="PENDING_PROVIDER",
-        private_ip="awaiting-assignment",
+        status="AWAITING_PROVIDER_SETUP",
+        private_ip=None,
         public_ip=None,
-        cpu_usage=0.0,
-        ram_usage=0.0,
+        cpu_usage=None,
+        ram_usage=None,
         disk_gb=req.disk_gb,
         tags=json.dumps(req.tags or {}),
         created_at=now,

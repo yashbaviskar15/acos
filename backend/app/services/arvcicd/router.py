@@ -39,49 +39,6 @@ def _to_pipeline_dict(wf: WorkflowRecord) -> dict:
         "build_number": wf.run_count or 1
     }
 
-def _seed_default_pipelines_if_needed(db: Session, user: User, ws_id: str) -> List[WorkflowRecord]:
-    existing = db.query(WorkflowRecord).filter(
-        (WorkflowRecord.workspace_id == ws_id) | (WorkflowRecord.user_id == user.id)
-    ).all()
-    if existing:
-        return existing
-
-    defaults = [
-        ("backend-api-ci", "aravanta/cloudos-backend", "main", "git push", "SUCCESS", "2m 14s", 142),
-        ("frontend-web-build", "aravanta/cloudos-frontend", "main", "git push", "SUCCESS", "1m 45s", 98),
-        ("arv-kube-helm-deploy", "aravanta/infrastructure-helm", "release/1.0", "manual", "SUCCESS", "3m 02s", 45),
-        ("database-migration-test", "aravanta/cloudos-backend", "feature/auth", "pull_request", "FAILED", "45s", 31),
-    ]
-    created = []
-    now = datetime.utcnow()
-    for name, repo, branch, trigger, st, dur, runs in defaults:
-        wf = WorkflowRecord(
-            id=f"pipe-{uuid.uuid4().hex[:8]}",
-            user_id=user.id,
-            workspace_id=ws_id,
-            name=name,
-            description=branch,
-            trigger=trigger,
-            target=repo,
-            status="ACTIVE",
-            last_run=now - timedelta(minutes=random.randint(10, 180)),
-            last_status=st,
-            duration=dur,
-            run_count=runs,
-            actions="[]"
-        )
-        db.add(wf)
-        created.append(wf)
-
-    try:
-        db.commit()
-        for wf in created:
-            db.refresh(wf)
-        return created
-    except Exception:
-        db.rollback()
-        return db.query(WorkflowRecord).filter(WorkflowRecord.workspace_id == ws_id).all()
-
 @router.get("/pipelines")
 def list_pipelines(
     workspace_id: Optional[str] = Header(None, alias="x-workspace-id"),
@@ -89,7 +46,9 @@ def list_pipelines(
     current_user: User = Depends(get_current_user),
 ):
     ws_id = current_user.workspace_id or workspace_id or "default"
-    wfs = _seed_default_pipelines_if_needed(db, current_user, ws_id)
+    wfs = db.query(WorkflowRecord).filter(
+        (WorkflowRecord.workspace_id == ws_id) | (WorkflowRecord.user_id == current_user.id)
+    ).all()
     return [_to_pipeline_dict(w) for w in wfs]
 
 @router.post("/pipelines", status_code=status.HTTP_201_CREATED)
@@ -151,7 +110,45 @@ def trigger_pipeline(
 
     wf.run_count = (wf.run_count or 0) + 1
     wf.last_run = datetime.utcnow()
-    wf.last_status = "SUCCESS"
+    
+    try:
+        from app.core.setup_cloud_providers import CloudProviderCredential
+        import httpx
+        gh_cred = db.query(CloudProviderCredential).filter(
+            CloudProviderCredential.user_id == str(current_user.id),
+            CloudProviderCredential.provider == "github"
+        ).first()
+
+        if gh_cred:
+            # target should be owner/repo
+            parts = wf.target.split('/')
+            if len(parts) == 2:
+                owner, repo = parts
+                wf_id_in_repo = "main.yml" # simplified assumption or we could use pipeline name
+                headers = {
+                    "Authorization": f"Bearer {gh_cred.api_key}",
+                    "Accept": "application/vnd.github.v3+json",
+                    "User-Agent": "Aravanta-CloudOS"
+                }
+                payload = {"ref": wf.description or "main"}
+                # Trigger actual github action
+                try:
+                    resp = httpx.post(f"https://api.github.com/repos/{owner}/{repo}/actions/workflows/{wf_id_in_repo}/dispatches", headers=headers, json=payload, timeout=5.0)
+                    if resp.status_code in (204, 200):
+                        wf.last_status = "SUCCESS"
+                    else:
+                        wf.last_status = "FAILED"
+                except Exception:
+                    wf.last_status = "FAILED"
+            else:
+                wf.last_status = "FAILED"
+        else:
+            wf.last_status = "AWAITING_RUNNER_SETUP"
+            raise HTTPException(status_code=400, detail="No CI/CD runner or GitHub credentials configured. Connect GitHub in Cloud Providers.")
+    except ImportError:
+        wf.last_status = "AWAITING_RUNNER_SETUP"
+        raise HTTPException(status_code=400, detail="No CI/CD runner or GitHub credentials configured. Connect GitHub in Cloud Providers.")
+        
     db.commit()
     db.refresh(wf)
 
@@ -189,7 +186,9 @@ def get_cicd_summary(
     current_user: User = Depends(get_current_user),
 ):
     ws_id = current_user.workspace_id or workspace_id or "default"
-    wfs = _seed_default_pipelines_if_needed(db, current_user, ws_id)
+    wfs = db.query(WorkflowRecord).filter(
+        (WorkflowRecord.workspace_id == ws_id) | (WorkflowRecord.user_id == current_user.id)
+    ).all()
     
     total = len(wfs)
     successful = sum(1 for w in wfs if (w.last_status or "").upper() == "SUCCESS")

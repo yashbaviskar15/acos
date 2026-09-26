@@ -27,81 +27,7 @@ router = APIRouter(prefix="/api/v1/monitoring", tags=["ArvWatch"])
 
 ALERT_SEVERITIES = ["critical", "warning", "info"]
 
-_default_alerts = [
-    {
-        "id": "alert-cpu-web-prod",
-        "title": "High CPU on web-server-prod-01",
-        "severity": "warning",
-        "service": "ArvCompute",
-        "message": "CPU utilization at 87% for 5 minutes",
-        "status": "firing",
-        "fired_at": (datetime.utcnow() - timedelta(minutes=12)).isoformat() + "Z",
-    },
-    {
-        "id": "alert-db-pool-sat",
-        "title": "Database connection pool saturating",
-        "severity": "critical",
-        "service": "ArvDB",
-        "message": "aravanta-core-db connections at 182/200 (91%)",
-        "status": "firing",
-        "fired_at": (datetime.utcnow() - timedelta(minutes=3)).isoformat() + "Z",
-    },
-    {
-        "id": "alert-pod-crashloop",
-        "title": "Pod CrashLoopBackOff detected",
-        "severity": "critical",
-        "service": "ArvKube",
-        "message": "scheduler-7f8a2c1e in aravanta-prod restarted 5 times",
-        "status": "firing",
-        "fired_at": (datetime.utcnow() - timedelta(minutes=8)).isoformat() + "Z",
-    },
-    {
-        "id": "alert-ssl-expiry",
-        "title": "SSL certificate expiring soon",
-        "severity": "warning",
-        "service": "ArvOperations",
-        "message": "*.aravanta.cloud certificate expires in 14 days",
-        "status": "firing",
-        "fired_at": (datetime.utcnow() - timedelta(days=2)).isoformat() + "Z",
-    },
-    {
-        "id": "alert-storage-quota",
-        "title": "Storage bucket nearing capacity",
-        "severity": "info",
-        "service": "ArvStore",
-        "message": "app-logs-archive at 89% of 1.5TB quota",
-        "status": "resolved",
-        "fired_at": (datetime.utcnow() - timedelta(hours=6)).isoformat() + "Z",
-    },
-    {
-        "id": "alert-deploy-rollback",
-        "title": "Deployment rollback triggered",
-        "severity": "warning",
-        "service": "CI/CD",
-        "message": "web-frontend v2.1.0 health check failed, rolled back to v2.0.9",
-        "status": "resolved",
-        "fired_at": (datetime.utcnow() - timedelta(hours=1)).isoformat() + "Z",
-    },
-]
 
-
-def _ensure_alerts_seeded(db: Session, user_id: str):
-    """Seed initial alert records into the database if none exist."""
-    count = db.query(AlertRecord).count()
-    if count == 0:
-        for a in _default_alerts:
-            record = AlertRecord(
-                id=a["id"],
-                user_id=user_id,
-                title=a["title"],
-                severity=a["severity"],
-                service=a["service"],
-                message=a["message"],
-                status=a["status"],
-                fired_at=datetime.utcnow() - timedelta(minutes=random.randint(5, 60)),
-            )
-            db.add(record)
-        db.commit()
 
 
 @router.get("/metrics")
@@ -137,38 +63,72 @@ def get_metrics(
 
     has_workloads = (total_vms + total_clusters + total_dbs + len(apps)) > 0
 
-    if instances:
-        avg_cpu = round(sum(i.cpu_usage for i in instances) / max(1, len(instances)), 1)
-        avg_ram = round(sum(i.ram_usage for i in instances) / max(1, len(instances)), 1)
-    elif clusters:
-        avg_cpu = 14.5
-        avg_ram = 28.2
-    elif has_workloads:
-        avg_cpu = 8.5
-        avg_ram = 18.0
-    else:
-        avg_cpu = 0.0
-        avg_ram = 0.0
+    import time
+    from sqlalchemy import text
+    
+    # Real DB latency
+    real_latency_ms = 0.0
+    try:
+        t0 = time.monotonic()
+        db.execute(text("SELECT 1"))
+        real_latency_ms = round((time.monotonic() - t0) * 1000, 2)
+    except Exception:
+        pass
 
-    storage_pct = round(min(100.0, (total_storage_gb / 1000.0) * 100), 1) if storage_buckets else 0.0
+    # Real DB size
+    real_db_size_gb = 0.0
+    try:
+        db_size_res = db.execute(text("SELECT pg_database_size(current_database());")).scalar()
+        if db_size_res:
+            real_db_size_gb = round(db_size_res / (1024**3), 4)
+    except Exception:
+        pass
+
+    # Real Storage metrics
+    real_storage_gb = 0.0
+    real_object_count = 0
+    try:
+        st_res = db.execute(text("SELECT sum(size_bytes), count(*) FROM storage_objects;")).fetchone()
+        if st_res and st_res[0]:
+            real_storage_gb = round(st_res[0] / (1024**3), 4)
+            real_object_count = st_res[1]
+    except Exception:
+        pass
+
+    # Real Serverless counts
+    serverless_invocations = 0
+    try:
+        inv_res = db.execute(text("SELECT count(*) FROM arv_function_invocations;")).scalar()
+        if inv_res:
+            serverless_invocations = inv_res
+    except Exception:
+        pass
+
+    if instances:
+        # Assuming if compute instances have no monitoring agent, cpu_usage/ram_usage might be None.
+        cpu_usages = [i.cpu_usage for i in instances if i.cpu_usage is not None]
+        ram_usages = [i.ram_usage for i in instances if i.ram_usage is not None]
+        avg_cpu = round(sum(cpu_usages) / len(cpu_usages), 1) if cpu_usages else None
+        avg_ram = round(sum(ram_usages) / len(ram_usages), 1) if ram_usages else None
+    else:
+        avg_cpu = None
+        avg_ram = None
 
     total_pods = sum(c.pod_count for c in clusters)
     total_nodes = sum(c.node_count for c in clusters)
 
-    p95_lat = round(sum(a.p95_latency_ms for a in apps) / max(1, len(apps)), 1) if apps else (24.2 if has_workloads else 0.0)
-    reqs_hr = sum(a.requests_per_sec * 3600 for a in apps) if apps else (12500 * total_vms if total_vms > 0 else 0)
-
     return {
         "timestamp": datetime.utcnow().isoformat() + "Z",
+        "telemetry_status": "NO_TELEMETRY" if avg_cpu is None else "ACTIVE",
         "cpu_usage_percent": avg_cpu,
         "memory_usage_percent": avg_ram,
-        "storage_usage_percent": storage_pct,
-        "p95_latency_ms": p95_lat,
-        "total_requests_1h": reqs_hr,
-        "network_in_mbps": round(total_vms * 18.4 + len(apps) * 12.2, 1) if has_workloads else 0.0,
-        "network_out_mbps": round(total_vms * 11.2 + len(apps) * 8.5, 1) if has_workloads else 0.0,
-        "error_rate_percent": round(sum(a.error_rate_percent for a in apps) / max(1, len(apps)), 2) if apps else 0.0,
-        "uptime_percent": 99.99 if has_workloads else 100.0,
+        "storage_usage_percent": 0.0,
+        "p95_latency_ms": real_latency_ms,
+        "total_requests_1h": serverless_invocations,
+        "network_in_mbps": 0.0,
+        "network_out_mbps": 0.0,
+        "error_rate_percent": 0.0,
+        "uptime_percent": 100.0,
         "compute": {
             "instances_total": total_vms,
             "instances_running": running_vms,

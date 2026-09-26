@@ -188,12 +188,14 @@ class DatabaseInstance(Base):
     storage_gb = Column(Integer, default=100)
     storage_used_gb = Column(Float, default=0.0)
     status = Column(String(20), default="AVAILABLE", nullable=False)
-    endpoint = Column(String(255), nullable=False)
-    port = Column(String(10), default="5432")
+    endpoint = Column(String(255), nullable=True)
+    port = Column(String(10), default="5432", nullable=True)
     connection_count = Column(Integer, default=0)
     max_connections = Column(Integer, default=200)
-    latency_ms = Column(Float, default=1.5)
-    iops = Column(Integer, default=3000)
+    latency_ms = Column(Float, nullable=True)
+    iops = Column(Integer, nullable=True)
+    credentials_encrypted = Column(Text, nullable=True)
+    telemetry_status = Column(String(50), default="ACTIVE")
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     def to_dict(self) -> dict:
@@ -615,3 +617,22 @@ def emit_notification(
     except Exception:
         db.rollback()
     return notif
+
+class SSHKeyPair(Base):
+    __tablename__ = "ssh_keypairs"
+
+    id = Column(String(50), primary_key=True, index=True, default=lambda: f"key-{uuid.uuid4().hex[:12]}")
+    user_id = Column(String(36), index=True, nullable=False)
+    workspace_id = Column(String(50), index=True, nullable=True)
+    name = Column(String(100), index=True, nullable=False)
+    public_key = Column(Text, nullable=False)
+    fingerprint = Column(String(255), nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "fingerprint": self.fingerprint,
+            "created_at": self.created_at.isoformat() + "Z" if self.created_at else datetime.datetime.utcnow().isoformat() + "Z",
+        }

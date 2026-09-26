@@ -7,7 +7,9 @@ import hashlib
 import random
 from datetime import datetime
 from typing import Optional, List
-from fastapi import APIRouter, HTTPException, Query, Depends, status
+from fastapi import APIRouter, HTTPException, Query, Depends, status, Response
+import yaml
+import httpx
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -21,7 +23,7 @@ router = APIRouter(prefix="/api/v1/kubernetes", tags=["ArvKube"])
 K8S_VERSIONS = ["1.28.4", "1.29.2", "1.30.1"]
 NODE_SIZES = ["arv.medium", "arv.large", "arv.xlarge", "arv.2xlarge"]
 NAMESPACES = ["default", "kube-system", "aravanta-core", "monitoring", "ingress-nginx"]
-POD_PREFIXES = ["api-server", "web-frontend", "worker", "scheduler", "redis", "postgres", "nginx-ingress", "prometheus", "grafana", "loki", "cert-manager"]
+POD_PREFIXES = []
 
 def _det_id(prefix: str, name: str) -> str:
     return f"{prefix}-{hashlib.md5(f'{name}-{datetime.utcnow().timestamp()}'.encode()).hexdigest()[:10]}"
@@ -50,6 +52,82 @@ def list_clusters(
         )
     clusters = query.order_by(KubeCluster.created_at.desc()).all()
     return [c.to_dict() for c in clusters]
+
+class ConnectClusterRequest(BaseModel):
+    name: str
+    kubeconfig_yaml: str
+
+@router.post("/connect-cluster")
+def connect_cluster(
+    req: ConnectClusterRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator"]))
+):
+    try:
+        config = yaml.safe_load(req.kubeconfig_yaml)
+    except yaml.YAMLError as e:
+        raise HTTPException(400, f"Invalid YAML: {e}")
+    
+    if not config or "clusters" not in config or not config["clusters"]:
+        raise HTTPException(400, "Invalid kubeconfig: missing clusters")
+    
+    cluster_info = config["clusters"][0].get("cluster", {})
+    endpoint = cluster_info.get("server")
+    if not endpoint:
+        raise HTTPException(400, "Invalid kubeconfig: missing server endpoint")
+
+    try:
+        with httpx.Client(verify=False, timeout=5.0) as client:
+            resp = client.get(f"{endpoint}/version")
+            resp.raise_for_status()
+            version_data = resp.json()
+            k8s_version = version_data.get("gitVersion", "unknown")
+    except Exception as e:
+        raise HTTPException(400, f"Cluster unreachable: {str(e)}")
+
+    cid = _det_id("arv-k8s", req.name)
+    now = datetime.utcnow()
+    new_cluster = KubeCluster(
+        id=cid,
+        user_id=current_user.id,
+        workspace_id=current_user.workspace_id or "default",
+        name=req.name.strip(),
+        version=k8s_version,
+        region="external",
+        status="ACTIVE",
+        node_count=1,
+        node_size="unknown",
+        endpoint=endpoint,
+        cpu_cores_total=4,
+        ram_gb_total=16,
+        pod_count=0,
+        created_at=now
+    )
+    db.add(new_cluster)
+    db.commit()
+    db.refresh(new_cluster)
+    return new_cluster.to_dict()
+
+@router.get("/clusters/{cluster_id}/kubeconfig")
+def download_kubeconfig(
+    cluster_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    cluster = db.query(KubeCluster).filter(KubeCluster.id == cluster_id).first()
+    if not cluster:
+        raise HTTPException(404, "Cluster not found")
+    user_role = (current_user.role or "").strip().lower()
+    if user_role not in ["superadmin", "admin"] and cluster.user_id != current_user.id and cluster.workspace_id != current_user.workspace_id:
+        raise HTTPException(403, "Access denied to this cluster")
+
+    if cluster.status == "AWAITING_PROVIDER_SETUP":
+        raise HTTPException(404, "Kubeconfig is not available until cluster is provisioned by a cloud provider.")
+
+    return Response(
+        content=f"apiVersion: v1\nclusters:\n- cluster:\n    server: {cluster.endpoint}\n  name: {cluster.name}\n",
+        media_type="application/x-yaml"
+    )
 
 @router.get("/clusters/{cluster_id}")
 def get_cluster(
@@ -80,13 +158,13 @@ def create_cluster(
         name=req.name.strip(),
         version=req.version,
         region=req.region,
-        status="ACTIVE",
-        node_count=req.node_count,
+        status="AWAITING_PROVIDER_SETUP",
+        node_count=0,
         node_size=req.node_size,
-        endpoint=f"https://{cid}.k8s.aravanta.cloud:6443",
-        cpu_cores_total=req.node_count * 4,
-        ram_gb_total=req.node_count * 16,
-        pod_count=req.node_count * 3,
+        endpoint="",
+        cpu_cores_total=0,
+        ram_gb_total=0,
+        pod_count=0,
         created_at=now
     )
     db.add(new_cluster)
@@ -197,6 +275,7 @@ def scale_cluster(
 @router.get("/clusters/{cluster_id}/pods")
 def list_pods(
     cluster_id: str,
+    response: Response,
     namespace: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -205,30 +284,11 @@ def list_pods(
     if not cluster:
         raise HTTPException(404, "Cluster not found")
     
-    # Generate deterministic pod list based on cluster node count
-    pods = []
-    count = max(cluster.pod_count, cluster.node_count * 2)
-    for i in range(count):
-        prefix = POD_PREFIXES[i % len(POD_PREFIXES)]
-        ns = NAMESPACES[i % len(NAMESPACES)]
-        suffix = hashlib.md5(f"{cluster.name}-{i}".encode()).hexdigest()[:6]
-        pod = {
-            "id": f"pod-{suffix}",
-            "name": f"{prefix}-{suffix}",
-            "namespace": ns,
-            "status": "Running",
-            "restarts": 0 if i % 4 != 0 else 1,
-            "cpu_usage_m": 25 + (i * 15) % 300,
-            "ram_usage_mb": 64 + (i * 32) % 512,
-            "node": f"node-{(i % cluster.node_count) + 1}",
-            "age_hours": 12 + i * 8,
-            "image": f"aravanta/{prefix}:latest"
-        }
-        pods.append(pod)
-    
-    if namespace:
-        pods = [p for p in pods if p["namespace"] == namespace]
-    return pods
+    if cluster.status == "AWAITING_PROVIDER_SETUP":
+        response.headers["x-telemetry-status"] = "NO_TELEMETRY"
+        return []
+        
+    return []
 
 @router.get("/versions")
 def list_versions():

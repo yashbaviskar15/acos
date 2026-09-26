@@ -42,17 +42,10 @@ def list_repositories(
             repos.append(
                 RepoResponse(
                     name=image_name,
-                    tag_count=max(2, 4 + len(apps)),
-                    vulnerabilities={"critical": 0, "high": 0, "medium": 1},
+                    tag_count=max(1, len(apps)),
+                    vulnerabilities={"scan_status": "NO_SCAN_DATA"},
                     size_mb=round(120.0 + len(a.name) * 8.5, 1)
                 )
             )
-
-    if not repos:
-        # Standard system images for the workspace
-        repos = [
-            RepoResponse(name="aravanta/frontend", tag_count=14, vulnerabilities={"critical": 0, "high": 0, "medium": 2}, size_mb=145.2),
-            RepoResponse(name="aravanta/backend-api", tag_count=28, vulnerabilities={"critical": 0, "high": 0, "medium": 1}, size_mb=210.8)
-        ]
 
     return repos

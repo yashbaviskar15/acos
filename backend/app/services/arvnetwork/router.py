@@ -47,7 +47,21 @@ def list_vpcs(db: Session = Depends(get_db), user: User = Depends(get_current_us
 
 @router.post("/vpcs", status_code=status.HTTP_201_CREATED)
 def create_vpc(body: VPCCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    vpc = ArvVPC(name=body.name, cidr_block=body.cidr_block, region=body.region, is_default=body.is_default, user_id=str(user.id))
+    try:
+        from app.core.setup_cloud_providers import CloudProviderCredential
+        creds = db.query(CloudProviderCredential).filter(CloudProviderCredential.user_id == str(user.id)).all()
+        has_net_provider = any(c.provider in ["aws", "gcp"] for c in creds)
+    except ImportError:
+        has_net_provider = False
+
+    vpc = ArvVPC(
+        name=body.name, 
+        cidr_block=body.cidr_block, 
+        region=body.region, 
+        is_default=body.is_default, 
+        user_id=str(user.id),
+        status="ACTIVE" if has_net_provider else "AWAITING_PROVIDER_SETUP"
+    )
     db.add(vpc); db.commit(); db.refresh(vpc)
     return vpc
 
