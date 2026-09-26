@@ -124,15 +124,19 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# Pure ASGI middleware to normalize Vercel serverless /api/index rewrite paths
+# Pure ASGI middleware to normalize Vercel serverless /api and /api/index rewrite paths
 class VercelPathRewriteMiddleware:
     def __init__(self, app):
         self.app = app
 
     async def __call__(self, scope, receive, send):
         if scope["type"] == "http":
+            headers = dict(scope.get("headers", []))
+            matched = headers.get(b"x-matched-path", b"").decode("utf-8")
+            if matched:
+                scope["path"] = matched
             path = scope.get("path", "")
-            if path == "/api/index" or path == "/api/index/":
+            if path in ("/api", "/api/", "/api/index", "/api/index/"):
                 scope["path"] = "/"
             elif path.startswith("/api/index/"):
                 scope["path"] = path[len("/api/index"):]
