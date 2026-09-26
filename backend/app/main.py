@@ -154,7 +154,7 @@ class VercelPathRewriteMiddleware:
                 or headers.get(b"x-vercel-rewrite-path", b"")
                 or headers.get(b"x-original-url", b"")
             ).decode("utf-8", errors="ignore")
-            if matched:
+            if matched and matched not in ("/api", "/api/", "/api/index", "/api/index/"):
                 scope["path"] = matched
             path = scope.get("path", "")
             if path in ("/api", "/api/", "/api/index", "/api/index/"):
@@ -165,15 +165,17 @@ class VercelPathRewriteMiddleware:
 
 app.add_middleware(VercelPathRewriteMiddleware)
 
-# Configure CORS: explicitly allowed production origins + Aravanta Vercel previews only
+# Configure CORS: allow all Vercel domains (*.vercel.app), localhost, and explicit origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
-    allow_origin_regex=r"https://(aravantacos|acos)(-[a-z0-9-]+)?\.vercel\.app",
+    allow_origin_regex=r"^https://.*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
+
 
 @app.exception_handler(Exception)
 async def global_unhandled_exception_handler(request: Request, exc: Exception):
