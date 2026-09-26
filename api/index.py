@@ -59,6 +59,41 @@ except Exception as e:
                 "more_body": False
             })
 
+_raw_app = app
+
+async def app(scope, receive, send):
+    try:
+        await _raw_app(scope, receive, send)
+    except Exception as exc:
+        err_tb = traceback.format_exc()
+        if scope["type"] == "http":
+            body = json.dumps({
+                "status": "error",
+                "message": "Unhandled Exception during ASGI invocation",
+                "exception": str(exc),
+                "type": type(exc).__name__,
+                "traceback": err_tb,
+            }, indent=2).encode("utf-8")
+            try:
+                await send({
+                    "type": "http.response.start",
+                    "status": 500,
+                    "headers": [
+                        [b"content-type", b"application/json"],
+                        [b"access-control-allow-origin", b"*"],
+                        [b"content-length", str(len(body)).encode("utf-8")]
+                    ]
+                })
+                await send({
+                    "type": "http.response.body",
+                    "body": body,
+                    "more_body": False
+                })
+            except Exception:
+                pass
+        else:
+            raise
+
 # Export application for ASGI runners (Vercel uses native ASGI runner for app)
 application = app
 
