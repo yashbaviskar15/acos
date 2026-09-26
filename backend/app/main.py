@@ -110,10 +110,13 @@ def init_db():
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     """Run DB schema setup. create_all(checkfirst=True) is idempotent and creates newly added tables."""
-    try:
-        init_db()
-    except Exception as exc:
-        logger.warning("Startup database initialization: %s", exc)
+    is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+    should_init = (not is_serverless) or _is_sqlite or (os.environ.get("AUTO_INIT_DB", "").lower() in ("true", "1"))
+    if should_init:
+        try:
+            init_db()
+        except Exception as exc:
+            logger.warning("Startup database initialization: %s", exc)
     yield
 
 

@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 import traceback
 from pathlib import Path
 
@@ -25,26 +26,30 @@ try:
     from app.main import app
 except Exception as e:
     err_tb = traceback.format_exc()
-    print(f"FATAL: Startup exception in Vercel root backend: {err_tb}", file=sys.stderr)
-    from fastapi import FastAPI
-    from fastapi.responses import JSONResponse
-
-    app = FastAPI()
-
-    @app.api_route("/", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"])
-    @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"])
-    async def _catch_all(path: str = ""):
-        return JSONResponse(
-            status_code=500,
-            content={
+    async def app(scope, receive, send):
+        if scope["type"] == "http":
+            body = json.dumps({
                 "status": "error",
                 "message": "Serverless Startup Failure",
                 "detail": str(e),
                 "traceback": err_tb,
                 "sys_path": sys.path,
                 "cwd": str(Path.cwd()),
-            },
-        )
+            }, indent=2).encode("utf-8")
+            await send({
+                "type": "http.response.start",
+                "status": 500,
+                "headers": [
+                    [b"content-type", b"application/json"],
+                    [b"access-control-allow-origin", b"*"],
+                    [b"content-length", str(len(body)).encode("utf-8")]
+                ]
+            })
+            await send({
+                "type": "http.response.body",
+                "body": body,
+                "more_body": False
+            })
 
 # Export application for ASGI / WSGI runners (Vercel uses native ASGI runner for app)
 application = app
