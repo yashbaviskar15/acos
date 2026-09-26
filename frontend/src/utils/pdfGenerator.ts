@@ -54,7 +54,7 @@ const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight'
   'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
 const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
 
-function numberToWords(n: number): string {
+export function numberToWords(n: number): string {
   if (n === 0) return 'Zero';
   const whole = Math.floor(Math.abs(n));
   const paise = Math.round((Math.abs(n) - whole) * 100);
@@ -74,7 +74,7 @@ function convertWholeToWords(n: number): string {
 }
 
 // Generate deterministic short hash for invoice audit
-function generateAuditHash(id: string): string {
+export function generateAuditHash(id: string): string {
   let hash = 0;
   for (let i = 0; i < id.length; i++) {
     hash = ((hash << 5) - hash) + id.charCodeAt(i);
@@ -276,8 +276,8 @@ export const generateInvoicePDF = (data: InvoiceData): void => {
     body: tableData,
     margin: { left: M, right: M },
     styles: {
-      fontSize: 8.5,
-      cellPadding: { top: 4.5, bottom: 4.5, left: 3.5, right: 3.5 },
+      fontSize: 8,
+      cellPadding: { top: 4, bottom: 4, left: 3, right: 3 },
       lineColor: [...BORDER_COLOR],
       lineWidth: 0.3,
       textColor: [...DARK_TEXT],
@@ -285,18 +285,18 @@ export const generateInvoicePDF = (data: InvoiceData): void => {
     headStyles: {
       fillColor: [...PRIMARY_NAVY],
       textColor: [...WHITE],
-      fontSize: 7.5,
+      fontSize: 7.2,
       fontStyle: 'bold',
       halign: 'left',
-      cellPadding: { top: 4, bottom: 4, left: 3.5, right: 3.5 }
+      cellPadding: { top: 3.5, bottom: 3.5, left: 1.5, right: 1.5 }
     },
     columnStyles: {
-      0: { cellWidth: 10, halign: 'center' },
+      0: { cellWidth: 8, halign: 'center' },
       1: { cellWidth: 86, halign: 'left' },
-      2: { cellWidth: 18, halign: 'center' },
-      3: { cellWidth: 12, halign: 'center' },
-      4: { cellWidth: 28, halign: 'right' },
-      5: { cellWidth: 28, halign: 'right', fontStyle: 'bold' },
+      2: { cellWidth: 20, halign: 'center' },
+      3: { cellWidth: 14, halign: 'center' },
+      4: { cellWidth: 27, halign: 'right' },
+      5: { cellWidth: 27, halign: 'right', fontStyle: 'bold' },
     },
     alternateRowStyles: {
       fillColor: [...LIGHT_BG],
@@ -326,10 +326,18 @@ export const generateInvoicePDF = (data: InvoiceData): void => {
   doc.setLineWidth(0.3);
   doc.roundedRect(M, y, leftW, summaryBoxH, 2, 2, 'FD');
 
+  // Vector Green Checkmark Badge (prevents unicode character degradation)
+  doc.setFillColor(...GREEN_TEXT);
+  doc.circle(M + 6, y + 5.2, 2.2, 'F');
+  doc.setDrawColor(...WHITE);
+  doc.setLineWidth(0.4);
+  doc.line(M + 5, y + 5.2, M + 5.8, y + 6);
+  doc.line(M + 5.8, y + 6, M + 7.2, y + 4.4);
+
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...GREEN_TEXT);
-  doc.text('\u2713 Payment Verified & Settled', M + 4, y + 5.5);
+  doc.text('Payment Verified & Settled', M + 9.5, y + 5.8);
 
   const cleanTxnId = data.payment_id 
     ? data.payment_id 
@@ -416,10 +424,14 @@ export const generateInvoicePDF = (data: InvoiceData): void => {
   doc.setLineWidth(0.3);
   doc.roundedRect(M, y, W - 2 * M, slaBoxH, 2, 2, 'FD');
 
+  // Sleek Gold Vector Indicator Bullet (prevents %Æ unicode corruption)
+  doc.setFillColor(...GOLD);
+  doc.circle(M + 5.5, y + 4.8, 1.4, 'F');
+
   doc.setFontSize(7.2);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...BLUE_TEXT);
-  doc.text('\u25C6 ENTERPRISE INFRASTRUCTURE & SLA COMPLIANCE GUARANTEE', M + 4, y + 5);
+  doc.setTextColor(...PRIMARY_NAVY);
+  doc.text('ENTERPRISE INFRASTRUCTURE & SLA COMPLIANCE GUARANTEE', M + 8.5, y + 5.3);
 
   const slaColW = (W - 2 * M - 12) / 3;
 

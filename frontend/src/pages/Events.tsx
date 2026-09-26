@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Radio, Plus, Send, Download, Trash2, GitMerge, 
   Settings2, Eye, X, MessageSquare
@@ -248,44 +249,47 @@ export const EventsPage: React.FC<EventsProps> = ({ token: _token }) => {
       )}
 
       {/* Create Queue Modal */}
-      <AnimatePresence>
-        {showCreateQueue && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm" onClick={() => setShowCreateQueue(false)} />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden flex flex-col">
-              <div className="px-6 py-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-950/50">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2"><MessageSquare className="w-5 h-5 text-cyan-400" /> Create Queue</h3>
-                <button onClick={() => setShowCreateQueue(false)} className="text-zinc-500 hover:text-zinc-300"><X className="w-5 h-5" /></button>
-              </div>
-              <div className="p-6 flex flex-col gap-4">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-medium text-zinc-300">Queue Name</label>
-                  <input type="text" className="px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-cyan-500" placeholder="e.g. image-processing" />
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {showCreateQueue && (
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={() => setShowCreateQueue(false)} />
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden flex flex-col">
+                <div className="px-6 py-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-950/50">
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2"><MessageSquare className="w-5 h-5 text-cyan-400" /> Create Queue</h3>
+                  <button onClick={() => setShowCreateQueue(false)} className="text-zinc-500 hover:text-zinc-300"><X className="w-5 h-5" /></button>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-medium text-zinc-300">Type</label>
-                  <select className="px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-cyan-500">
-                    <option>Standard (Best-effort ordering, high throughput)</option>
-                    <option>FIFO (Strict ordering, exact-once processing)</option>
-                  </select>
+                <div className="p-6 flex flex-col gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-medium text-zinc-300">Queue Name</label>
+                    <input type="text" className="px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-cyan-500" placeholder="e.g. image-processing" />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-medium text-zinc-300">Type</label>
+                    <select className="px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-cyan-500">
+                      <option>Standard (Best-effort ordering, high throughput)</option>
+                      <option>FIFO (Strict ordering, exact-once processing)</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-medium text-zinc-300">Visibility Timeout (Seconds)</label>
+                    <input type="number" min="0" max="43200" defaultValue="30" className="px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-cyan-500" />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-medium text-zinc-300">Message Retention (Days)</label>
+                    <input type="number" min="1" max="14" defaultValue="4" className="px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-cyan-500" />
+                  </div>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-medium text-zinc-300">Visibility Timeout (Seconds)</label>
-                  <input type="number" min="0" max="43200" defaultValue="30" className="px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-cyan-500" />
+                <div className="px-6 py-4 border-t border-zinc-800 flex justify-end gap-3 bg-zinc-950/50">
+                  <button onClick={() => setShowCreateQueue(false)} className="px-4 py-2 bg-transparent hover:bg-zinc-800 text-zinc-300 rounded-lg text-sm font-medium transition">Cancel</button>
+                  <button onClick={() => setShowCreateQueue(false)} className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm font-semibold transition">Create Queue</button>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-medium text-zinc-300">Message Retention (Days)</label>
-                  <input type="number" min="1" max="14" defaultValue="4" className="px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-cyan-500" />
-                </div>
-              </div>
-              <div className="px-6 py-4 border-t border-zinc-800 flex justify-end gap-3 bg-zinc-950/50">
-                <button onClick={() => setShowCreateQueue(false)} className="px-4 py-2 bg-transparent hover:bg-zinc-800 text-zinc-300 rounded-lg text-sm font-medium transition">Cancel</button>
-                <button onClick={() => setShowCreateQueue(false)} className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm font-semibold transition">Create Queue</button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 };

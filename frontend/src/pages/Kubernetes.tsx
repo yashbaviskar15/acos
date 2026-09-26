@@ -212,7 +212,7 @@ Metrics-server is running and healthy.`);
   );
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <div className="space-y-6 w-full pb-10 font-sans">
       {/* Architecture Guidance: Escape Hatch Notice */}
       <div className="bg-gradient-to-r from-purple-500/10 via-slate-50 dark:via-slate-900 to-blue-500/10 border border-purple-500/20 rounded-2xl p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="space-y-1">

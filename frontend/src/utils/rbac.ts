@@ -20,6 +20,8 @@ export function normalizeRole(role?: string | null): UserRole {
  */
 export const TAB_PERMISSIONS: Record<string, UserRole[]> = {
   dashboard: ['SuperAdmin', 'Admin', 'Operator', 'Developer', 'Viewer'],
+  catalog: ['SuperAdmin', 'Admin', 'Operator', 'Developer', 'Viewer'],
+  services: ['SuperAdmin', 'Admin', 'Operator', 'Developer', 'Viewer'],
   infrastructure: ['SuperAdmin', 'Admin', 'Operator', 'Developer', 'Viewer'],
   applications: ['SuperAdmin', 'Admin', 'Operator', 'Developer', 'Viewer'],
   deployments: ['SuperAdmin', 'Admin', 'Operator', 'Developer', 'Viewer'],
@@ -43,6 +45,8 @@ export const TAB_PERMISSIONS: Record<string, UserRole[]> = {
   guide: ['SuperAdmin', 'Admin', 'Operator', 'Developer', 'Viewer'],
   community: ['SuperAdmin', 'Admin', 'Operator', 'Developer', 'Viewer'],
   cli: ['SuperAdmin', 'Admin', 'Operator', 'Developer', 'Viewer'],
+  'api-keys': ['SuperAdmin', 'Admin', 'Operator', 'Developer', 'Viewer'],
+  'cloud-api': ['SuperAdmin', 'Admin', 'Operator', 'Developer', 'Viewer'],
 };
 
 /**

@@ -9,7 +9,7 @@ import {
   ChevronDown, 
   ChevronRight, 
   LogOut, 
-  Terminal,
+  KeyRound,
   Sun,
   Moon,
   CheckCircle2
@@ -59,6 +59,7 @@ export const Header: React.FC<HeaderProps> = ({
   const [showNotifications, setShowNotifications] = useState(false);
   const [showEnvMenu, setShowEnvMenu] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [activeEnv, setActiveEnv] = useState<'prod' | 'staging' | 'dev'>('prod');
   const [activeRegion, setActiveRegion] = useState('ap-south-1');
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -66,24 +67,24 @@ export const Header: React.FC<HeaderProps> = ({
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
-  // Fetch actual dynamic alerts from monitoring engine
+  // Fetch real user and system notifications from operations center
   useEffect(() => {
     let isMounted = true;
-    const fetchActualAlerts = async () => {
+    const fetchActualNotifications = async () => {
       try {
         const authToken = token || localStorage.getItem('aravanta_token');
-        const data = await apiFetch<any[]>('/api/v1/monitoring/alerts', { token: authToken });
+        const data = await apiFetch<any[]>('/api/v1/operations/notifications', { token: authToken });
         if (Array.isArray(data) && isMounted) {
-          const formatted: NotificationItem[] = data.map((a: any, idx: number) => {
-            const isFiring = (a.status || '').toLowerCase() === 'firing';
+          const formatted: NotificationItem[] = data.map((n: any, idx: number) => {
             let itemType: 'info' | 'success' | 'warning' | 'error' = 'info';
-            if (a.severity === 'critical') itemType = 'error';
-            else if (a.severity === 'warning') itemType = 'warning';
-            else if (a.status === 'resolved') itemType = 'success';
+            const t = (n.type || '').toLowerCase();
+            if (t === 'error' || t === 'critical') itemType = 'error';
+            else if (t === 'warning') itemType = 'warning';
+            else if (t === 'success') itemType = 'success';
 
-            let timeStr = 'Recently';
-            if (a.fired_at) {
-              const diffMs = Date.now() - new Date(a.fired_at).getTime();
+            let timeStr = 'Just now';
+            if (n.created_at) {
+              const diffMs = Date.now() - new Date(n.created_at).getTime();
               const diffMin = Math.max(1, Math.floor(diffMs / 60000));
               if (diffMin < 60) timeStr = `${diffMin}m ago`;
               else if (diffMin < 1440) timeStr = `${Math.floor(diffMin / 60)}h ago`;
@@ -91,43 +92,27 @@ export const Header: React.FC<HeaderProps> = ({
             }
 
             return {
-              id: a.id || `alert-${idx}`,
-              title: a.title || 'System Alert',
-              desc: a.message || `Service ${a.service || 'System'}: status is ${a.status || 'active'}`,
+              id: n.id || `notif-${idx}`,
+              title: n.title || 'System Notification',
+              desc: n.desc || n.message || '',
               time: timeStr,
               type: itemType,
-              read: !isFiring // Firing alerts start unread
+              read: Boolean(n.read)
             };
           });
           setNotifications(formatted);
+        } else if (isMounted) {
+          setNotifications([]);
         }
       } catch {
-        // Fallback to initial operational notices if API unavailable
         if (isMounted) {
-          setNotifications([
-            {
-              id: 'init-1',
-              title: 'Fleet Auto-Scaling Active',
-              desc: 'Container fleet scaled 2 -> 4 pods on traffic peak.',
-              time: '4m ago',
-              type: 'info',
-              read: false
-            },
-            {
-              id: 'init-2',
-              title: 'Production Pipeline v2.4.1 Released',
-              desc: 'Continuous deployment to K8s cluster finished with 0 errors.',
-              time: '19m ago',
-              type: 'success',
-              read: true
-            }
-          ]);
+          setNotifications([]);
         }
       }
     };
 
-    fetchActualAlerts();
-    const interval = setInterval(fetchActualAlerts, 25000);
+    fetchActualNotifications();
+    const interval = setInterval(fetchActualNotifications, 15000);
     return () => {
       isMounted = false;
       clearInterval(interval);
@@ -161,8 +146,24 @@ export const Header: React.FC<HeaderProps> = ({
     setTimeout(() => setIsRefreshing(false), 800);
   };
 
-  const markAllRead = () => {
+  const markAllRead = async () => {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    try {
+      const authToken = token || localStorage.getItem('aravanta_token');
+      await apiFetch('/api/v1/operations/notifications/read-all', { method: 'POST', token: authToken });
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleNotificationClick = async (notifId: string | number) => {
+    setNotifications(prev => prev.map(item => item.id === notifId ? { ...item, read: true } : item));
+    try {
+      const authToken = token || localStorage.getItem('aravanta_token');
+      await apiFetch(`/api/v1/operations/notifications/${notifId}/read`, { method: 'POST', token: authToken });
+    } catch {
+      // ignore
+    }
   };
 
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -175,7 +176,7 @@ export const Header: React.FC<HeaderProps> = ({
   const cleanTitle = title.includes('—') ? title.split('—')[0].trim() : title;
 
   return (
-    <header className="h-14 bg-white dark:bg-[#0d131f] border-b border-slate-200 dark:border-[#1e293b] px-3 sm:px-4 lg:px-6 flex items-center justify-between sticky top-0 z-20 shadow-xs dark:shadow-md min-w-0 w-full select-none transition-colors duration-200">
+    <header className="h-14 bg-white dark:bg-[#0d131f] border-b border-slate-300 dark:border-[#1e293b] px-3 sm:px-4 lg:px-6 flex items-center justify-between sticky top-0 z-20 shadow-xs dark:shadow-md min-w-0 w-full select-none transition-colors duration-200">
       {/* Mobile Search Overlay */}
       {isMobileSearchOpen && (
         <div className="absolute inset-0 bg-white dark:bg-[#0d131f] z-30 px-3 flex items-center gap-2 border-b border-slate-200 dark:border-[#1e293b]">
@@ -243,7 +244,7 @@ export const Header: React.FC<HeaderProps> = ({
           value={searchTerm}
           onChange={(e) => onSearchChange?.(e.target.value)}
           placeholder="Search resources, services, docs... (Ctrl+K)"
-          className="w-full pl-9 pr-14 py-1.5 bg-slate-100 dark:bg-[#141b2a] hover:bg-slate-200/70 dark:hover:bg-[#182236] focus:bg-white dark:focus:bg-[#1a253b] border border-slate-200 dark:border-[#23304a] focus:border-[#C6923B] dark:focus:border-[#D4A347] rounded-lg text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#C6923B]/30 transition-all font-sans"
+          className="w-full pl-9 pr-14 py-1.5 bg-slate-100 dark:bg-[#141b2a] hover:bg-slate-200/70 dark:hover:bg-[#182236] focus:bg-white dark:focus:bg-[#1a253b] border border-slate-300 dark:border-[#23304a] focus:border-[#C6923B] dark:focus:border-[#D4A347] rounded-lg text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#C6923B]/30 transition-all font-sans"
         />
         {onOpenCommandPalette && (
           <button
@@ -277,19 +278,19 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="relative" ref={envMenuRef}>
           <button
             onClick={() => setShowEnvMenu(!showEnvMenu)}
-            className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-slate-100 dark:bg-[#141b2a] hover:bg-slate-200/80 dark:hover:bg-[#192236] border border-slate-200 dark:border-[#23304a] text-xs font-mono font-semibold text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200/80 dark:bg-[#141b2a] dark:hover:bg-[#192236] border border-slate-300 dark:border-[#23304a] text-xs font-mono font-semibold text-slate-800 dark:text-slate-200 transition-colors cursor-pointer"
             title="Switch Active Environment"
           >
             <span className="w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20 shrink-0" />
             <span className="capitalize">{activeEnv}</span>
             <span className="hidden sm:inline text-slate-400 dark:text-slate-500">•</span>
-            <span className="hidden sm:inline text-slate-500 dark:text-slate-400 text-[11px]">{activeRegion}</span>
+            <span className="hidden sm:inline text-slate-600 dark:text-slate-400 text-[11px]">{activeRegion}</span>
             <ChevronDown className="w-3 h-3 text-slate-400" />
           </button>
 
           {showEnvMenu && (
-            <div className="absolute right-0 mt-1.5 w-56 sm:w-60 max-w-[calc(100vw-1rem)] bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#23304a] rounded-xl shadow-2xl py-1.5 z-50 animate-fadeIn">
-              <div className="px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800">
+            <div className="absolute right-0 mt-1.5 w-56 sm:w-60 max-w-[calc(100vw-1rem)] bg-white dark:bg-[#111827] border border-slate-300 dark:border-[#23304a] rounded-xl shadow-2xl py-1.5 z-50 animate-fadeIn">
+              <div className="px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
                 Target Cloud Environment
               </div>
               {[
@@ -323,7 +324,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Global Live Operational Health Badge (Desktop) */}
-        <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-500/30 text-[11px] font-mono text-emerald-700 dark:text-emerald-400">
+        <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-500/30 text-[11px] font-mono font-semibold text-emerald-800 dark:text-emerald-400">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
           <span>Operational</span>
         </div>
@@ -331,7 +332,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* White / Dark Theme Toggle Button */}
         <button
           onClick={toggleTheme}
-          className="p-1.5 text-slate-600 dark:text-slate-300 hover:text-[#C6923B] dark:hover:text-[#D4A347] bg-slate-100 dark:bg-[#141b2a] hover:bg-slate-200 dark:hover:bg-[#192236] border border-slate-200 dark:border-[#23304a] rounded-lg transition-colors cursor-pointer"
+          className="p-1.5 text-slate-700 dark:text-slate-300 hover:text-[#C6923B] dark:hover:text-[#D4A347] bg-slate-100 hover:bg-slate-200 dark:bg-[#141b2a] dark:hover:bg-[#192236] border border-slate-300 dark:border-[#23304a] rounded-lg transition-colors cursor-pointer"
           title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
         >
           {theme === 'dark' ? (
@@ -344,7 +345,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Telemetry Refresh Button */}
         <button
           onClick={handleRefreshClick}
-          className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-[#141b2a] hover:bg-slate-200 dark:hover:bg-[#192236] border border-slate-200 dark:border-[#23304a] rounded-lg transition-colors cursor-pointer"
+          className="p-1.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-[#141b2a] dark:hover:bg-[#192236] border border-slate-300 dark:border-[#23304a] rounded-lg transition-colors cursor-pointer"
           title="Refresh Telemetry"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-[#C6923B] dark:text-[#D4A347]' : ''}`} />
@@ -354,7 +355,7 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="relative" ref={notifMenuRef}>
           <button
             onClick={() => setShowNotifications(!showNotifications)}
-            className="p-1.5 text-slate-600 dark:text-slate-300 hover:text-[#C6923B] dark:hover:text-[#D4A347] bg-slate-100 dark:bg-[#141b2a] hover:bg-slate-200 dark:hover:bg-[#192236] border border-slate-200 dark:border-[#23304a] rounded-lg transition-colors relative cursor-pointer"
+            className="p-1.5 text-slate-700 dark:text-slate-300 hover:text-[#C6923B] dark:hover:text-[#D4A347] bg-slate-100 hover:bg-slate-200 dark:bg-[#141b2a] dark:hover:bg-[#192236] border border-slate-300 dark:border-[#23304a] rounded-lg transition-colors relative cursor-pointer"
             title="System Notifications"
           >
             <Bell className="w-3.5 h-3.5" />
@@ -405,9 +406,7 @@ export const Header: React.FC<HeaderProps> = ({
                     notifications.map((n) => (
                       <div 
                         key={n.id} 
-                        onClick={() => {
-                          setNotifications(prev => prev.map(item => item.id === n.id ? { ...item, read: true } : item));
-                        }}
+                        onClick={() => handleNotificationClick(n.id)}
                         className={`p-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer ${!n.read ? 'bg-[#C6923B]/5 dark:bg-[#C6923B]/10' : ''}`}
                         title="Click to mark as read"
                       >
@@ -490,11 +489,15 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   onClick={() => {
                     setShowAccountMenu(false);
-                    window.dispatchEvent(new CustomEvent('acos:go-to-console'));
+                    if (onNavigateTab) {
+                      onNavigateTab('api-keys');
+                    } else {
+                      window.dispatchEvent(new CustomEvent('acos:navigate-tab', { detail: 'api-keys' }));
+                    }
                   }}
                   className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white cursor-pointer"
                 >
-                  <Terminal className="w-3.5 h-3.5 text-slate-400" />
+                  <KeyRound className="w-3.5 h-3.5 text-[#C6923B]" />
                   <span>Cloud API Keys</span>
                 </button>
               </div>
@@ -502,9 +505,8 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="border-t border-slate-100 dark:border-slate-800 pt-1">
                 <button
                   onClick={() => {
-                    localStorage.removeItem('aravanta_token');
-                    localStorage.removeItem('aravanta_user');
-                    window.location.reload();
+                    setShowAccountMenu(false);
+                    setShowLogoutConfirm(true);
                   }}
                   className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 cursor-pointer"
                 >
@@ -516,6 +518,54 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
       </div>
+
+      {/* Sign Out Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn font-sans">
+          <div className="w-full max-w-md bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center border border-rose-200 dark:border-rose-900/60 shrink-0">
+                <LogOut className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Sign Out of Console?</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">End your active cloud session</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              Are you sure you want to sign out from <strong>{user?.email || 'your account'}</strong>? Any unsaved terminal workflows or uncommitted configurations will be closed.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowLogoutConfirm(false)}
+                className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    apiFetch('/api/v1/auth/logout', { method: 'POST', token }).catch(() => {});
+                    localStorage.removeItem('aravanta_token');
+                    localStorage.removeItem('aravanta_user');
+                    localStorage.removeItem('aravanta_active_tab');
+                    localStorage.setItem('aravanta_is_console_mode', 'false');
+                  } catch {}
+                  window.location.reload();
+                }}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-sm transition cursor-pointer flex items-center gap-1.5"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Confirm Sign Out</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

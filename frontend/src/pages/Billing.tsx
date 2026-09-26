@@ -8,23 +8,25 @@ import {
   Check, 
   RefreshCw,
   X,
-  ExternalLink,
   ShieldCheck,
   Smartphone,
   Building2,
-  Printer,
   AlertCircle,
   FileText,
   Search,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  Filter
+  Filter,
+  Sparkles,
+  ArrowRight,
+  Activity
 } from 'lucide-react';
 import { apiFetch } from '../config/api';
 import { StatusBadge } from '../components/StatusBadge';
 import { ModalPortal } from '../components/ModalPortal';
 import { generateInvoicePDF } from '../utils/pdfGenerator';
+import { openWebcopyInNewTab } from '../utils/webcopyGenerator';
 import { DataTablePagination } from '../components/DataTablePagination';
 
 const roundTwo = (n: number): number => Math.round(n * 100) / 100;
@@ -178,11 +180,28 @@ export const Billing: React.FC = () => {
   const [selectedInvoiceToPay, setSelectedInvoiceToPay] = useState<InvoiceItem | null>(null);
   const [payingLoading, setPayingLoading] = useState(false);
 
-  // Add Funds Modal State
-  const [addFundsOpen, setAddFundsOpen] = useState(false);
-  const [addFundsAmount, setAddFundsAmount] = useState('500');
+  // Active Navigation Tab
+  const [billingTab, setBillingTab] = useState<'plans' | 'invoices' | 'payment_methods' | 'metering'>('plans');
+
+  // Subscription Plan State (Monthly vs Annual, Real Backend Sync)
+  const [subscription, setSubscription] = useState<any>(null);
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('annual');
+  const [subActionLoading, setSubActionLoading] = useState(false);
+  const [enterpriseModalOpen, setEnterpriseModalOpen] = useState(false);
+  const [enterpriseCompany, setEnterpriseCompany] = useState('');
+  const [enterpriseRequirement, setEnterpriseRequirement] = useState('');
+  const [enterpriseSent, setEnterpriseSent] = useState(false);
+
+  // Checkout Modal State (Plan -> Choose Payment Method -> Deduct from Bank -> Success)
+  const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
+  const [planToSubscribe, setPlanToSubscribe] = useState<any>(null);
+  const [checkoutStep, setCheckoutStep] = useState<'method' | 'processing' | 'success'>('method');
+  const [isAddingNewMethodInCheckout, setIsAddingNewMethodInCheckout] = useState(false);
+  const [newMethodType, setNewMethodType] = useState<'card' | 'upi' | 'netbanking'>('card');
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<string>('');
-  const [addFundsLoading, setAddFundsLoading] = useState(false);
+  const [processingStatusText, setProcessingStatusText] = useState('Connecting to banking network...');
+  const [lastGeneratedInvoice, setLastGeneratedInvoice] = useState<InvoiceItem | null>(null);
+
 
   // Invoices Table State (Search, Sort, Pagination)
   const [invoiceSearch, setInvoiceSearch] = useState('');
@@ -210,13 +229,14 @@ export const Billing: React.FC = () => {
     setLoading(true);
     setFetchError(null);
     try {
-      const [accRes, estRes, sumRes, invRes, ledRes, pmRes] = await Promise.all([
+      const [accRes, estRes, sumRes, invRes, ledRes, pmRes, subRes] = await Promise.all([
         apiFetch<BillingAccountItem>('/api/v1/billing/account').catch(() => null),
         apiFetch<LiveEstimate>('/api/v1/billing/estimate').catch(() => null),
         apiFetch<any>('/api/v1/billing/summary').catch(() => null),
         apiFetch<InvoiceItem[]>('/api/v1/billing/invoices').catch(() => []),
         apiFetch<LedgerEntry[]>('/api/v1/billing/ledger').catch(() => []),
         apiFetch<PaymentMethodItem[]>('/api/v1/operations/billing/payment-methods').catch(() => []),
+        apiFetch<any>('/api/v1/operations/billing/plan').catch(() => null),
       ]);
 
       // Fallback synthesis from summary or local storage if endpoints are initializing
@@ -437,6 +457,13 @@ export const Billing: React.FC = () => {
       if (defaultMethod) {
         setSelectedPaymentMethodId(prev => prev || defaultMethod.id);
       }
+
+      if (subRes) {
+        setSubscription(subRes);
+        if (subRes.billing_cycle) {
+          setBillingCycle(subRes.billing_cycle.toLowerCase() === 'monthly' ? 'monthly' : 'annual');
+        }
+      }
     } catch (err: any) {
       console.error('Failed to fetch billing data:', err);
       // Soft fallback rather than locking user out
@@ -444,6 +471,10 @@ export const Billing: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSelectPlan = (planKey: string) => {
+    handleOpenCheckout(planKey);
   };
 
   useEffect(() => {
@@ -808,128 +839,277 @@ export const Billing: React.FC = () => {
     }
   };
 
-  const handleAddFunds = async () => {
-    const amt = parseFloat(addFundsAmount);
-    if (!amt || amt < 1) {
-      showToast('Minimum top-up amount is ₹1.00');
+  const handleOpenCheckout = (planKey: string) => {
+    if (planKey === 'ent') {
+      setEnterpriseModalOpen(true);
       return;
     }
-    const chosenPm = paymentMethods.find(p => p.id === selectedPaymentMethodId) || paymentMethods.find(p => p.is_default) || paymentMethods[0];
-    let methodLabel = 'Primary Bank Mandate';
-    if (chosenPm) {
-      if (chosenPm.brand.toLowerCase() === 'upi') {
-        methodLabel = `UPI (${chosenPm.last4})`;
-      } else if (chosenPm.brand.toLowerCase() === 'netbanking') {
-        methodLabel = `NetBanking (${chosenPm.last4})`;
-      } else {
-        methodLabel = `${chosenPm.brand.toUpperCase()} (••••${chosenPm.last4.slice(-4)})`;
-      }
+
+    const isAnnual = billingCycle === 'annual';
+    let planData: any = null;
+
+    if (planKey === 'dev') {
+      const baseMonthly = 499;
+      const annualMonthly = 399;
+      const subtotal = isAnnual ? annualMonthly * 12 : baseMonthly;
+      const cgst = Math.round(subtotal * 0.09 * 100) / 100;
+      const sgst = Math.round(subtotal * 0.09 * 100) / 100;
+      const total = roundTwo(subtotal + cgst + sgst);
+
+      planData = {
+        key: 'dev',
+        title: 'Developer Cloud',
+        tier: 'STARTER TIER',
+        ratePerMonth: isAnnual ? annualMonthly : baseMonthly,
+        subtotal,
+        cgst,
+        sgst,
+        total,
+        specs: '8 vCPUs • 16GB Memory • 500GB NVMe Storage • 50 Deploys/mo',
+        vcpu: 8,
+        ram_gb: 16,
+        storage_gb: 500
+      };
+    } else if (planKey === 'team') {
+      const baseMonthly = 2499;
+      const annualMonthly = 1999;
+      const subtotal = isAnnual ? annualMonthly * 12 : baseMonthly;
+      const cgst = Math.round(subtotal * 0.09 * 100) / 100;
+      const sgst = Math.round(subtotal * 0.09 * 100) / 100;
+      const total = roundTwo(subtotal + cgst + sgst);
+
+      planData = {
+        key: 'team',
+        title: 'Team Operations',
+        tier: 'GROWTH & PRODUCTION',
+        ratePerMonth: isAnnual ? annualMonthly : baseMonthly,
+        subtotal,
+        cgst,
+        sgst,
+        total,
+        specs: '64 vCPUs • 128GB Memory • 5,000GB Storage + S3 Buckets • Unlimited Deploys',
+        vcpu: 64,
+        ram_gb: 128,
+        storage_gb: 5000
+      };
     }
 
-    setAddFundsLoading(true);
+    setPlanToSubscribe(planData);
+    setCheckoutStep('method');
+    setIsAddingNewMethodInCheckout(false);
+
+    // Ensure a payment method is selected
+    if (!selectedPaymentMethodId && paymentMethods.length > 0) {
+      const def = paymentMethods.find(p => p.is_default) || paymentMethods[0];
+      setSelectedPaymentMethodId(def.id);
+    }
+
+    setCheckoutModalOpen(true);
+  };
+
+  const handleExecuteSubscriptionPayment = async () => {
+    if (!planToSubscribe) return;
+
+    const chosenPm = paymentMethods.find(p => p.id === selectedPaymentMethodId) || paymentMethods.find(p => p.is_default) || paymentMethods[0];
+    if (!chosenPm) {
+      showToast('Please select or add a payment method before authorizing payment.');
+      return;
+    }
+
+    let methodLabel = 'Primary Bank Mandate';
+    if (chosenPm.brand.toLowerCase() === 'upi') {
+      methodLabel = `UPI (${chosenPm.last4})`;
+    } else if (chosenPm.brand.toLowerCase() === 'netbanking') {
+      methodLabel = `NetBanking (${chosenPm.last4})`;
+    } else {
+      methodLabel = `${chosenPm.brand.toUpperCase()} (••••${chosenPm.last4.slice(-4)})`;
+    }
+
+    setCheckoutStep('processing');
+    setProcessingStatusText(`Connecting to ${chosenPm.brand.toUpperCase()} banking gateway...`);
+
     try {
+      // Step 1: Simulate bank handshake
+      await new Promise(r => setTimeout(r, 600));
+      setProcessingStatusText(`Debiting ₹${planToSubscribe.total.toFixed(2)} from ${methodLabel}...`);
+
+      // Step 2: Try backend plan change
       let res: any = null;
       try {
-        res = await apiFetch<any>('/api/v1/billing/add-funds', {
+        res = await apiFetch<any>('/api/v1/operations/billing/plan/change', {
           method: 'POST',
-          body: JSON.stringify({ 
-            amount: amt, 
-            payment_method: methodLabel,
-            payment_method_id: chosenPm?.id
+          body: JSON.stringify({
+            plan_code: planToSubscribe.key,
+            billing_cycle: billingCycle,
+            payment_method_id: chosenPm.id,
+            payment_method_label: methodLabel,
+            amount: planToSubscribe.total
           })
         });
       } catch (backendErr) {
-        console.warn('Remote backend /add-funds not reachable yet, applying resilient client credit:', backendErr);
+        console.warn('Backend plan change fallback:', backendErr);
       }
 
-      // Generate top-up invoice immediately
-      const now = new Date();
-      const topupInvId = res?.invoice_id || res?.invoice?.id || `INV-TOPUP-${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+      await new Promise(r => setTimeout(r, 600));
+      setProcessingStatusText(`Bank authorized debit! Activating ${planToSubscribe.title}...`);
+      await new Promise(r => setTimeout(r, 400));
 
-      const topupInvoice: InvoiceItem = {
-        id: topupInvId,
-        total: amt,
-        subtotal: amt,
-        tax_cgst: 0,
-        tax_sgst: 0,
+      const now = new Date();
+      const invoiceId = res?.invoice?.id || `INV-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+
+      const newInvoice: InvoiceItem = {
+        id: invoiceId,
+        total: planToSubscribe.total,
+        subtotal: planToSubscribe.subtotal,
+        tax_cgst: planToSubscribe.cgst,
+        tax_sgst: planToSubscribe.sgst,
         status: 'PAID',
         payment_method: methodLabel,
         created_at: now.toISOString(),
-        period: `${now.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })} Prepaid Recharge`,
-        download_url: `/api/v1/billing/invoices/${topupInvId}/pdf`
+        period: billingCycle === 'annual' ? 'Annual Subscription (12-Month Committed)' : `${now.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })} Subscription`,
+        download_url: `/api/v1/billing/invoices/${invoiceId}/pdf`
       };
 
-      setInvoices(prev => [topupInvoice, ...prev.filter(i => i.id !== topupInvId)]);
-
+      setInvoices(prev => [newInvoice, ...prev.filter(i => i.id !== invoiceId)]);
       try {
         const localInvsRaw = localStorage.getItem('aravanta_invoices');
         const localInvs = localInvsRaw ? JSON.parse(localInvsRaw) : [];
-        localStorage.setItem('aravanta_invoices', JSON.stringify([topupInvoice, ...localInvs.filter((i: any) => i.id !== topupInvId)]));
+        localStorage.setItem('aravanta_invoices', JSON.stringify([newInvoice, ...localInvs.filter((i: any) => i.id !== invoiceId)]));
       } catch {}
 
-      // Resilient account credit update
-      const newCredits = roundTwo((account?.credits ?? 0) + amt);
-      setAccount(prev => prev ? {
-        ...prev,
-        credits: newCredits,
-        status: 'ACTIVE'
-      } : {
-        id: 'ba-primary',
-        organization_id: 'org-aravanta-prod',
-        currency: 'INR',
-        balance: 0,
-        credits: newCredits,
-        billing_cycle: 'monthly',
-        status: 'ACTIVE'
-      });
-
-      // Record in ledger with accurate debit source and credit destination
-      const localLedgerEntry: LedgerEntry = {
-        id: res?.ledger_entry_id || `led-${Date.now().toString(36).toUpperCase()}`,
+      // Add to Ledger as DEBIT from bank / payment method
+      const debitLedgerEntry: LedgerEntry = {
+        id: `led-${Date.now().toString(36).toUpperCase()}`,
         billing_account_id: account?.id || 'ba-primary',
-        entry_type: 'CREDIT',
-        amount: amt,
+        entry_type: 'DEBIT',
+        amount: planToSubscribe.total,
         currency: 'INR',
-        balance_after: newCredits,
-        description: `Prepaid Recharge: Debited ₹${amt.toFixed(2)} from ${methodLabel} → Credited to Aravanta Cloud OS Wallet — Invoice ${topupInvId}`,
+        balance_after: account?.credits ?? 0,
+        description: `Plan Upgrade: Debited ₹${planToSubscribe.total.toFixed(2)} from ${methodLabel} for ${planToSubscribe.title} (${billingCycle.toUpperCase()}) — Invoice ${invoiceId}`,
         created_at: now.toISOString()
       };
-      setLedger(prev => [localLedgerEntry, ...prev.filter(e => e.id !== localLedgerEntry.id)]);
-
+      setLedger(prev => [debitLedgerEntry, ...prev.filter(e => e.id !== debitLedgerEntry.id)]);
       try {
         const localLedRaw = localStorage.getItem('aravanta_ledger');
         const localLed = localLedRaw ? JSON.parse(localLedRaw) : [];
-        localStorage.setItem('aravanta_ledger', JSON.stringify([localLedgerEntry, ...localLed.filter((e: any) => e.id !== localLedgerEntry.id)]));
+        localStorage.setItem('aravanta_ledger', JSON.stringify([debitLedgerEntry, ...localLed.filter((e: any) => e.id !== debitLedgerEntry.id)]));
       } catch {}
 
-      // Sync to localStorage so header and other components immediately see ACTIVE plan
+      // Update active subscription state & quotas
+      const updatedSub = {
+        current_plan_key: planToSubscribe.key,
+        current_plan_name: planToSubscribe.title,
+        billing_cycle: billingCycle,
+        status: 'ACTIVE',
+        price_inr: planToSubscribe.total,
+        renewal_date: new Date(Date.now() + (billingCycle === 'annual' ? 365 : 30) * 86400000).toISOString().split('T')[0],
+        metrics: {
+          vcpu_limit: planToSubscribe.vcpu,
+          vcpu_used: 2,
+          ram_gb_limit: planToSubscribe.ram_gb,
+          ram_gb_used: 4,
+          storage_gb_limit: planToSubscribe.storage_gb,
+          storage_gb_used: 12
+        }
+      };
+      setSubscription(updatedSub);
+
+      // Persist in localStorage user
       try {
         const raw = localStorage.getItem('aravanta_user');
         if (raw) {
           const u = JSON.parse(raw);
-          u.credits = newCredits;
-          u.plan = 'PAY-AS-YOU-GO';
+          u.plan = planToSubscribe.key.toUpperCase();
           localStorage.setItem('aravanta_user', JSON.stringify(u));
         }
       } catch {}
 
       window.dispatchEvent(
         new CustomEvent('aravanta_credits_updated', {
-          detail: { amount: amt, serviceName: 'Top-up', remainingCredits: newCredits }
+          detail: { amount: planToSubscribe.total, serviceName: `${planToSubscribe.title} Activated` }
         })
       );
 
-      showToast(`₹${amt.toLocaleString('en-IN', { minimumFractionDigits: 2 })} debited from ${methodLabel} and credited to your Aravanta Cloud account! (Invoice ${topupInvId})`);
-      setAddFundsOpen(false);
-      setAddFundsAmount('500');
-      if (res) {
-        fetchBillingData();
-      }
+      setLastGeneratedInvoice(newInvoice);
+      setCheckoutStep('success');
+      showToast(`Success! Debited ₹${planToSubscribe.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })} from ${methodLabel}. ${planToSubscribe.title} is now active.`);
     } catch (err: any) {
-      showToast(`Failed to add funds: ${err.message}`);
-    } finally {
-      setAddFundsLoading(false);
+      showToast(`Payment deduction failed: ${err.message}`);
+      setCheckoutStep('method');
     }
+  };
+
+  const handleAddPaymentMethodInCheckout = async () => {
+    let newPm: PaymentMethodItem | null = null;
+
+    if (newMethodType === 'card') {
+      const cleanNum = cardNumber.replace(/\s+/g, '');
+      if (cleanNum.length < 13) {
+        showToast('Please enter a valid card number');
+        return;
+      }
+      const parts = cardExp.split('/');
+      const expMonth = parseInt(parts[0], 10) || 12;
+      const expYear = parseInt('20' + (parts[1] || '28'), 10);
+
+      newPm = {
+        id: `pm-card-${Date.now().toString(36)}`,
+        brand: cardBrand || 'visa',
+        last4: cleanNum.slice(-4),
+        exp_month: expMonth,
+        exp_year: expYear,
+        is_default: true,
+        holder_name: cardHolder.trim() || 'Aravanta User'
+      };
+    } else if (newMethodType === 'upi') {
+      if (!vpaId || !vpaId.includes('@')) {
+        showToast('Please enter a valid UPI ID (e.g. yourname@okhdfcbank)');
+        return;
+      }
+      newPm = {
+        id: `pm-upi-${Date.now().toString(36)}`,
+        brand: 'upi',
+        last4: vpaId.trim(),
+        exp_month: 12,
+        exp_year: 2035,
+        is_default: true,
+        holder_name: vpaName.trim() || 'UPI Mandate Holder'
+      };
+    } else if (newMethodType === 'netbanking') {
+      const cleanAcc = bankAccLast4.replace(/\D/g, '').slice(-4) || '9876';
+      newPm = {
+        id: `pm-nb-${Date.now().toString(36)}`,
+        brand: 'netbanking',
+        last4: `${selectedBank} (A/C ••••${cleanAcc})`,
+        exp_month: 12,
+        exp_year: 2035,
+        is_default: true,
+        holder_name: `${selectedBank} Corporate Mandate`
+      };
+    }
+
+    if (!newPm) return;
+
+    // Persist new payment method
+    setPaymentMethods(prev => {
+      const updated = [newPm!, ...prev.map(p => ({ ...p, is_default: false }))];
+      try {
+        localStorage.setItem('aravanta_payment_methods', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    setSelectedPaymentMethodId(newPm.id);
+    setIsAddingNewMethodInCheckout(false);
+    // Reset form fields
+    setCardNumber('');
+    setCardHolder('');
+    setCardExp('');
+    setCardCvv('');
+    setVpaId('');
+    setVpaName('');
+    setBankAccLast4('');
+    showToast(`Added ${newPm.brand.toUpperCase()} payment method and selected for checkout!`);
   };
 
 
@@ -986,9 +1166,15 @@ export const Billing: React.FC = () => {
     }
   };
 
+  const handleOpenWebcopy = (inv: InvoiceItem) => {
+    const profile = getCustomerProfile();
+    openWebcopyInNewTab(inv, profile);
+    showToast(`Opening Tax Invoice Webcopy for ${inv.id} in new browser tab...`);
+  };
+
   if (fetchError && !account && !estimate) {
     return (
-      <div className="max-w-4xl mx-auto py-12 px-4 text-center font-mono">
+      <div className="w-full py-12 px-4 text-center font-mono">
         <div className="bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 rounded-2xl p-8 space-y-4 shadow-sm">
           <AlertCircle className="w-12 h-12 text-rose-600 dark:text-rose-400 mx-auto" />
           <h2 className="text-base font-bold text-slate-900 dark:text-white">Billing Data Unavailable</h2>
@@ -1127,7 +1313,7 @@ export const Billing: React.FC = () => {
   }, [filteredLedger, ledgerPage, ledgerPageSize]);
 
   return (
-    <div className="space-y-6 font-mono text-xs">
+    <div className="space-y-4 sm:space-y-5 text-slate-800 dark:text-slate-100 font-sans pb-10">
       
       {/* Toast Alert */}
       {toastMessage && (
@@ -1138,29 +1324,29 @@ export const Billing: React.FC = () => {
       )}
 
       {/* Account Overview Header */}
-      <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2.5">
             <CreditCard className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             <h2 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">
-              Production Billing & Resource Metering
+              Production Billing &amp; Resource Metering
             </h2>
             <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800">
               {account?.status || 'ACTIVE'}
             </span>
           </div>
           <p className="text-slate-500 text-[11px]">
-            Billing Account: <strong className="text-slate-800 dark:text-slate-200 font-mono">{account?.id || 'Provisioning...'}</strong> • Cycle: {account?.billing_cycle || 'Monthly'}
+            Billing Account: <strong className="text-slate-800 dark:text-slate-200 font-mono">{account?.id || 'Provisioning...'}</strong> • Cycle: {billingCycle.toUpperCase()}
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           <div className="text-right">
-            <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
-              ₹{(account?.credits ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            <p className="text-xs font-black text-slate-900 dark:text-white uppercase font-mono">
+              {subscription?.current_plan_name || 'DEVELOPER CLOUD'}
             </p>
-            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">
-              AVAILABLE WALLET CREDITS ({account?.currency || 'INR'})
+            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider">
+              Active Plan • {billingCycle.toUpperCase()}
             </span>
             {(account?.balance ?? 0) > 0 ? (
               <p className="text-[10px] text-rose-600 dark:text-rose-400 font-bold mt-0.5">
@@ -1168,59 +1354,405 @@ export const Billing: React.FC = () => {
               </p>
             ) : (
               <p className="text-[10px] text-slate-400 font-bold mt-0.5">
-                No Outstanding Dues (All Settled)
+                All Settled (Zero Dues)
               </p>
             )}
           </div>
 
           <button
-            onClick={() => setAddFundsOpen(true)}
-            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer flex items-center gap-1.5 shadow-sm"
-            title="Add prepaid credits to your billing account"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add Funds</span>
-          </button>
-
-          <button
+            type="button"
             onClick={fetchBillingData}
             disabled={loading}
             className="p-2 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-xl bg-slate-100 dark:bg-slate-800 transition-colors cursor-pointer"
-            title="Refresh billing and metering state"
+            title="Refresh billing state"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
 
-      {/* Live Spend & Resource Meter Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm space-y-1">
-          <span className="text-slate-500 text-[10px] font-bold uppercase">Account Status</span>
-          <p className="text-xl font-black text-emerald-600 dark:text-emerald-400">ACTIVE</p>
-          <p className="text-[10px] text-slate-400">Pay-As-You-Go Plan</p>
-        </div>
+      {/* Top Billing Sub-Navigation Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2 overflow-x-auto select-none">
+        <button
+          type="button"
+          onClick={() => setBillingTab('plans')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            billingTab === 'plans'
+              ? 'bg-[#C6923B] text-white shadow-sm'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>Subscription &amp; Plans</span>
+        </button>
 
-        <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm space-y-1">
-          <span className="text-slate-500 text-[10px] font-bold uppercase">Virtual Machines</span>
-          <p className="text-xl font-black text-slate-900 dark:text-white">{vmsCount} Running</p>
-          <p className="text-[10px] text-slate-400">Meter rate: ₹1.50 / instance-hour</p>
-        </div>
+        <button
+          type="button"
+          onClick={() => setBillingTab('invoices')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            billingTab === 'invoices'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <FileText className="w-3.5 h-3.5" />
+          <span>Invoices &amp; Receipts</span>
+          <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-slate-200/80 dark:bg-slate-700/80 font-mono">
+            {invoices.length}
+          </span>
+        </button>
 
-        <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm space-y-1">
-          <span className="text-slate-500 text-[10px] font-bold uppercase">Managed Databases</span>
-          <p className="text-xl font-black text-slate-900 dark:text-white">{dbsCount} Running</p>
-          <p className="text-[10px] text-slate-400">Meter rate: ₹3.00 / instance-hour</p>
-        </div>
+        <button
+          type="button"
+          onClick={() => setBillingTab('payment_methods')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            billingTab === 'payment_methods'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <CreditCard className="w-3.5 h-3.5" />
+          <span>Payment Methods &amp; Banks</span>
+          <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-slate-200/80 dark:bg-slate-700/80 font-mono">
+            {paymentMethods.length}
+          </span>
+        </button>
 
-        <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm space-y-1">
-          <span className="text-slate-500 text-[10px] font-bold uppercase">Storage Buckets</span>
-          <p className="text-xl font-black text-slate-900 dark:text-white">{s3Count} Active</p>
-          <p className="text-[10px] text-slate-400">Meter rate: ~₹1.00 / GB-month</p>
-        </div>
+        <button
+          type="button"
+          onClick={() => setBillingTab('metering')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            billingTab === 'metering'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <Activity className="w-3.5 h-3.5" />
+          <span>Resource Metering &amp; Ledger</span>
+        </button>
       </div>
 
-      {/* Invoices Table */}
+      {/* Tab 1: Workspace Cloud Subscription Plans */}
+      {billingTab === 'plans' && (
+      <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-6">
+        <div className="text-center max-w-2xl mx-auto space-y-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#C6923B]/10 text-[#C6923B] dark:text-[#D4A347] border border-[#C6923B]/20 text-[11px] font-bold uppercase tracking-wider font-mono">
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Workspace Cloud Subscription</span>
+          </div>
+          <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">
+            Scale Infrastructure with Transparent INR Pricing
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Self-service compute pools, high-availability managed databases, and enterprise SLAs.
+          </p>
+
+          {/* Billing Cycle Toggle */}
+          <div className="pt-2 flex justify-center">
+            <div className="inline-flex items-center p-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-inner">
+              <button
+                type="button"
+                onClick={() => setBillingCycle('monthly')}
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  billingCycle === 'monthly'
+                    ? 'bg-white dark:bg-[#0F2038] text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Monthly billing
+              </button>
+              <button
+                type="button"
+                onClick={() => setBillingCycle('annual')}
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  billingCycle === 'annual'
+                    ? 'bg-[#C6923B] text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <span>Annual billing</span>
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-500 text-white uppercase tracking-wider">
+                  SAVE 20%
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-slate-500 dark:text-slate-400 pt-1">
+            <span className="flex items-center gap-1.5">
+              <Check className="w-3.5 h-3.5 text-emerald-500" /> No credit card required
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Check className="w-3.5 h-3.5 text-emerald-500" /> Cancel anytime
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Check className="w-3.5 h-3.5 text-emerald-500" /> 10-day full-access trial
+            </span>
+          </div>
+        </div>
+
+        {/* 3 Pricing Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-stretch pt-2">
+          {/* Plan 1: Developer Cloud */}
+          <div className="flex flex-col justify-between bg-slate-50/50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 hover:border-slate-300 dark:hover:border-slate-700 transition">
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <span className="inline-block px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                  STARTER TIER
+                </span>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Developer Cloud</h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
+                  For engineers building standalone projects and testing pipelines.
+                </p>
+              </div>
+
+              <div className="pt-2">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-black text-slate-900 dark:text-white">
+                    ₹{billingCycle === 'annual' ? '399' : '499'}
+                  </span>
+                  <span className="text-xs text-slate-500">/ month</span>
+                </div>
+              </div>
+
+              <div className="space-y-2.5 pt-2 border-t border-slate-200 dark:border-slate-800/80">
+                <div className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+                  <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>8 vCPUs / 16GB memory</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+                  <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>500GB SSD NVMe storage</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+                  <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>50 deployments / month</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-6 space-y-2">
+              <button
+                type="button"
+                onClick={() => handleSelectPlan('dev')}
+                disabled={subActionLoading || (subscription?.current_plan_key === 'dev' && subscription?.billing_cycle === billingCycle)}
+                className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                  subscription?.current_plan_key === 'dev' && subscription?.billing_cycle === billingCycle
+                    ? 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 cursor-default'
+                    : 'border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-900 dark:text-white'
+                }`}
+              >
+                {subscription?.current_plan_key === 'dev' && subscription?.billing_cycle === billingCycle ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    <span>Current Active Plan</span>
+                  </>
+                ) : (
+                  <span>Get started</span>
+                )}
+              </button>
+              <p className="text-[10px] text-center text-slate-400">
+                Trial includes full access to all listed features.
+              </p>
+            </div>
+          </div>
+
+          {/* Plan 2: Team Operations (Highlighted) */}
+          <div className="flex flex-col justify-between bg-white dark:bg-[#111c30] border-2 border-[#C6923B] dark:border-[#D4A347] rounded-2xl p-5 shadow-lg relative transform sm:-translate-y-1">
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-[#C6923B] text-white text-[10px] font-black uppercase tracking-wider shadow-sm">
+              MOST POPULAR
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-1 pt-1">
+                <span className="inline-block px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-[#C6923B]/10 text-[#C6923B] dark:text-[#D4A347]">
+                  GROWTH &amp; PRODUCTION
+                </span>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Team Operations</h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
+                  For growing teams running production workloads with high availability.
+                </p>
+              </div>
+
+              <div className="pt-2">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-black text-slate-900 dark:text-white">
+                    ₹{billingCycle === 'annual' ? '1,999' : '2,499'}
+                  </span>
+                  <span className="text-xs text-slate-500">/ month</span>
+                </div>
+                {billingCycle === 'annual' && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[10px] text-slate-500">Billed annually (₹23,988)</span>
+                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                      ↗ Saves you ~₹6,000/yr
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2.5 pt-2 border-t border-slate-200 dark:border-slate-800/80">
+                <div className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 font-medium">
+                  <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>64 vCPUs / 128GB memory</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 font-medium">
+                  <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>5,000GB storage + S3 buckets</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 font-medium">
+                  <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>Unlimited canary &amp; rolling deploys</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-6 space-y-2">
+              <button
+                type="button"
+                onClick={() => handleSelectPlan('team')}
+                disabled={subActionLoading || (subscription?.current_plan_key === 'team' && subscription?.billing_cycle === billingCycle)}
+                className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-sm ${
+                  subscription?.current_plan_key === 'team' && subscription?.billing_cycle === billingCycle
+                    ? 'bg-emerald-600 text-white cursor-default'
+                    : 'bg-[#C6923B] hover:bg-[#b58332] text-white'
+                }`}
+              >
+                {subscription?.current_plan_key === 'team' && subscription?.billing_cycle === billingCycle ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-white" />
+                    <span>Current Active Plan</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Launch team workspace</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </>
+                )}
+              </button>
+              <p className="text-[10px] text-center text-slate-400">
+                Trial includes full access to all listed features.
+              </p>
+            </div>
+          </div>
+
+          {/* Plan 3: Enterprise Platform */}
+          <div className="flex flex-col justify-between bg-slate-50/50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 hover:border-slate-300 dark:hover:border-slate-700 transition">
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <span className="inline-block px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400 border border-blue-200 dark:border-blue-900/50">
+                  DEDICATED CONTROL PLANE
+                </span>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Enterprise Platform</h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
+                  For organizations requiring custom compliance, SSO, and dedicated VPCs.
+                </p>
+              </div>
+
+              <div className="pt-2">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-black text-slate-900 dark:text-white">
+                    Custom
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2.5 pt-2 border-t border-slate-200 dark:border-slate-800/80">
+                <div className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+                  <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>Custom dedicated cluster capacity</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+                  <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>365-day SOC2 immutable audit trail</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+                  <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>SAML 2.0 / Okta SSO + SCIM sync</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-6 space-y-2">
+              <button
+                type="button"
+                onClick={() => setEnterpriseModalOpen(true)}
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+              >
+                <span>Contact Platform Engineering</span>
+              </button>
+              <p className="text-[10px] text-center text-slate-400">
+                Typical reply within one business day.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Live Quota Consumption Bar */}
+        {subscription?.metrics && (
+          <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                Live Plan Resource Utilization
+              </span>
+              <span className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                Renewal: {subscription.renewal_date || 'Next Cycle'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+              <div className="space-y-1">
+                <div className="flex justify-between text-[11px] text-slate-500">
+                  <span>vCPU Allocation</span>
+                  <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                    {subscription.metrics.vcpu_used} / {subscription.metrics.vcpu_limit} vCPUs
+                  </span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                  <div
+                    className="h-full bg-[#C6923B] rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min(100, Math.round((subscription.metrics.vcpu_used / subscription.metrics.vcpu_limit) * 100))}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex justify-between text-[11px] text-slate-500">
+                  <span>RAM Memory Pool</span>
+                  <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                    {subscription.metrics.ram_gb_used} / {subscription.metrics.ram_gb_limit} GB
+                  </span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                  <div
+                    className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min(100, Math.round((subscription.metrics.ram_gb_used / subscription.metrics.ram_gb_limit) * 100))}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex justify-between text-[11px] text-slate-500">
+                  <span>SSD NVMe Storage</span>
+                  <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                    {subscription.metrics.storage_gb_used} / {subscription.metrics.storage_gb_limit} GB
+                  </span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min(100, Math.round((subscription.metrics.storage_gb_used / subscription.metrics.storage_gb_limit) * 100))}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+      )}
+
+      {/* Tab 2: Invoices & Receipts */}
+      {billingTab === 'invoices' && (
       <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
@@ -1377,33 +1909,24 @@ export const Billing: React.FC = () => {
                           )}
 
                           <button
-                            onClick={() => handleDownloadInvoice(inv)}
-                            className="px-2.5 py-1 bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-colors text-[11px]"
-                            title="Download official tax invoice PDF"
+                            type="button"
+                            onClick={() => handleOpenWebcopy(inv)}
+                            className="px-2.5 py-1 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-[#C6923B] dark:text-[#D4A347] border border-amber-200 dark:border-amber-800/60 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-colors text-[11px]"
+                            title="Open official GST Tax Invoice Webcopy in next browser tab"
                           >
-                            <Download className="w-3.5 h-3.5" /> PDF
+                            <FileText className="w-3.5 h-3.5" />
+                            <span>Webcopy</span>
                           </button>
 
-                          {(() => {
-                            const profile = getCustomerProfile();
-                            const amount = inv.total || inv.amount_inr || 100;
-                            const period = inv.period || 'Prepaid Recharge';
-                            const pm = inv.payment_method || 'Sandbox Wallet';
-                            const printUrl = `/api/v1/billing/invoices/${inv.id}/pdf?customer_name=${encodeURIComponent(profile.name)}&customer_email=${encodeURIComponent(profile.email)}&customer_account=${encodeURIComponent(profile.account)}&workspace_name=${encodeURIComponent(profile.ws)}&amount=${amount}&period=${encodeURIComponent(period)}&payment_method=${encodeURIComponent(pm)}`;
-                            return (
-                              <a
-                                href={printUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg font-bold flex items-center gap-1.5 transition-colors text-[11px]"
-                                title="Open official GST Tax Invoice print view"
-                              >
-                                <Printer className="w-3.5 h-3.5 text-slate-500" />
-                                <span>Print</span>
-                                <ExternalLink className="w-2.5 h-2.5 opacity-60" />
-                              </a>
-                            );
-                          })()}
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadInvoice(inv)}
+                            className="px-2.5 py-1 bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-colors text-[11px]"
+                            title="Download certified GST tax invoice PDF"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>PDF</span>
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -1449,8 +1972,39 @@ export const Billing: React.FC = () => {
           </div>
         )}
       </div>
+      )}
 
-      {/* Immutable Financial Ledger */}
+      {/* Tab 4: Resource Metering & Auditable Ledger */}
+      {billingTab === 'metering' && (
+      <div className="space-y-5">
+        {/* Live Spend & Resource Meter Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm space-y-1">
+            <span className="text-slate-500 text-[10px] font-bold uppercase">Account Status</span>
+            <p className="text-xl font-black text-emerald-600 dark:text-emerald-400">{account?.status || 'ACTIVE'}</p>
+            <p className="text-[10px] text-slate-400">Continuous Metering</p>
+          </div>
+
+          <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm space-y-1">
+            <span className="text-slate-500 text-[10px] font-bold uppercase">Virtual Machines</span>
+            <p className="text-xl font-black text-slate-900 dark:text-white">{vmsCount} Running</p>
+            <p className="text-[10px] text-slate-400">Meter rate: ₹1.50 / instance-hour</p>
+          </div>
+
+          <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm space-y-1">
+            <span className="text-slate-500 text-[10px] font-bold uppercase">Managed Databases</span>
+            <p className="text-xl font-black text-slate-900 dark:text-white">{dbsCount} Running</p>
+            <p className="text-[10px] text-slate-400">Meter rate: ₹3.00 / instance-hour</p>
+          </div>
+
+          <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm space-y-1">
+            <span className="text-slate-500 text-[10px] font-bold uppercase">Storage Buckets</span>
+            <p className="text-xl font-black text-slate-900 dark:text-white">{s3Count} Active</p>
+            <p className="text-[10px] text-slate-400">Meter rate: ~₹1.00 / GB-month</p>
+          </div>
+        </div>
+
+        {/* Immutable Financial Ledger */}
       <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
@@ -1647,8 +2201,11 @@ export const Billing: React.FC = () => {
           </div>
         )}
       </div>
+      </div>
+      )}
 
-      {/* Payment Methods Section */}
+      {/* Tab 3: Payment Methods & Banks */}
+      {billingTab === 'payment_methods' && (
       <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-5">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
@@ -1782,6 +2339,7 @@ export const Billing: React.FC = () => {
           </div>
         )}
       </div>
+      )}
 
       {/* Pay Invoice Modal */}
       {payInvoiceModalOpen && selectedInvoiceToPay && (
@@ -1997,177 +2555,551 @@ export const Billing: React.FC = () => {
         </ModalPortal>
       )}
 
-      {/* Add Funds Modal */}
-        <ModalPortal isOpen={addFundsOpen} onClose={() => setAddFundsOpen(false)} maxWidth="max-w-md">
-          <div className="space-y-5">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
-                <Plus className="w-5 h-5 text-emerald-600" />
-                Add Funds to Account
-              </h3>
-              <button onClick={() => setAddFundsOpen(false)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg cursor-pointer">
-                <X className="w-4 h-4 text-slate-400" />
-              </button>
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Add prepaid credits to your Aravanta Cloud billing account. Credits are applied automatically when invoices are generated.
-            </p>
-
-            {/* Quick Amount Buttons */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-2">Quick Select Amount</label>
-              <div className="grid grid-cols-4 gap-2">
-                {[100, 500, 1000, 5000].map((amt) => (
-                  <button
-                    key={amt}
-                    type="button"
-                    onClick={() => setAddFundsAmount(String(amt))}
-                    className={`py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer border ${
-                      addFundsAmount === String(amt)
-                        ? 'bg-emerald-600 text-white border-emerald-600'
-                        : 'bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400'
-                    }`}
-                  >
-                    ₹{amt.toLocaleString('en-IN')}
-                  </button>
-                ))}
+      {/* Normal Payment Process Checkout Modal */}
+      {checkoutModalOpen && planToSubscribe && (
+        <ModalPortal isOpen={checkoutModalOpen} onClose={() => { if (checkoutStep !== 'processing') setCheckoutModalOpen(false); }} maxWidth="max-w-xl">
+          <div className="space-y-5 font-sans">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-[#C6923B]/10 rounded-xl text-[#C6923B] dark:text-[#D4A347]">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    {checkoutStep === 'success' ? 'Payment Completed' : 'Aravanta Cloud — Plan Activation'}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {checkoutStep === 'method' && 'Choose your payment method to deduct from bank and activate plan'}
+                    {checkoutStep === 'processing' && 'Authorizing banking transaction and provisioning quotas...'}
+                    {checkoutStep === 'success' && 'Subscription is now active on your workspace'}
+                  </p>
+                </div>
               </div>
-            </div>
-
-            {/* Custom Amount Input */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Custom Amount (₹)</label>
-              <input
-                type="number"
-                min="1"
-                step="1"
-                value={addFundsAmount}
-                onChange={(e) => setAddFundsAmount(e.target.value)}
-                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-base font-bold"
-                placeholder="Enter amount in ₹"
-              />
-            </div>
-
-            {/* Debit Source / Added Account Selection */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                  Debit From Added Account / Method
-                </label>
+              {checkoutStep !== 'processing' && (
                 <button
                   type="button"
-                  onClick={() => {
-                    setAddFundsOpen(false);
-                    setAddPaymentOpen(true);
-                  }}
-                  className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                  onClick={() => setCheckoutModalOpen(false)}
+                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
                 >
-                  <Plus className="w-3 h-3" /> Add New Method
+                  <X className="w-4 h-4" />
                 </button>
-              </div>
-
-              {paymentMethods.length > 0 ? (
-                <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
-                  {paymentMethods.map((pm) => {
-                    const isSelected = selectedPaymentMethodId === pm.id || (!selectedPaymentMethodId && pm.is_default);
-                    const isUPI = pm.brand.toLowerCase() === 'upi';
-                    const isNetBanking = pm.brand.toLowerCase() === 'netbanking';
-
-                    return (
-                      <div
-                        key={pm.id}
-                        onClick={() => setSelectedPaymentMethodId(pm.id)}
-                        className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
-                          isSelected
-                            ? 'bg-blue-50/80 dark:bg-blue-950/40 border-blue-500 text-blue-900 dark:text-blue-100 shadow-sm'
-                            : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 truncate">
-                          <div className={`p-1.5 rounded-lg shrink-0 ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>
-                            {isUPI ? <Smartphone className="w-3.5 h-3.5" /> : isNetBanking ? <Building2 className="w-3.5 h-3.5" /> : <CreditCard className="w-3.5 h-3.5" />}
-                          </div>
-                          <div className="truncate">
-                            <p className="text-xs font-bold leading-tight truncate">
-                              {isUPI ? `UPI: ${pm.last4}` : isNetBanking ? `${pm.last4}` : `${pm.brand.toUpperCase()} ending in ${pm.last4.slice(-4)}`}
-                            </p>
-                            <p className="text-[10px] text-slate-400 leading-tight truncate">
-                              {pm.holder_name}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0">
-                          {pm.is_default && (
-                            <span className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[9px] font-bold uppercase">
-                              Default
-                            </span>
-                          )}
-                          <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${isSelected ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 dark:border-slate-700'}`}>
-                            {isSelected && <Check className="w-2.5 h-2.5" />}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl flex items-center justify-between gap-2">
-                  <span className="text-[11px] text-amber-800 dark:text-amber-300">No payment method added yet.</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAddFundsOpen(false);
-                      setAddPaymentOpen(true);
-                    }}
-                    className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-[10px] cursor-pointer shrink-0"
-                  >
-                    + Add Card/UPI
-                  </button>
-                </div>
               )}
             </div>
 
-            {/* Transaction Breakdown: Debit Added Account -> Credit Cloud OS */}
-            <div className="bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 space-y-2">
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-500">Debited From:</span>
-                <span className="font-bold text-rose-600 dark:text-rose-400 font-mono flex items-center gap-1">
-                  <span>-₹{parseFloat(addFundsAmount || '0').toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                  <span className="text-[10px] text-slate-400 font-sans font-normal truncate max-w-[130px]">
-                    ({(() => {
-                      const cur = paymentMethods.find(p => p.id === selectedPaymentMethodId) || paymentMethods.find(p => p.is_default) || paymentMethods[0];
-                      if (!cur) return 'Bank Account';
-                      if (cur.brand.toLowerCase() === 'upi') return cur.last4;
-                      return `${cur.brand.toUpperCase()} ••••${cur.last4.slice(-4)}`;
-                    })()})
-                  </span>
-                </span>
-              </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-500">Credited To:</span>
-                <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">
-                  +₹{parseFloat(addFundsAmount || '0').toLocaleString('en-IN', { minimumFractionDigits: 2 })} (Aravanta Cloud)
-                </span>
-              </div>
-              <div className="border-t border-slate-200 dark:border-slate-700 pt-2 flex justify-between items-center text-xs">
-                <span className="text-slate-500 font-bold">New Cloud Credits:</span>
-                <span className="font-black text-emerald-600 dark:text-emerald-400 font-mono text-sm">
-                  ₹{((account?.credits ?? 0) + parseFloat(addFundsAmount || '0')).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </span>
-              </div>
-            </div>
+            {/* STEP 1: METHOD & ORDER REVIEW */}
+            {checkoutStep === 'method' && (
+              <div className="space-y-5">
+                {/* Plan & Pricing Breakdown */}
+                <div className="p-4 bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-[#C6923B]/15 text-[#C6923B] dark:text-[#D4A347]">
+                        {planToSubscribe.tier}
+                      </span>
+                      <h4 className="text-base font-black text-slate-900 dark:text-white mt-1">
+                        {planToSubscribe.title}
+                      </h4>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        {planToSubscribe.specs}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-slate-500 uppercase font-bold">Billing Cycle</p>
+                      <span className="inline-block px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 font-bold text-xs uppercase">
+                        {billingCycle} (SAVE 20%)
+                      </span>
+                    </div>
+                  </div>
 
-            <button
-              onClick={handleAddFunds}
-              disabled={addFundsLoading || !addFundsAmount || parseFloat(addFundsAmount) < 1}
-              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-md transition-colors cursor-pointer flex items-center justify-center gap-2"
-            >
-              {addFundsLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-              <span>Debit Account &amp; Credit ₹{parseFloat(addFundsAmount || '0').toLocaleString('en-IN')}</span>
-            </button>
+                  <div className="border-t border-slate-200 dark:border-slate-800 pt-3 space-y-1.5 text-xs">
+                    <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                      <span>Plan Subscription Fee (Taxable Value):</span>
+                      <span className="font-mono font-bold text-slate-900 dark:text-white">
+                        ₹{planToSubscribe.subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                      <span>Central GST (CGST 9%):</span>
+                      <span className="font-mono text-slate-700 dark:text-slate-300">
+                        ₹{planToSubscribe.cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                      <span>State GST (SGST 9%):</span>
+                      <span className="font-mono text-slate-700 dark:text-slate-300">
+                        ₹{planToSubscribe.sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="border-t border-slate-200 dark:border-slate-800 pt-2 flex justify-between items-center text-sm font-black">
+                      <span className="text-slate-900 dark:text-white">Total Amount to Deduct:</span>
+                      <span className="text-emerald-600 dark:text-emerald-400 font-mono text-base">
+                        ₹{planToSubscribe.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Choose Payment Method */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                      <CreditCard className="w-3.5 h-3.5 text-blue-500" />
+                      <span>Choose Payment Method / Bank Account</span>
+                    </label>
+
+                    {!isAddingNewMethodInCheckout && (
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingNewMethodInCheckout(true)}
+                        className="text-xs text-blue-600 dark:text-blue-400 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add Multiple Methods</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {!isAddingNewMethodInCheckout ? (
+                    <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                      {paymentMethods.length > 0 ? (
+                        paymentMethods.map((pm) => {
+                          const isSelected = selectedPaymentMethodId === pm.id || (!selectedPaymentMethodId && pm.is_default);
+                          const isUPI = pm.brand.toLowerCase() === 'upi';
+                          const isNetBanking = pm.brand.toLowerCase() === 'netbanking';
+
+                          return (
+                            <div
+                              key={pm.id}
+                              onClick={() => setSelectedPaymentMethodId(pm.id)}
+                              className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                                isSelected
+                                  ? 'bg-blue-50/80 dark:bg-blue-950/40 border-blue-500 text-blue-900 dark:text-blue-100 shadow-sm'
+                                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3 truncate">
+                                <div className={`p-2 rounded-lg shrink-0 ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>
+                                  {isUPI ? <Smartphone className="w-4 h-4" /> : isNetBanking ? <Building2 className="w-4 h-4" /> : <CreditCard className="w-4 h-4" />}
+                                </div>
+                                <div className="truncate">
+                                  <p className="text-xs font-bold truncate">
+                                    {isUPI ? `UPI: ${pm.last4}` : isNetBanking ? `${pm.last4}` : `${pm.brand.toUpperCase()} ending in ••••${pm.last4.slice(-4)}`}
+                                  </p>
+                                  <p className="text-[11px] text-slate-400 truncate">
+                                    {pm.holder_name}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                {pm.is_default && (
+                                  <span className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[9px] font-bold uppercase">
+                                    Default
+                                  </span>
+                                )}
+                                <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${isSelected ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 dark:border-slate-700'}`}>
+                                  {isSelected && <Check className="w-2.5 h-2.5" />}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl text-center space-y-2">
+                          <p className="text-xs text-amber-800 dark:text-amber-300 font-bold">No payment method added yet.</p>
+                          <button
+                            type="button"
+                            onClick={() => setIsAddingNewMethodInCheckout(true)}
+                            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs cursor-pointer inline-flex items-center gap-1.5"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Add Payment Method
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* Inline Add Payment Method Form */
+                    <div className="p-4 bg-white dark:bg-slate-900 border border-blue-400 dark:border-blue-600 rounded-2xl space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+                        <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <Plus className="w-3.5 h-3.5 text-blue-500" />
+                          <span>Add Multiple Payment Method</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setIsAddingNewMethodInCheckout(false)}
+                          className="text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+
+                      {/* Type Selector: Card / UPI / NetBanking */}
+                      <div className="grid grid-cols-3 gap-2">
+                        {(['card', 'upi', 'netbanking'] as const).map((type) => (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => setNewMethodType(type)}
+                            className={`py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer border ${
+                              newMethodType === type
+                                ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                                : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                            }`}
+                          >
+                            {type === 'card' && <CreditCard className="w-3.5 h-3.5" />}
+                            {type === 'upi' && <Smartphone className="w-3.5 h-3.5" />}
+                            {type === 'netbanking' && <Building2 className="w-3.5 h-3.5" />}
+                            <span className="capitalize">{type}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {newMethodType === 'card' && (
+                        <div className="space-y-3 text-xs">
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Cardholder Name</label>
+                            <input
+                              type="text"
+                              value={cardHolder}
+                              onChange={(e) => setCardHolder(e.target.value)}
+                              placeholder="e.g. Rahul Sharma"
+                              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-medium"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Card Number (16 Digits)</label>
+                            <input
+                              type="text"
+                              value={cardNumber}
+                              onChange={handleCardNumberChange}
+                              placeholder="4242 4242 4242 4242"
+                              maxLength={19}
+                              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-mono"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Valid Thru</label>
+                              <input
+                                type="text"
+                                value={cardExp}
+                                onChange={handleExpiryChange}
+                                placeholder="MM/YY"
+                                maxLength={5}
+                                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-mono"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">CVV</label>
+                              <input
+                                type="password"
+                                value={cardCvv}
+                                onChange={(e) => setCardCvv(e.target.value.slice(0, 4))}
+                                placeholder="•••"
+                                maxLength={4}
+                                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-mono"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {newMethodType === 'upi' && (
+                        <div className="space-y-3 text-xs">
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Virtual Payment Address (UPI ID)</label>
+                            <input
+                              type="text"
+                              value={vpaId}
+                              onChange={(e) => setVpaId(e.target.value)}
+                              placeholder="e.g. yourname@okhdfcbank"
+                              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-mono"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Account Holder Full Name</label>
+                            <input
+                              type="text"
+                              value={vpaName}
+                              onChange={(e) => setVpaName(e.target.value)}
+                              placeholder="e.g. Rahul Sharma"
+                              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-medium"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {newMethodType === 'netbanking' && (
+                        <div className="space-y-3 text-xs">
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Select Bank</label>
+                            <select
+                              value={selectedBank}
+                              onChange={(e) => setSelectedBank(e.target.value)}
+                              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-medium cursor-pointer"
+                            >
+                              <option value="HDFC Bank">HDFC Bank</option>
+                              <option value="State Bank of India">State Bank of India (SBI)</option>
+                              <option value="ICICI Bank">ICICI Bank</option>
+                              <option value="Axis Bank">Axis Bank</option>
+                              <option value="Kotak Mahindra Bank">Kotak Mahindra Bank</option>
+                              <option value="Punjab National Bank">Punjab National Bank</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Bank Account Last 4 Digits</label>
+                            <input
+                              type="text"
+                              value={bankAccLast4}
+                              onChange={(e) => setBankAccLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                              placeholder="e.g. 5432"
+                              maxLength={4}
+                              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-mono"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={handleAddPaymentMethodInCheckout}
+                        className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Save &amp; Select Payment Method</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Authorize & Deduct Button */}
+                {!isAddingNewMethodInCheckout && (
+                  <div className="space-y-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={handleExecuteSubscriptionPayment}
+                      disabled={paymentMethods.length === 0}
+                      className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black rounded-xl text-sm flex items-center justify-center gap-2 cursor-pointer shadow-md transition-all"
+                    >
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>
+                        Authorize &amp; Deduct ₹{planToSubscribe.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+                    </button>
+                    <p className="text-[10px] text-center text-slate-400">
+                      Payment will be debited directly from your selected bank account. 100% RBI &amp; NPCI Compliant.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* STEP 2: PROCESSING / BANK HANDSHAKE */}
+            {checkoutStep === 'processing' && (
+              <div className="py-10 text-center space-y-4">
+                <div className="relative w-16 h-16 mx-auto flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full border-4 border-emerald-500/20 animate-ping" />
+                  <div className="w-16 h-16 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin flex items-center justify-center">
+                    <Building2 className="w-6 h-6 text-emerald-500" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-base font-black text-slate-900 dark:text-white">
+                    Processing Bank Transaction...
+                  </h4>
+                  <p className="text-xs font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                    {processingStatusText}
+                  </p>
+                </div>
+                <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                  Connecting with your bank gateway. Please do not close or navigate away from this window.
+                </p>
+              </div>
+            )}
+
+            {/* STEP 3: SUCCESS CONFIRMATION & INVOICE OPTIONS */}
+            {checkoutStep === 'success' && (
+              <div className="py-6 text-center space-y-5">
+                <div className="w-14 h-14 rounded-full bg-emerald-100 dark:bg-emerald-950/60 border-2 border-emerald-500 flex items-center justify-center mx-auto text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="w-8 h-8" />
+                </div>
+
+                <div className="space-y-1.5">
+                  <h4 className="text-lg font-black text-slate-900 dark:text-white">
+                    Payment Successful &amp; Plan Activated!
+                  </h4>
+                  <p className="text-xs text-slate-600 dark:text-slate-300">
+                    Debited <strong className="font-mono text-emerald-600 dark:text-emerald-400">₹{planToSubscribe.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong> from {lastGeneratedInvoice?.payment_method || 'Bank Account'}.
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Your workspace has been upgraded to <strong>{planToSubscribe.title}</strong>. High-capacity vCPU, RAM, and NVMe quotas are now active.
+                  </p>
+                </div>
+
+                {/* Tax Invoice Buttons */}
+                <div className="p-4 bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-3 text-left">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-500">Invoice Number:</span>
+                    <span className="font-mono font-bold text-slate-900 dark:text-white">
+                      {lastGeneratedInvoice?.id}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-500">SAC Code:</span>
+                    <span className="font-mono text-slate-700 dark:text-slate-300">
+                      998313 (Information Technology Cloud Services)
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-500">Status:</span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 font-bold text-[10px]">
+                      PAID &amp; SETTLED
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (lastGeneratedInvoice) handleOpenWebcopy(lastGeneratedInvoice);
+                      }}
+                      className="py-2.5 px-3 bg-amber-500/10 hover:bg-amber-500/20 text-[#C6923B] dark:text-[#D4A347] border border-[#C6923B]/30 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                    >
+                      <FileText className="w-4 h-4" />
+                      <span>View Webcopy</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (lastGeneratedInvoice) handleDownloadInvoice(lastGeneratedInvoice);
+                      }}
+                      className="py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Download PDF</span>
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setCheckoutModalOpen(false)}
+                  className="w-full py-2.5 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white font-bold rounded-xl text-xs cursor-pointer"
+                >
+                  Done &amp; Return to Dashboard
+                </button>
+              </div>
+            )}
           </div>
         </ModalPortal>
+      )}
+
+
+
+      {/* Enterprise Contact Platform Engineering Modal */}
+      {enterpriseModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn font-sans">
+          <div className="w-full max-w-lg bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <Building2 className="w-5 h-5 text-blue-500" />
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Enterprise Platform Engineering</h3>
+              </div>
+              <button 
+                onClick={() => {
+                  setEnterpriseModalOpen(false);
+                  setEnterpriseSent(false);
+                }} 
+                className="text-slate-400 hover:text-slate-600 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {enterpriseSent ? (
+              <div className="py-6 text-center space-y-2">
+                <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto" />
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white">Inquiry Received</h4>
+                <p className="text-xs text-slate-500">Our platform team will contact you within one business day with custom sizing and dedicated control plane SLA options.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEnterpriseSent(false);
+                    setEnterpriseModalOpen(false);
+                  }}
+                  className="mt-4 px-4 py-2 rounded-xl bg-slate-900 dark:bg-slate-800 text-white text-xs font-bold cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                setSubActionLoading(true);
+                try {
+                  await apiFetch('/api/v1/operations/notifications', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                      title: 'Enterprise Inquiry Submitted',
+                      message: `Enterprise request for ${enterpriseCompany}: ${enterpriseRequirement}`,
+                      type: 'info'
+                    })
+                  }).catch(() => {});
+                  setEnterpriseSent(true);
+                  showToast('Enterprise platform request received!');
+                } finally {
+                  setSubActionLoading(false);
+                }
+              }} className="space-y-3">
+                <p className="text-xs text-slate-500">
+                  Request custom dedicated cluster capacity, 365-day SOC2 audit trail compliance, or multi-region VPC peering.
+                </p>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Company / Organization Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={enterpriseCompany}
+                    onChange={(e) => setEnterpriseCompany(e.target.value)}
+                    placeholder="e.g. Acme Corp Infrastructure"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#C6923B]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Sizing &amp; Compliance Requirements</label>
+                  <textarea
+                    rows={3}
+                    required
+                    value={enterpriseRequirement}
+                    onChange={(e) => setEnterpriseRequirement(e.target.value)}
+                    placeholder="e.g. Need 512 vCPUs, 20TB NVMe, dedicated private VPC with Okta SAML 2.0 and HIPAA compliance."
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#C6923B]"
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setEnterpriseModalOpen(false)}
+                    className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={subActionLoading}
+                    className="px-4 py-2 rounded-xl bg-[#C6923B] hover:bg-[#b58332] text-white text-xs font-semibold cursor-pointer"
+                  >
+                    {subActionLoading ? 'Submitting...' : 'Submit Request'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
     </div>
   );

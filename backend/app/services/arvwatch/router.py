@@ -459,7 +459,6 @@ def list_alerts(
     current_user: User = Depends(get_current_user),
 ):
     """List monitoring alerts from persistent database."""
-    _ensure_alerts_seeded(db, current_user.id)
     alerts = db.query(AlertRecord).order_by(AlertRecord.fired_at.desc()).all()
     return [a.to_dict() for a in alerts]
 

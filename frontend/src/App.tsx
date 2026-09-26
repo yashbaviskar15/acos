@@ -23,6 +23,8 @@ import { Security } from './pages/Security';
 import { Billing } from './pages/Billing';
 import { Profile } from './pages/Profile';
 import { GettingStarted } from './pages/GettingStarted';
+import { ServiceCatalog } from './pages/ServiceCatalog';
+import { recordServiceAccess } from './utils/recentServices';
 import { CommandPalette } from './components/CommandPalette';
 import { ConsoleCopilot } from './components/copilot/ConsoleCopilot';
 import { Login } from './pages/Login';
@@ -56,6 +58,7 @@ import { CLIPage } from './pages/CLIPage';
 import { FunctionsPage } from './pages/Functions';
 import { VaultPage } from './pages/Vault';
 import { EventsPage } from './pages/Events';
+import { CloudAPIPage } from './pages/CloudAPI';
 
 export default function App() {
   const [inviteToken, setInviteToken] = useState<string | null>(() => {
@@ -322,6 +325,7 @@ export default function App() {
   useEffect(() => {
     try {
       localStorage.setItem('aravanta_active_tab', activeTab);
+      recordServiceAccess(activeTab);
     } catch {}
   }, [activeTab]);
 
@@ -537,6 +541,8 @@ export default function App() {
   const getTabTitle = () => {
     switch (activeTab) {
       case 'dashboard': return 'Dashboard & Fleet SRE Console';
+      case 'catalog':
+      case 'services': return 'Service Catalog — All Cloud Infrastructure & Platform Services';
       case 'infrastructure': return 'Infrastructure — Multi-Cloud Resource Inventory';
       case 'applications': return 'Applications — Microservices Catalog & Workloads';
       case 'deployments': return 'Deployments — GitOps Release Pipeline & Rollback Engine';
@@ -566,6 +572,8 @@ export default function App() {
       case 'functions': return 'ArvFunctions — Serverless Compute Engine (Lambda/Cloud Functions)';
       case 'vault': return 'ArvVault — Secrets & Key Management Service (KMS)';
       case 'events': return 'ArvEvents — Distributed Event Bus & Message Queues';
+      case 'api-keys':
+      case 'cloud-api': return 'Cloud API Keys & Programmatic Gateway Access';
       default: return 'Aravanta CloudOS Control Plane';
     }
   };
@@ -674,16 +682,21 @@ export default function App() {
                 {activeTab === 'functions' && <FunctionsPage token={token} user={user} />}
                 {activeTab === 'vault' && <VaultPage token={token} user={user} />}
                 {activeTab === 'events' && <EventsPage token={token} user={user} />}
+                {(activeTab === 'api-keys' || activeTab === 'cloud-api') && <CloudAPIPage token={token} user={user} />}
+                {/* Unified Cloud Service Catalog */}
+                {(activeTab === 'catalog' || activeTab === 'services') && (
+                  <ServiceCatalog token={token} onNavigate={(tab) => setActiveTab(tab)} />
+                )}
                 
                 {/* Fallback for unhandled tab */}
                 {![
-                  'dashboard', 'infrastructure', 'applications', 'deployments', 
+                  'dashboard', 'catalog', 'services', 'infrastructure', 'applications', 'deployments', 
                   'containers', 'monitoring', 'logs', 'alerts', 'incidents', 
                   'automation', 'backups', 'audit', 'settings', 'compute', 
                   'kubernetes', 'storage', 'database', 'cicd', 'security', 
                   'billing', 'profile', 'guide', 'community',
                   'costiq', 'compliance', 'pulse', 'sandbox', 'cli',
-                  'functions', 'vault', 'events'
+                  'functions', 'vault', 'events', 'api-keys', 'cloud-api'
                 ].includes(activeTab) && (
                   <Dashboard token={token} onNavigate={(tab) => setActiveTab(tab)} searchTerm={searchTerm} />
                 )}

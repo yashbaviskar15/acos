@@ -157,7 +157,7 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
   const paginatedInstances = filteredInstances.slice((page - 1) * pageSize, page * pageSize);
 
   return (
-    <div className="p-4 sm:p-6 space-y-5 max-w-7xl mx-auto font-sans">
+    <div className="space-y-5 w-full font-sans pb-10">
       {/* Top Action Bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm">
         <div>

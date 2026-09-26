@@ -143,7 +143,7 @@ export const GettingStarted: React.FC<GettingStartedProps> = ({ onNavigate }) =>
   };
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <div className="space-y-6 w-full pb-10 font-sans">
       {/* Header */}
       <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
         <div className="flex items-center gap-3 mb-2">

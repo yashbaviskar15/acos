@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Key, Plus, Eye, RotateCw, Trash2, 
   Lock, Shield, Unlock, X
@@ -232,82 +233,88 @@ export const VaultPage: React.FC<VaultProps> = ({ token: _token }) => {
       )}
 
       {/* Create Secret Modal */}
-      <AnimatePresence>
-        {showCreateSecret && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm" onClick={() => setShowCreateSecret(false)} />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden flex flex-col">
-              <div className="px-6 py-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-950/50">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2"><Lock className="w-5 h-5 text-indigo-400" /> Create Secret</h3>
-                <button onClick={() => setShowCreateSecret(false)} className="text-zinc-500 hover:text-zinc-300"><X className="w-5 h-5" /></button>
-              </div>
-              <div className="p-6 flex flex-col gap-4">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-medium text-zinc-300">Secret Name</label>
-                  <input type="text" className="px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500" placeholder="e.g. prod-db-password" />
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {showCreateSecret && (
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={() => setShowCreateSecret(false)} />
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden flex flex-col">
+                <div className="px-6 py-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-950/50">
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2"><Lock className="w-5 h-5 text-indigo-400" /> Create Secret</h3>
+                  <button onClick={() => setShowCreateSecret(false)} className="text-zinc-500 hover:text-zinc-300"><X className="w-5 h-5" /></button>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-medium text-zinc-300">Secret Value</label>
-                  <textarea rows={4} className="px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 font-mono" placeholder="Enter sensitive value here..."></textarea>
+                <div className="p-6 flex flex-col gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-medium text-zinc-300">Secret Name</label>
+                    <input type="text" className="px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500" placeholder="e.g. prod-db-password" />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-medium text-zinc-300">Secret Value</label>
+                    <textarea rows={4} className="px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 font-mono" placeholder="Enter sensitive value here..."></textarea>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-medium text-zinc-300">Auto-Rotation</label>
+                    <select className="px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500">
+                      <option>Disabled</option>
+                      <option>Every 30 days</option>
+                      <option>Every 60 days</option>
+                      <option>Every 90 days</option>
+                    </select>
+                  </div>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-medium text-zinc-300">Auto-Rotation</label>
-                  <select className="px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500">
-                    <option>Disabled</option>
-                    <option>Every 30 days</option>
-                    <option>Every 60 days</option>
-                    <option>Every 90 days</option>
-                  </select>
+                <div className="px-6 py-4 border-t border-zinc-800 flex justify-end gap-3 bg-zinc-950/50">
+                  <button onClick={() => setShowCreateSecret(false)} className="px-4 py-2 bg-transparent hover:bg-zinc-800 text-zinc-300 rounded-lg text-sm font-medium transition">Cancel</button>
+                  <button onClick={() => setShowCreateSecret(false)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition">Save Secret</button>
                 </div>
-              </div>
-              <div className="px-6 py-4 border-t border-zinc-800 flex justify-end gap-3 bg-zinc-950/50">
-                <button onClick={() => setShowCreateSecret(false)} className="px-4 py-2 bg-transparent hover:bg-zinc-800 text-zinc-300 rounded-lg text-sm font-medium transition">Cancel</button>
-                <button onClick={() => setShowCreateSecret(false)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition">Save Secret</button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
       {/* Generate Key Modal */}
-      <AnimatePresence>
-        {showGenerateKey && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm" onClick={() => setShowGenerateKey(false)} />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden flex flex-col">
-              <div className="px-6 py-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-950/50">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2"><Key className="w-5 h-5 text-indigo-400" /> Generate Key</h3>
-                <button onClick={() => setShowGenerateKey(false)} className="text-zinc-500 hover:text-zinc-300"><X className="w-5 h-5" /></button>
-              </div>
-              <div className="p-6 flex flex-col gap-4">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-medium text-zinc-300">Key Name</label>
-                  <input type="text" className="px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500" placeholder="e.g. app-encryption-key-v2" />
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {showGenerateKey && (
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={() => setShowGenerateKey(false)} />
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden flex flex-col">
+                <div className="px-6 py-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-950/50">
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2"><Key className="w-5 h-5 text-indigo-400" /> Generate Key</h3>
+                  <button onClick={() => setShowGenerateKey(false)} className="text-zinc-500 hover:text-zinc-300"><X className="w-5 h-5" /></button>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-medium text-zinc-300">Algorithm</label>
-                  <select className="px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500">
-                    <option>AES-256-GCM (Symmetric)</option>
-                    <option>RSA-4096 (Asymmetric)</option>
-                    <option>ECDSA-P256 (Asymmetric)</option>
-                  </select>
+                <div className="p-6 flex flex-col gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-medium text-zinc-300">Key Name</label>
+                    <input type="text" className="px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500" placeholder="e.g. app-encryption-key-v2" />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-medium text-zinc-300">Algorithm</label>
+                    <select className="px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500">
+                      <option>AES-256-GCM (Symmetric)</option>
+                      <option>RSA-4096 (Asymmetric)</option>
+                      <option>ECDSA-P256 (Asymmetric)</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-medium text-zinc-300">Purpose</label>
+                    <select className="px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500">
+                      <option>Data Encryption/Decryption</option>
+                      <option>Digital Signature</option>
+                    </select>
+                  </div>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-medium text-zinc-300">Purpose</label>
-                  <select className="px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500">
-                    <option>Data Encryption/Decryption</option>
-                    <option>Digital Signature</option>
-                  </select>
+                <div className="px-6 py-4 border-t border-zinc-800 flex justify-end gap-3 bg-zinc-950/50">
+                  <button onClick={() => setShowGenerateKey(false)} className="px-4 py-2 bg-transparent hover:bg-zinc-800 text-zinc-300 rounded-lg text-sm font-medium transition">Cancel</button>
+                  <button onClick={() => setShowGenerateKey(false)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition">Generate</button>
                 </div>
-              </div>
-              <div className="px-6 py-4 border-t border-zinc-800 flex justify-end gap-3 bg-zinc-950/50">
-                <button onClick={() => setShowGenerateKey(false)} className="px-4 py-2 bg-transparent hover:bg-zinc-800 text-zinc-300 rounded-lg text-sm font-medium transition">Cancel</button>
-                <button onClick={() => setShowGenerateKey(false)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition">Generate</button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 };

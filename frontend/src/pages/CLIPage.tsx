@@ -402,7 +402,7 @@ Identity:
   );
 
   return (
-    <div className="p-3 sm:p-6 max-w-7xl mx-auto space-y-4 sm:space-y-5 font-sans">
+    <div className="space-y-4 sm:space-y-5 w-full font-sans pb-10">
       {/* Top Banner & Mode Selector */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-4 sm:p-5 rounded-2xl shadow-sm">
         <div className="min-w-0">

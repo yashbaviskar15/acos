@@ -201,7 +201,7 @@ export const Deployments: React.FC<{ token: string | null }> = ({ token }) => {
   const fetchDeployments = async () => {
     try {
       const data = await apiFetch<DeploymentItem[]>('/api/v1/operations/deployments', { token });
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         setDeployments(data);
       }
     } catch {
