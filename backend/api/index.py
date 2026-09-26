@@ -20,8 +20,38 @@ if not os.environ.get("SECRET_KEY"):
 if not os.environ.get("DATABASE_URL"):
     os.environ["DATABASE_URL"] = "postgresql://neondb_owner:npg_rJL0kIVv7Xuj@ep-small-pond-a5i9ohyh-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
 
-from app.main import app
+try:
+    from app.main import app
+    handler = app
+    application = app
+except Exception as exc:
+    import traceback
+    tb = traceback.format_exc()
+    error_msg = str(exc)
 
-# Expose app and handler for all Vercel/AWS Lambda ASGI runtimes
-handler = app
-application = app
+    # Pure zero-dependency ASGI recovery application
+    async def app(scope, receive, send):
+        if scope["type"] == "http":
+            import json
+            payload = json.dumps({
+                "status": "BOOT_FAILURE",
+                "error": error_msg,
+                "traceback": tb.splitlines(),
+            }).encode("utf-8")
+            await send({
+                "type": "http.response.start",
+                "status": 500,
+                "headers": [
+                    (b"content-type", b"application/json"),
+                    (b"content-length", str(len(payload)).encode("ascii")),
+                    (b"access-control-allow-origin", b"*"),
+                ],
+            })
+            await send({
+                "type": "http.response.body",
+                "body": payload,
+            })
+
+    handler = app
+    application = app
+

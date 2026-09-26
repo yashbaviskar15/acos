@@ -1,4 +1,21 @@
 import os
+import sys
+from pathlib import Path
+
+# Ensure backend root and app directory are always in sys.path
+_current_file = Path(__file__).resolve()
+_backend_root = _current_file.parent.parent
+if str(_backend_root) not in sys.path:
+    sys.path.insert(0, str(_backend_root))
+if str(_current_file.parent) not in sys.path:
+    sys.path.insert(0, str(_current_file.parent))
+
+# Fallbacks for critical environment variables on serverless cold starts
+if not os.environ.get("SECRET_KEY"):
+    os.environ["SECRET_KEY"] = "aravanta_prod_live_sec_key_9f82b71e84a20c4e8d35f76a1b94c032e578"
+if not os.environ.get("DATABASE_URL"):
+    os.environ["DATABASE_URL"] = "postgresql://neondb_owner:npg_rJL0kIVv7Xuj@ep-small-pond-a5i9ohyh-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+
 import logging
 import uuid
 import datetime
@@ -132,7 +149,11 @@ class VercelPathRewriteMiddleware:
     async def __call__(self, scope, receive, send):
         if scope["type"] == "http":
             headers = dict(scope.get("headers", []))
-            matched = headers.get(b"x-matched-path", b"").decode("utf-8")
+            matched = (
+                headers.get(b"x-matched-path", b"")
+                or headers.get(b"x-vercel-rewrite-path", b"")
+                or headers.get(b"x-original-url", b"")
+            ).decode("utf-8", errors="ignore")
             if matched:
                 scope["path"] = matched
             path = scope.get("path", "")
@@ -199,6 +220,8 @@ app.include_router(arvnetwork_router)
 app.include_router(arvdns_router)
 
 @app.get("/", tags=["Root"])
+@app.get("/api", tags=["Root"], include_in_schema=False)
+@app.get("/api/", tags=["Root"], include_in_schema=False)
 @app.get("/api/index", tags=["Root"], include_in_schema=False)
 @app.get("/api/index/", tags=["Root"], include_in_schema=False)
 def root():
@@ -211,6 +234,7 @@ def root():
     }
 
 @app.get("/health", tags=["Health"])
+@app.get("/api/health", tags=["Health"], include_in_schema=False)
 @app.get("/api/v1/health", tags=["Health"])
 @app.get("/api/index/health", tags=["Health"], include_in_schema=False)
 @app.get("/api/index/api/v1/health", tags=["Health"], include_in_schema=False)
@@ -237,3 +261,7 @@ def health_check():
         "database": db_status,
         "database_engine": db_engine_type,
     }
+
+handler = app
+application = app
+
