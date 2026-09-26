@@ -5,7 +5,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, Any, Set
 import jwt
 import pyotp
-import bcrypt
+try:
+    import bcrypt
+    _has_bcrypt = True
+except Exception:
+    _has_bcrypt = False
 from app.core.config import settings
 
 # In-memory revocation denylist (stores jti or token sha256 hashes)
@@ -40,15 +44,33 @@ def is_token_revoked(token: str, payload: Optional[dict] = None) -> bool:
     return False
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    password_bytes = plain_password.encode('utf-8')
-    hashed_bytes = hashed_password.encode('utf-8')
-    return bcrypt.checkpw(password_bytes, hashed_bytes)
+    if not plain_password or not hashed_password:
+        return False
+    if hashed_password.startswith("pbkdf2:"):
+        parts = hashed_password.split(":")
+        if len(parts) == 3:
+            salt = bytes.fromhex(parts[1])
+            expected = parts[2]
+            computed = hashlib.pbkdf2_hmac("sha256", plain_password.encode("utf-8"), salt, 100000).hex()
+            return computed == expected
+    if _has_bcrypt and (hashed_password.startswith("$2a$") or hashed_password.startswith("$2b$") or hashed_password.startswith("$2y$")):
+        try:
+            return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+        except Exception:
+            return False
+    # Fallback hash check
+    return hashlib.sha256(plain_password.encode("utf-8")).hexdigest() == hashed_password
 
 def get_password_hash(password: str) -> str:
-    password_bytes = password.encode('utf-8')
-    salt = bcrypt.gensalt()
-    hashed = bcrypt.hashpw(password_bytes, salt)
-    return hashed.decode('utf-8')
+    if _has_bcrypt:
+        try:
+            salt = bcrypt.gensalt()
+            return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
+        except Exception:
+            pass
+    salt = os.urandom(16)
+    hashed = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 100000).hex()
+    return f"pbkdf2:{salt.hex()}:{hashed}"
 
 def create_access_token(
     subject: str | Any,
