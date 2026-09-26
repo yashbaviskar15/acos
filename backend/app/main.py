@@ -124,6 +124,22 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
+# Pure ASGI middleware to normalize Vercel serverless /api/index rewrite paths
+class VercelPathRewriteMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            path = scope.get("path", "")
+            if path == "/api/index" or path == "/api/index/":
+                scope["path"] = "/"
+            elif path.startswith("/api/index/"):
+                scope["path"] = path[len("/api/index"):]
+        await self.app(scope, receive, send)
+
+app.add_middleware(VercelPathRewriteMiddleware)
+
 # Configure CORS: explicitly allowed production origins + Aravanta Vercel previews only
 app.add_middleware(
     CORSMiddleware,
@@ -179,6 +195,8 @@ app.include_router(arvnetwork_router)
 app.include_router(arvdns_router)
 
 @app.get("/", tags=["Root"])
+@app.get("/api/index", tags=["Root"], include_in_schema=False)
+@app.get("/api/index/", tags=["Root"], include_in_schema=False)
 def root():
     return {
         "status": "HEALTHY",
@@ -190,6 +208,8 @@ def root():
 
 @app.get("/health", tags=["Health"])
 @app.get("/api/v1/health", tags=["Health"])
+@app.get("/api/index/health", tags=["Health"], include_in_schema=False)
+@app.get("/api/index/api/v1/health", tags=["Health"], include_in_schema=False)
 def health_check():
     db_status = "unknown"
     db_engine_type = "postgresql" if _is_postgres else ("sqlite" if _is_sqlite else "unknown")
