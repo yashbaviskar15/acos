@@ -26,6 +26,7 @@ class CreateFunctionRequest(BaseModel):
 class InvokeFunctionRequest(BaseModel):
     payload: dict = {}
 
+@router.get("", include_in_schema=False)
 @router.get("/")
 def list_functions(project_id: Optional[str] = None, runtime: Optional[str] = None, status: Optional[str] = None, db: Session = Depends(get_db)):
     query = db.query(ArvFunction)
@@ -37,6 +38,7 @@ def list_functions(project_id: Optional[str] = None, runtime: Optional[str] = No
         query = query.filter(ArvFunction.status == status)
     return [fn.to_dict() for fn in query.all()]
 
+@router.post("", include_in_schema=False)
 @router.post("/")
 def create_function(req: CreateFunctionRequest, db: Session = Depends(get_db)):
     fn = ArvFunction(

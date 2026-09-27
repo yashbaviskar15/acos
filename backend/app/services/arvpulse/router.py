@@ -1,127 +1,102 @@
 import uuid
 import datetime
 import json
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from pydantic import BaseModel
+from typing import Optional
 
 from app.core.database import get_db
 from app.services.arvgate.dependencies import get_current_user
 from app.services.arvgate.models import User
 from app.services.arvpulse.models import PulseScore, PulsePrediction, PulsePattern
+from app.core.cloud_models import ComputeInstance, DatabaseInstance, StorageBucket, KubeCluster
 
 router = APIRouter(prefix="/api/v1/pulse", tags=["Pulse"])
 
 @router.get("/score/{resource_id}")
 def get_score(resource_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    return {
-        "id": f"pls-{uuid.uuid4().hex[:12]}",
-        "resource_id": resource_id,
-        "resource_type": "compute",
-        "workspace_id": user.workspace_id,
-        "score": 88,
-        "trend": "degrading",
-        "factors": {"cpu": "warning", "memory": "healthy", "disk": "healthy"},
-        "recorded_at": datetime.datetime.utcnow().isoformat()
-    }
+    stored = db.query(PulseScore).filter(
+        PulseScore.resource_id == resource_id,
+        PulseScore.workspace_id == user.workspace_id
+    ).first()
+    if stored:
+        return stored.to_dict()
+
+    # Calculate real health score based on resource presence and status
+    vm = db.query(ComputeInstance).filter(ComputeInstance.id == resource_id).first()
+    if vm:
+        score = 100 if vm.status == "RUNNING" else (70 if vm.status == "STOPPED" else 50)
+        return {
+            "id": f"pls-{uuid.uuid4().hex[:12]}",
+            "resource_id": resource_id,
+            "resource_type": "compute",
+            "workspace_id": user.workspace_id,
+            "score": score,
+            "trend": "stable" if vm.status == "RUNNING" else "degraded",
+            "factors": {
+                "cpu": "healthy" if (vm.cpu_usage or 0) < 80 else "warning",
+                "memory": "healthy" if (vm.ram_usage or 0) < 80 else "warning",
+                "disk": "healthy"
+            },
+            "recorded_at": datetime.datetime.utcnow().isoformat()
+        }
+
+    db_inst = db.query(DatabaseInstance).filter(DatabaseInstance.id == resource_id).first()
+    if db_inst:
+        score = 100 if db_inst.status == "AVAILABLE" else 50
+        return {
+            "id": f"pls-{uuid.uuid4().hex[:12]}",
+            "resource_id": resource_id,
+            "resource_type": "database",
+            "workspace_id": user.workspace_id,
+            "score": score,
+            "trend": "stable",
+            "factors": {"connection": "healthy", "storage": "healthy"},
+            "recorded_at": datetime.datetime.utcnow().isoformat()
+        }
+
+    raise HTTPException(status_code=404, detail=f"Resource '{resource_id}' not found")
 
 @router.get("/workspace")
 def get_workspace_health(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    ws_id = user.workspace_id
+    u_id = user.id
+
+    vms = db.query(ComputeInstance).filter(or_(ComputeInstance.workspace_id == ws_id, ComputeInstance.user_id == u_id)).all()
+    dbs = db.query(DatabaseInstance).filter(or_(DatabaseInstance.workspace_id == ws_id, DatabaseInstance.user_id == u_id)).all()
+    clusters = db.query(KubeCluster).filter(or_(KubeCluster.workspace_id == ws_id, KubeCluster.user_id == u_id)).all()
+    buckets = db.query(StorageBucket).filter(or_(StorageBucket.workspace_id == ws_id, StorageBucket.user_id == u_id)).all()
+
+    vm_score = 100 if not vms else int(sum(100 if v.status == "RUNNING" else 70 for v in vms) / len(vms))
+    db_score = 100 if not dbs else int(sum(100 if d.status == "AVAILABLE" else 50 for d in dbs) / len(dbs))
+    k8s_score = 100 if not clusters else int(sum(100 if c.status == "ACTIVE" else 50 for c in clusters) / len(clusters))
+    storage_score = 100
+
+    overall = int((vm_score + db_score + k8s_score + storage_score) / 4)
     return {
-        "overall_score": 92,
-        "trend": "stable",
+        "overall_score": overall,
+        "trend": "stable" if overall >= 80 else "degraded",
         "per_resource_type": {
-            "compute": 88,
-            "kubernetes": 95,
-            "database": 99,
-            "storage": 100
+            "compute": vm_score,
+            "kubernetes": k8s_score,
+            "database": db_score,
+            "storage": storage_score
         },
         "calculated_at": datetime.datetime.utcnow().isoformat()
     }
 
 @router.get("/predictions")
 def list_predictions(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    return [
-        {
-            "id": f"pred-{uuid.uuid4().hex[:12]}",
-            "resource_id": "arv-i-prod-web01",
-            "resource_type": "compute",
-            "workspace_id": user.workspace_id,
-            "prediction_type": "memory_leak",
-            "severity": "high",
-            "confidence": 0.92,
-            "predicted_time": (datetime.datetime.utcnow() + datetime.timedelta(hours=4)).isoformat(),
-            "description": "Memory usage growing consistently at 5MB/hr without garbage collection.",
-            "root_cause": "Application code memory leak in caching layer.",
-            "remediation": {"action": "restart_service", "service": "redis"},
-            "status": "active",
-            "created_at": datetime.datetime.utcnow().isoformat()
-        },
-        {
-            "id": f"pred-{uuid.uuid4().hex[:12]}",
-            "resource_id": "arv-db-core-prod",
-            "resource_type": "database",
-            "workspace_id": user.workspace_id,
-            "prediction_type": "connection_pool_saturation",
-            "severity": "medium",
-            "confidence": 0.85,
-            "predicted_time": (datetime.datetime.utcnow() + datetime.timedelta(days=1)).isoformat(),
-            "description": "Connection count nearing 90% of max pool size during peak hours.",
-            "root_cause": "Unclosed connections from worker nodes.",
-            "remediation": {"action": "scale_pool", "value": 300},
-            "status": "active",
-            "created_at": datetime.datetime.utcnow().isoformat()
-        }
-    ]
+    preds = db.query(PulsePrediction).filter(PulsePrediction.workspace_id == user.workspace_id).all()
+    return [p.to_dict() for p in preds]
 
 @router.get("/timeline/{resource_id}")
 def get_timeline(resource_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    base_time = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
-    return [
-        {
-            "timestamp": (base_time + datetime.timedelta(hours=i)).isoformat(),
-            "score": 90 - (i % 5)
-        }
-        for i in range(24)
-    ]
-
-@router.post("/acknowledge/{prediction_id}")
-def acknowledge_prediction(prediction_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    return {
-        "prediction_id": prediction_id,
-        "status": "acknowledged",
-        "acknowledged_at": datetime.datetime.utcnow().isoformat()
-    }
-
-@router.post("/remediate/{prediction_id}")
-def remediate_prediction(prediction_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    return {
-        "prediction_id": prediction_id,
-        "status": "remediated",
-        "remediated_at": datetime.datetime.utcnow().isoformat()
-    }
-
-@router.get("/report/weekly")
-def get_weekly_report(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    return {
-        "week": "2026-W37",
-        "average_score": 94,
-        "incidents_prevented": 5,
-        "top_degrading_resources": ["arv-i-prod-web01", "arv-k8s-prod01"],
-        "generated_at": datetime.datetime.utcnow().isoformat()
-    }
+    return []
 
 @router.get("/patterns")
 def list_patterns(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    return [
-        {
-            "id": f"pat-{uuid.uuid4().hex[:12]}",
-            "workspace_id": user.workspace_id,
-            "pattern_name": "Weekend Traffic Drop",
-            "description": "Traffic drops by 60% during weekends. Consider aggressive scaling down.",
-            "occurrences": 12,
-            "last_seen": datetime.datetime.utcnow().isoformat(),
-            "recommendation": "Implement scheduled auto-scaling for weekends.",
-            "severity": "low"
-        }
-    ]
+    patterns = db.query(PulsePattern).filter(PulsePattern.workspace_id == user.workspace_id).all()
+    return [p.to_dict() for p in patterns]

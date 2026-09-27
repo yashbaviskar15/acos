@@ -983,7 +983,7 @@ def create_backup(
         workspace_id=ws_id,
         resource_name=body.resource_name,
         resource_type=body.resource_type,
-        size_gb=round(random.uniform(1.2, 8.5), 2),
+        size_gb=0.1,
         region="arv-us-east-1",
         status="COMPLETED",
         retention_days=body.retention_days,
@@ -1072,181 +1072,8 @@ def delete_backup(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _ensure_user_baseline_resources(db: Session, current_user: User, ws_id: str):
-    """Ensure every user account has real persistent SQL records for their fleet so the console is 100% real and active."""
-    # Check if this user already has any resources
-    has_vm = db.query(ComputeInstance).filter((ComputeInstance.user_id == current_user.id) | (ComputeInstance.workspace_id == ws_id)).first()
-    has_k8s = db.query(KubeCluster).filter((KubeCluster.user_id == current_user.id) | (KubeCluster.workspace_id == ws_id)).first()
-    has_db = db.query(DatabaseInstance).filter((DatabaseInstance.user_id == current_user.id) | (DatabaseInstance.workspace_id == ws_id)).first()
-    has_s3 = db.query(StorageBucket).filter((StorageBucket.user_id == current_user.id) | (StorageBucket.workspace_id == ws_id)).first()
-    has_app = db.query(ApplicationRecord).filter((ApplicationRecord.user_id == current_user.id) | (ApplicationRecord.workspace_id == ws_id)).first()
-
-    if not (has_vm or has_k8s or has_db or has_s3 or has_app):
-        now = datetime.utcnow()
-        # 1. Compute VM
-        vm1 = ComputeInstance(
-            id=f"vm-{uuid.uuid4().hex[:8]}",
-            user_id=current_user.id,
-            workspace_id=ws_id,
-            name="auth-gateway-cluster",
-            instance_type="arv.medium",
-            os_image="Ubuntu 22.04 LTS",
-            region="ap-south-1a",
-            status="RUNNING",
-            private_ip="10.0.1.14",
-            public_ip="13.235.44.12",
-            cpu_usage=18.0,
-            ram_usage=32.0,
-            disk_gb=100,
-            tags=json.dumps({"env": "production", "tier": "gateway"}),
-            created_at=now - timedelta(days=14, hours=6),
-            updated_at=now
-        )
-        # 2. Managed Database (PostgreSQL)
-        db1 = DatabaseInstance(
-            id=f"db-{uuid.uuid4().hex[:8]}",
-            user_id=current_user.id,
-            workspace_id=ws_id,
-            name="production-postgres-primary",
-            engine="PostgreSQL 16.2",
-            tier="db.arv.medium",
-            region="ap-south-1a",
-            storage_gb=250,
-            storage_used_gb=42.5,
-            status="AVAILABLE",
-            endpoint="postgres-primary.db.aravanta.internal",
-            port="5432",
-            connection_count=38,
-            max_connections=200,
-            latency_ms=1.2,
-            iops=3000,
-            created_at=now - timedelta(days=28, hours=12)
-        )
-        # 3. Cache Database (Redis)
-        db2 = DatabaseInstance(
-            id=f"db-{uuid.uuid4().hex[:8]}",
-            user_id=current_user.id,
-            workspace_id=ws_id,
-            name="session-cache-redis",
-            engine="Redis 7.2 Cluster",
-            tier="cache.arv.large",
-            region="ap-south-1b",
-            storage_gb=32,
-            storage_used_gb=4.8,
-            status="AVAILABLE",
-            endpoint="redis.cache.aravanta.internal",
-            port="6379",
-            connection_count=120,
-            max_connections=500,
-            latency_ms=0.4,
-            iops=5000,
-            created_at=now - timedelta(days=19, hours=3)
-        )
-        # 4. Storage Bucket
-        s3_1 = StorageBucket(
-            id=f"s3-{uuid.uuid4().hex[:8]}",
-            user_id=current_user.id,
-            workspace_id=ws_id,
-            name="aravanta-deploy-artifacts",
-            region="ap-south-1",
-            storage_class="STANDARD",
-            size_gb=48.6,
-            object_count=1420,
-            versioning=True,
-            encryption="AES-256",
-            access="PRIVATE",
-            created_at=now - timedelta(days=60)
-        )
-        # 5. Application / Workload
-        app1 = ApplicationRecord(
-            id=f"app-{uuid.uuid4().hex[:8]}",
-            user_id=current_user.id,
-            workspace_id=ws_id,
-            name="billing-metering-engine",
-            environment="production",
-            version="v2.4.1",
-            previous_version="v2.4.0",
-            replicas=2,
-            target_replicas=2,
-            status="HEALTHY",
-            health_percent=100.0,
-            error_rate_percent=0.01,
-            cpu_usage_m=240,
-            memory_usage_mb=512,
-            p95_latency_ms=14.2,
-            requests_per_sec=180,
-            strategy="RollingUpdate",
-            image="registry.aravanta.io/billing:v2.4.1",
-            endpoints=json.dumps(["https://billing.aravanta.cloud"]),
-            ports=json.dumps([80, 443]),
-            created_at=now - timedelta(days=12, hours=2),
-            last_deployed_at=now - timedelta(minutes=15)
-        )
-        # 6. Kubernetes Cluster
-        k8s_1 = KubeCluster(
-            id=f"k8s-{uuid.uuid4().hex[:8]}",
-            user_id=current_user.id,
-            workspace_id=ws_id,
-            name="core-production-mesh",
-            version="1.30.1",
-            region="ap-south-1",
-            status="ACTIVE",
-            node_count=3,
-            node_size="arv.large",
-            endpoint="https://k8s-mesh.ap-south-1.aravanta.internal:6443",
-            cpu_cores_total=12,
-            ram_gb_total=48,
-            pod_count=24,
-            created_at=now - timedelta(days=45)
-        )
-
-        db.add_all([vm1, db1, db2, s3_1, app1, k8s_1])
-
-        # Also check and seed baseline deployment records if 0 exist
-        has_dep = db.query(DeploymentRecord).filter((DeploymentRecord.user_id == current_user.id) | (DeploymentRecord.workspace_id == ws_id)).first()
-        if not has_dep:
-            dep1 = DeploymentRecord(
-                id=f"dep-{uuid.uuid4().hex[:8]}",
-                user_id=current_user.id,
-                workspace_id=ws_id,
-                application_id=app1.id,
-                application_name="billing-metering-engine",
-                environment="production",
-                version="v2.4.1",
-                image="registry.aravanta.io/billing:v2.4.1",
-                strategy="RollingUpdate",
-                replicas=2,
-                status="SUCCESSFUL",
-                trigger="GitHub Actions Push",
-                commit_hash="fc3e039b",
-                commit_message="feat: add payment debit/credit ledger & live invoices",
-                author=current_user.full_name or "Yash Baviskar",
-                duration_seconds=102,
-                started_at=now - timedelta(minutes=15),
-                finished_at=now - timedelta(minutes=13, seconds=18)
-            )
-            dep2 = DeploymentRecord(
-                id=f"dep-{uuid.uuid4().hex[:8]}",
-                user_id=current_user.id,
-                workspace_id=ws_id,
-                application_id=vm1.id,
-                application_name="auth-gateway-cluster",
-                environment="production",
-                version="v3.1.0",
-                image="registry.aravanta.io/auth-gateway:v3.1.0",
-                strategy="RollingUpdate",
-                replicas=3,
-                status="SUCCESSFUL",
-                trigger="Manual Console Dispatch",
-                commit_hash="8a12d910",
-                commit_message="fix: jwt refresh rotation race condition",
-                author=current_user.full_name or "Shubham",
-                duration_seconds=48,
-                started_at=now - timedelta(hours=2),
-                finished_at=now - timedelta(hours=1, minutes=59, seconds=12)
-            )
-            db.add_all([dep1, dep2])
-
-        db.commit()
+    """Never synthesize fake cloud resources. Real resources are created explicitly by the user."""
+    pass
 
 @router.get("/infrastructure/inventory", summary="Multi-cloud resource inventory")
 def get_infrastructure_inventory(
@@ -1296,11 +1123,12 @@ def get_infrastructure_inventory(
             "env": tags.get("env", "production"),
             "status": vm.status,
             "specs": f"{vm.instance_type} ({vm.os_image})",
-            "uptime": "99.98% (Healthy)",
-            "cpu": int(vm.cpu_usage or 12),
-            "memory_mb": int((vm.ram_usage or 25) * 40),
-            "private_ip": vm.private_ip or "10.0.1.14",
-            "endpoint": f"{vm.name}.compute.internal",
+            "uptime": "100.0% (Healthy)" if vm.status == "RUNNING" else ("0.0%" if vm.status == "STOPPED" else "Awaiting Provider"),
+            "cpu": int(vm.cpu_usage) if vm.cpu_usage is not None else 0,
+            "memory_mb": int((vm.ram_usage or 0) * 40) if vm.ram_usage is not None else 0,
+            "private_ip": vm.private_ip or "—",
+            "public_ip": vm.public_ip or "—",
+            "endpoint": vm.public_ip or f"{vm.name}.internal",
             "created_at": vm.created_at.isoformat() + "Z" if vm.created_at else datetime.utcnow().isoformat() + "Z",
             "tags": tags
         })
@@ -1313,13 +1141,13 @@ def get_infrastructure_inventory(
             "provider": "AWS / EKS",
             "region": c.region,
             "env": "production",
-            "status": c.status if c.status in ["RUNNING", "PROVISIONING", "STOPPED", "ERROR"] else "RUNNING",
+            "status": c.status,
             "specs": f"{c.node_count} Nodes ({c.node_size}) - K8s {c.version}",
-            "uptime": "99.99%",
-            "cpu": 28,
-            "memory_mb": 4096,
-            "private_ip": "10.0.0.1",
-            "endpoint": c.endpoint,
+            "uptime": "100.0%" if c.status == "ACTIVE" else "0.0%",
+            "cpu": 0,
+            "memory_mb": 0,
+            "private_ip": "—",
+            "endpoint": c.endpoint or "Awaiting Cluster Connect",
             "created_at": c.created_at.isoformat() + "Z" if c.created_at else datetime.utcnow().isoformat() + "Z",
             "tags": {"orchestrator": "kubernetes"}
         })
@@ -1332,13 +1160,13 @@ def get_infrastructure_inventory(
             "provider": f"{d.engine} Managed",
             "region": d.region,
             "env": "production",
-            "status": "RUNNING" if d.status == "AVAILABLE" else d.status,
+            "status": d.status,
             "specs": f"{d.tier} ({d.storage_gb}GB)",
-            "uptime": "99.99%",
-            "cpu": 35,
-            "memory_mb": 8192,
-            "private_ip": "10.0.4.88",
-            "endpoint": d.endpoint or f"{d.name}.db.internal",
+            "uptime": "100.0%" if d.status == "AVAILABLE" else "0.0%",
+            "cpu": 0,
+            "memory_mb": 0,
+            "private_ip": "—",
+            "endpoint": d.endpoint or "Awaiting Provider Setup",
             "created_at": d.created_at.isoformat() + "Z" if d.created_at else datetime.utcnow().isoformat() + "Z",
             "tags": {"tier": "data-layer"}
         })
@@ -1351,11 +1179,11 @@ def get_infrastructure_inventory(
             "provider": "ArvStore S3",
             "region": b.region,
             "env": "production",
-            "status": "RUNNING",
+            "status": "AVAILABLE",
             "specs": f"{b.size_gb} GB / {b.storage_class}",
             "uptime": "100.0%",
-            "cpu": 5,
-            "memory_mb": 512,
+            "cpu": 0,
+            "memory_mb": 0,
             "private_ip": "—",
             "endpoint": f"s3://{b.name}",
             "created_at": b.created_at.isoformat() + "Z" if b.created_at else datetime.utcnow().isoformat() + "Z",
@@ -1370,13 +1198,13 @@ def get_infrastructure_inventory(
             "provider": "CloudOS Workload",
             "region": "global",
             "env": a.environment if a.environment in ["production", "staging", "development"] else "production",
-            "status": "RUNNING" if a.status == "HEALTHY" else ("STOPPED" if a.status == "STOPPED" else "ERROR"),
+            "status": a.status,
             "specs": f"{a.replicas} Replicas ({a.version})",
-            "uptime": "99.99%",
-            "cpu": int(a.cpu_usage_m / 10) if a.cpu_usage_m else 20,
-            "memory_mb": a.memory_usage_mb or 1024,
-            "private_ip": "10.0.2.14",
-            "endpoint": f"https://{a.name}.aravanta.cloud",
+            "uptime": "100.0%" if a.status == "HEALTHY" else "0.0%",
+            "cpu": int(a.cpu_usage_m / 10) if a.cpu_usage_m else 0,
+            "memory_mb": a.memory_usage_mb or 0,
+            "private_ip": "—",
+            "endpoint": a.endpoints or "Awaiting Deployment",
             "created_at": a.created_at.isoformat() + "Z" if a.created_at else datetime.utcnow().isoformat() + "Z",
             "tags": {"environment": a.environment}
         })
@@ -1400,22 +1228,23 @@ def provision_resource(
 
     if "db" in type_str or "database" in type_str:
         res_id = f"db-{uuid.uuid4().hex[:8]}"
+        is_pg = "postgres" in type_str
         new_db = DatabaseInstance(
             id=res_id,
             user_id=current_user.id,
             workspace_id=ws_id,
             name=clean_name,
-            engine="PostgreSQL 16",
+            engine="PostgreSQL 16" if is_pg else (body.name or "PostgreSQL 16"),
             tier="db.arv.medium",
             region=body.region or "ap-south-1a",
             storage_gb=100,
-            storage_used_gb=1.0,
-            status="AVAILABLE",
-            endpoint=f"{clean_name}.db.aravanta.internal",
-            port="5432",
-            connection_count=1,
-            max_connections=200,
-            latency_ms=1.5,
+            storage_used_gb=0.01 if is_pg else 0.0,
+            status="AVAILABLE" if is_pg else "AWAITING_PROVIDER_SETUP",
+            endpoint="ep-small-pond-a5i9ohyh-pooler.us-east-2.aws.neon.tech" if is_pg else None,
+            port="5432" if is_pg else None,
+            connection_count=0,
+            max_connections=100,
+            latency_ms=1.5 if is_pg else None,
             created_at=datetime.utcnow()
         )
         db.add(new_db)
@@ -1431,7 +1260,7 @@ def provision_resource(
             name=clean_name,
             region=body.region or "ap-south-1",
             storage_class="STANDARD",
-            size_gb=1.0,
+            size_gb=0.0,
             object_count=0,
             versioning=True,
             encryption="AES-256",
@@ -1451,10 +1280,10 @@ def provision_resource(
             name=clean_name,
             version="1.30.1",
             region=body.region or "ap-south-1",
-            status="ACTIVE",
-            node_count=3,
+            status="AWAITING_PROVIDER_SETUP",
+            node_count=0,
             node_size="arv.large",
-            endpoint=f"https://{clean_name}.aravanta.internal:6443",
+            endpoint=None,
             pod_count=0,
             created_at=datetime.utcnow()
         )
@@ -1471,20 +1300,20 @@ def provision_resource(
             name=clean_name,
             environment=body.env or "production",
             version="v1.0.0",
-            replicas=2,
-            target_replicas=2,
-            status="HEALTHY",
-            health_percent=100.0,
-            cpu_usage_m=100,
-            memory_usage_mb=256,
-            p95_latency_ms=18.0,
-            requests_per_sec=10,
+            replicas=1,
+            target_replicas=1,
+            status="AWAITING_DEPLOYMENT",
+            health_percent=0.0,
+            cpu_usage_m=None,
+            memory_usage_mb=None,
+            p95_latency_ms=None,
+            requests_per_sec=0,
             strategy="RollingUpdate",
             image=f"registry.aravanta.io/{clean_name}:v1.0.0",
-            endpoints=json.dumps([f"https://{clean_name}.aravanta.cloud"]),
+            endpoints=None,
             ports=json.dumps([80]),
             created_at=datetime.utcnow(),
-            last_deployed_at=datetime.utcnow()
+            last_deployed_at=None
         )
         db.add(new_app)
         db.commit()
@@ -1501,11 +1330,11 @@ def provision_resource(
             instance_type="arv.medium",
             os_image="Ubuntu 22.04 LTS",
             region=body.region or "ap-south-1a",
-            status="RUNNING",
-            private_ip=f"10.0.{random.randint(1,254)}.{random.randint(1,254)}",
-            public_ip=f"34.{random.randint(100,250)}.{random.randint(1,254)}.{random.randint(1,254)}",
-            cpu_usage=5.0,
-            ram_usage=20.0,
+            status="AWAITING_PROVIDER_SETUP",
+            private_ip=None,
+            public_ip=None,
+            cpu_usage=None,
+            ram_usage=None,
             disk_gb=100,
             tags=json.dumps(body.tags or {"env": body.env}),
             created_at=datetime.utcnow()
@@ -1515,16 +1344,17 @@ def provision_resource(
         db.refresh(new_vm)
         category_name = "Compute VM"
 
+    res_status = "AWAITING_PROVIDER_SETUP" if category_name in ["Compute VM", "Kubernetes Cluster"] else ("AVAILABLE" if category_name in ["Managed Database", "Object Storage"] else "AWAITING_DEPLOYMENT")
     new_res = {
         "id": res_id,
         "name": clean_name,
         "type": category_name,
-        "provider": body.provider or "AWS / EC2",
+        "provider": body.provider or "Aravanta Cloud Control Plane",
         "region": body.region,
         "env": body.env,
-        "status": "RUNNING",
+        "status": res_status,
         "specs": body.specs,
-        "uptime": "100.0% (Just provisioned)",
+        "uptime": "100.0%" if res_status == "AVAILABLE" else "0.0% (Awaiting Provider)",
         "tags": body.tags or {"env": body.env}
     }
 
