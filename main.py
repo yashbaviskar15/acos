@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import traceback
+import urllib.parse
 from pathlib import Path
 
 # Setup paths
@@ -64,36 +65,27 @@ async def app(scope, receive, send):
         if "headers" not in scope:
             scope["headers"] = []
 
-        headers = dict(scope.get("headers", []))
-        matched = (
-            headers.get(b"x-forwarded-url")
-            or headers.get(b"x-forwarded-uri")
-            or headers.get(b"x-original-url")
-            or headers.get(b"x-invoke-path")
-            or headers.get(b"x-real-path")
-            or headers.get(b"x-vercel-sc-path")
-            or headers.get(b"x-matched-path")
-            or headers.get(b"x-vercel-rewrite-path")
-            or b""
-        ).decode("utf-8", errors="ignore")
-
-        # Strip query params if header contains full URL or query
-        if "?" in matched:
-            matched = matched.split("?", 1)[0]
-        if matched.startswith("http://") or matched.startswith("https://"):
-            from urllib.parse import urlparse
-            matched = urlparse(matched).path
-
-        if matched and matched not in ("/api", "/api/", "/api/index", "/api/index/", "/api/index.py"):
-            raw_path = matched
+        # Extract real client path from __path__ query param or fallback
+        raw_qs = scope.get("query_string", b"").decode("utf-8", "ignore")
+        if "__path__=" in raw_qs:
+            parsed_qs = urllib.parse.parse_qs(raw_qs, keep_blank_values=True)
+            if "__path__" in parsed_qs:
+                extracted_path = parsed_qs["__path__"][0]
+                if not extracted_path.startswith("/"):
+                    extracted_path = "/" + extracted_path
+                scope["path"] = extracted_path
+                remaining_params = []
+                for k, vals in parsed_qs.items():
+                    if k != "__path__":
+                        for v in vals:
+                            remaining_params.append(f"{urllib.parse.quote(k)}={urllib.parse.quote(v)}")
+                scope["query_string"] = "&".join(remaining_params).encode("ascii")
         else:
             raw_path = scope.get("path", "")
-
-        scope["_orig_path"] = scope.get("path")
-        for prefix in ("/backend", "/api/index.py", "/api/index"):
-            if raw_path.startswith(prefix):
-                raw_path = raw_path[len(prefix):] or "/"
-        scope["path"] = raw_path or "/"
+            for prefix in ("/backend", "/api/index.py", "/api/index"):
+                if raw_path.startswith(prefix):
+                    raw_path = raw_path[len(prefix):] or "/"
+            scope["path"] = raw_path or "/"
 
         try:
             await _real_app(scope, receive, send)
@@ -102,7 +94,7 @@ async def app(scope, receive, send):
             body = json.dumps({
                 "status": "RUNTIME_ERROR",
                 "error": str(req_exc),
-                "path": raw_path,
+                "path": scope.get("path"),
                 "traceback": tb.splitlines()
             }).encode("utf-8")
             try:
