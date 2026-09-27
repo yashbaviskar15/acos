@@ -6,6 +6,22 @@
   "outputDirectory": "frontend/dist",
   "rewrites": [
     {
+      "source": "/api/:match*",
+      "destination": "https://arv-backend.vercel.app/api/:match*"
+    },
+    {
+      "source": "/health",
+      "destination": "https://arv-backend.vercel.app/health"
+    },
+    {
+      "source": "/docs",
+      "destination": "https://arv-backend.vercel.app/docs"
+    },
+    {
+      "source": "/openapi.json",
+      "destination": "https://arv-backend.vercel.app/openapi.json"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

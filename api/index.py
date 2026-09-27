@@ -87,6 +87,13 @@ async def app(scope, receive, send):
                     raw_path = raw_path[len(prefix):] or "/"
             scope["path"] = raw_path or "/"
 
+        import re
+        clean_p = "/" + scope["path"].lstrip("/")
+        clean_p = re.sub(r"/+", "/", clean_p)
+        if len(clean_p) > 1 and clean_p.endswith("/"):
+            clean_p = clean_p.rstrip("/")
+        scope["path"] = clean_p
+
         try:
             await _real_app(scope, receive, send)
         except BaseException as req_exc:

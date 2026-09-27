@@ -9,8 +9,13 @@
  */
 
 const DEFAULT_BACKEND = 'https://arv-backend.vercel.app';
+const envApiUrl = (import.meta.env.VITE_API_URL || '').trim();
 
-export const API_BASE_URL = (import.meta.env.VITE_API_URL || DEFAULT_BACKEND).replace(/\/+$/, '');
+export const API_BASE_URL = (
+  envApiUrl && envApiUrl !== '/' && (envApiUrl.startsWith('http://') || envApiUrl.startsWith('https://'))
+    ? envApiUrl
+    : DEFAULT_BACKEND
+).replace(/\/+$/, '');
 
 export interface ApiOptions extends RequestInit {
   token?: string | null;
