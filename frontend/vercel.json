@@ -4,6 +4,25 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/api/:match*",
+      "destination": "https://arv-backend.vercel.app/api/:match*"
+    },
+    {
+      "source": "/health",
+      "destination": "https://arv-backend.vercel.app/health"
+    },
+    {
+      "source": "/docs",
+      "destination": "https://arv-backend.vercel.app/docs"
+    },
+    {
+      "source": "/openapi.json",
+      "destination": "https://arv-backend.vercel.app/openapi.json"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }
