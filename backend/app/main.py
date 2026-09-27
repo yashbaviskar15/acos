@@ -242,6 +242,14 @@ def root():
         "health": "/health"
     }
 
+@app.get("/debug-scope", tags=["Debug"])
+def debug_scope(request: Request):
+    return {
+        "url_path": request.url.path,
+        "scope_path": request.scope.get("path"),
+        "headers": {k.decode("utf-8", "ignore"): v.decode("utf-8", "ignore") for k, v in request.scope.get("headers", [])}
+    }
+
 @app.get("/health", tags=["Health"])
 @app.get("/api/health", tags=["Health"], include_in_schema=False)
 @app.get("/api/v1/health", tags=["Health"])

@@ -66,11 +66,23 @@ async def app(scope, receive, send):
 
         headers = dict(scope.get("headers", []))
         matched = (
-            headers.get(b"x-matched-path")
-            or headers.get(b"x-vercel-rewrite-path")
+            headers.get(b"x-forwarded-url")
+            or headers.get(b"x-forwarded-uri")
             or headers.get(b"x-original-url")
+            or headers.get(b"x-invoke-path")
+            or headers.get(b"x-real-path")
+            or headers.get(b"x-vercel-sc-path")
+            or headers.get(b"x-matched-path")
+            or headers.get(b"x-vercel-rewrite-path")
             or b""
         ).decode("utf-8", errors="ignore")
+
+        # Strip query params if header contains full URL or query
+        if "?" in matched:
+            matched = matched.split("?", 1)[0]
+        if matched.startswith("http://") or matched.startswith("https://"):
+            from urllib.parse import urlparse
+            matched = urlparse(matched).path
 
         if matched and matched not in ("/api", "/api/", "/api/index", "/api/index/", "/api/index.py"):
             raw_path = matched
