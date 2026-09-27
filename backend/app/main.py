@@ -144,15 +144,6 @@ def init_db():
             logger.error("Database initialization failed: %s.", exc)
 
 
-# Database initialization: run on explicit request or local development, not on serverless cold starts
-is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
-if not is_serverless:
-    try:
-        init_db()
-    except Exception as exc:
-        logger.warning("Startup database initialization: %s", exc)
-
-
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
@@ -161,26 +152,21 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# Pure ASGI middleware to normalize Vercel serverless /api and /api/index rewrite paths
+# Safe, zero-overhead ASGI middleware to normalize Vercel serverless rewrite paths
 class VercelPathRewriteMiddleware:
     def __init__(self, app):
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] == "http":
-            headers = dict(scope.get("headers", []))
-            matched = (
-                headers.get(b"x-matched-path", b"")
-                or headers.get(b"x-vercel-rewrite-path", b"")
-                or headers.get(b"x-original-url", b"")
-            ).decode("utf-8", errors="ignore")
-            if matched and matched not in ("/api", "/api/", "/api/index", "/api/index/"):
-                scope["path"] = matched
+        if scope.get("type") == "http":
             path = scope.get("path", "")
-            if path in ("/api", "/api/", "/api/index", "/api/index/"):
-                scope["path"] = "/"
-            elif path.startswith("/api/index/"):
-                scope["path"] = path[len("/api/index"):]
+            # Strip redundant internal rewrite prefixes if present
+            for prefix in ("/backend", "/api/index.py", "/api/index"):
+                if path.startswith(prefix):
+                    path = path[len(prefix):] or "/"
+            if not path:
+                path = "/"
+            scope["path"] = path
         await self.app(scope, receive, send)
 
 app.add_middleware(VercelPathRewriteMiddleware)
@@ -284,6 +270,14 @@ def health_check():
         "database": db_status,
         "database_engine": db_engine_type,
     }
+
+@app.api_route("/api/v1/operations/init-db", methods=["GET", "POST"], tags=["Operations"])
+def trigger_init_db():
+    try:
+        init_db()
+        return {"status": "SUCCESS", "message": "Database tables and migrations initialized successfully."}
+    except Exception as exc:
+        return {"status": "ERROR", "message": str(exc)}
 
 handler = app
 application = app

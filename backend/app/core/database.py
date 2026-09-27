@@ -91,17 +91,25 @@ def _create_robust_engine(url: str, is_serverless: bool):
 
     for dialect_name, candidate_url in candidates:
         try:
+            c_args = {}
+            if candidate_url.startswith("sqlite"):
+                c_args = {"check_same_thread": False}
+            elif "psycopg2" in dialect_name:
+                c_args = {"connect_timeout": 5}
+            elif "psycopg" in dialect_name:
+                c_args = {"timeout": 5}
+
             if candidate_url.startswith("sqlite"):
                 eng = create_engine(
                     candidate_url,
-                    connect_args={"check_same_thread": False},
+                    connect_args=c_args,
                     pool_pre_ping=True,
                 )
             elif is_serverless:
                 eng = create_engine(
                     candidate_url,
                     poolclass=NullPool,
-                    connect_args={"connect_timeout": 5},
+                    connect_args=c_args,
                 )
             else:
                 eng = create_engine(
@@ -111,7 +119,7 @@ def _create_robust_engine(url: str, is_serverless: bool):
                     max_overflow=10,
                     pool_recycle=300,
                     pool_timeout=5,
-                    connect_args={"connect_timeout": 5},
+                    connect_args=c_args,
                 )
             # Verify driver importability without executing network I/O
             if not candidate_url.startswith("sqlite"):

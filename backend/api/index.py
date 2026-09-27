@@ -1,57 +1,100 @@
 import os
 import sys
+import json
+import traceback
 from pathlib import Path
 
-# Add backend root directory to sys.path
-backend_dir = Path(__file__).resolve().parent.parent
-if str(backend_dir) not in sys.path:
-    sys.path.insert(0, str(backend_dir))
+# Setup paths
+_file_dir = Path(__file__).resolve().parent
+for _p in [_file_dir, _file_dir / "backend", _file_dir.parent, _file_dir.parent / "backend"]:
+    if _p.exists() and str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
 
-cwd = Path.cwd()
-if str(cwd) not in sys.path:
-    sys.path.insert(0, str(cwd))
-if str(cwd / "backend") not in sys.path:
-    sys.path.insert(0, str(cwd / "backend"))
-
-# Fallbacks for critical environment variables on serverless cold start
+# Environment fallbacks
 if not os.environ.get("SECRET_KEY"):
     os.environ["SECRET_KEY"] = "aravanta_prod_live_sec_key_9f82b71e84a20c4e8d35f76a1b94c032e578"
-
 if not os.environ.get("DATABASE_URL"):
     os.environ["DATABASE_URL"] = "postgresql://neondb_owner:npg_rJL0kIVv7Xuj@ep-small-pond-a5i9ohyh-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
 
+_real_app = None
+_boot_error = None
 try:
-    from app.main import app
-    handler = app
-    application = app
-except Exception as exc:
-    import traceback
-    tb = traceback.format_exc()
-    error_msg = str(exc)
+    from app.main import app as _real_app
+except BaseException as _exc:
+    _boot_error = {
+        "error": str(_exc),
+        "traceback": traceback.format_exc().splitlines()
+    }
 
-    # Pure zero-dependency ASGI recovery application
-    async def app(scope, receive, send):
-        if scope["type"] == "http":
-            import json
-            payload = json.dumps({
+async def app(scope, receive, send):
+    scope_type = scope.get("type", "")
+
+    # Handle ASGI Lifespan cleanly
+    if scope_type == "lifespan":
+        while True:
+            message = await receive()
+            if message["type"] == "lifespan.startup":
+                await send({"type": "lifespan.startup.complete"})
+            elif message["type"] == "lifespan.shutdown":
+                await send({"type": "lifespan.shutdown.complete"})
+                return
+
+    # Handle HTTP requests
+    if scope_type == "http":
+        if _boot_error:
+            body = json.dumps({
                 "status": "BOOT_FAILURE",
-                "error": error_msg,
-                "traceback": tb.splitlines(),
+                "error": _boot_error["error"],
+                "traceback": _boot_error["traceback"]
             }).encode("utf-8")
             await send({
                 "type": "http.response.start",
                 "status": 500,
                 "headers": [
                     (b"content-type", b"application/json"),
-                    (b"content-length", str(len(payload)).encode("ascii")),
-                    (b"access-control-allow-origin", b"*"),
-                ],
+                    (b"content-length", str(len(body)).encode("ascii")),
+                    (b"access-control-allow-origin", b"*")
+                ]
             })
-            await send({
-                "type": "http.response.body",
-                "body": payload,
-            })
+            await send({"type": "http.response.body", "body": body})
+            return
 
-    handler = app
-    application = app
+        if "query_string" not in scope:
+            scope["query_string"] = b""
+        if "headers" not in scope:
+            scope["headers"] = []
 
+        raw_path = scope.get("path", "")
+        # Normalize any redundant Vercel routing prefixes
+        for prefix in ("/backend", "/api/index.py", "/api/index"):
+            if raw_path.startswith(prefix):
+                raw_path = raw_path[len(prefix):] or "/"
+        scope["path"] = raw_path or "/"
+
+        try:
+            await _real_app(scope, receive, send)
+        except BaseException as req_exc:
+            tb = traceback.format_exc()
+            body = json.dumps({
+                "status": "RUNTIME_ERROR",
+                "error": str(req_exc),
+                "path": raw_path,
+                "traceback": tb.splitlines()
+            }).encode("utf-8")
+            try:
+                await send({
+                    "type": "http.response.start",
+                    "status": 500,
+                    "headers": [
+                        (b"content-type", b"application/json"),
+                        (b"content-length", str(len(body)).encode("ascii")),
+                        (b"access-control-allow-origin", b"*")
+                    ]
+                })
+                await send({"type": "http.response.body", "body": body})
+            except Exception:
+                pass
+
+handler = app
+application = app
+__all__ = ["app", "handler", "application"]
