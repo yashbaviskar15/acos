@@ -8,7 +8,6 @@ import random
 from datetime import datetime
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Query, Depends, status, Response
-import yaml
 import httpx
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -64,8 +63,11 @@ def connect_cluster(
     current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator"]))
 ):
     try:
+        import yaml
         config = yaml.safe_load(req.kubeconfig_yaml)
-    except yaml.YAMLError as e:
+    except ImportError:
+        raise HTTPException(500, "PyYAML parser is initializing or not available on serverless environment.")
+    except Exception as e:
         raise HTTPException(400, f"Invalid YAML: {e}")
     
     if not config or "clusters" not in config or not config["clusters"]:
