@@ -233,13 +233,17 @@ app.include_router(cloud_providers_router)
 @app.get("/api/", tags=["Root"], include_in_schema=False)
 @app.get("/api/index", tags=["Root"], include_in_schema=False)
 @app.get("/api/index/", tags=["Root"], include_in_schema=False)
-def root():
+def root(request: Request):
     return {
         "status": "HEALTHY",
         "service": "Aravanta CloudOS Backend API",
         "version": settings.VERSION,
         "docs": "/docs",
-        "health": "/health"
+        "health": "/health",
+        "received_path": request.url.path,
+        "scope_path": request.scope.get("path"),
+        "scope_raw_path": request.scope.get("raw_path", b"").decode("latin-1", "ignore"),
+        "headers": {k.decode("latin-1", "ignore"): v.decode("latin-1", "ignore") for k, v in request.scope.get("headers", [])}
     }
 
 @app.get("/debug-scope", tags=["Debug"])

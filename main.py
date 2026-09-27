@@ -89,6 +89,7 @@ async def app(scope, receive, send):
         else:
             raw_path = scope.get("path", "")
 
+        scope["_orig_path"] = scope.get("path")
         for prefix in ("/backend", "/api/index.py", "/api/index"):
             if raw_path.startswith(prefix):
                 raw_path = raw_path[len(prefix):] or "/"
