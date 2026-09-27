@@ -64,8 +64,19 @@ async def app(scope, receive, send):
         if "headers" not in scope:
             scope["headers"] = []
 
-        raw_path = scope.get("path", "")
-        # Normalize any redundant Vercel routing prefixes
+        headers = dict(scope.get("headers", []))
+        matched = (
+            headers.get(b"x-matched-path")
+            or headers.get(b"x-vercel-rewrite-path")
+            or headers.get(b"x-original-url")
+            or b""
+        ).decode("utf-8", errors="ignore")
+
+        if matched and matched not in ("/api", "/api/", "/api/index", "/api/index/", "/api/index.py"):
+            raw_path = matched
+        else:
+            raw_path = scope.get("path", "")
+
         for prefix in ("/backend", "/api/index.py", "/api/index"):
             if raw_path.startswith(prefix):
                 raw_path = raw_path[len(prefix):] or "/"
