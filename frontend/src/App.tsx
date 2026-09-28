@@ -47,6 +47,8 @@ import { FAQPage } from './pages/FAQPage';
 import { SitemapPage } from './pages/SitemapPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { UserManualPage } from './pages/UserManualPage';
+import { ServiceCatalogPage } from './pages/ServiceCatalogPage';
+import { WebTerminalPage } from './pages/WebTerminalPage';
 import type { LandingView } from './components/ui/Navbar';
 import { CookieConsent } from './components/ui/CookieConsent';
 import { FloatingSalesChat } from './components/landing/FloatingSalesChat';
@@ -129,6 +131,8 @@ export default function App() {
         'components',
         'patterns',
         'resources',
+        'services',
+        'cli',
         'not-found',
       ];
       if (saved && validViews.includes(saved)) {
@@ -250,6 +254,8 @@ export default function App() {
       'components',
       'patterns',
       'resources',
+      'services',
+      'cli',
       'not-found',
     ];
 
@@ -258,13 +264,23 @@ export default function App() {
       setLandingView(target as LandingView);
       setAuthViewState('landing');
       try {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        if (typeof window !== 'undefined') {
+          if (window.location.hash) {
+            window.history.replaceState(null, '', window.location.pathname);
+          }
+          window.scrollTo(0, 0);
+        }
       } catch {}
     } else if (target === 'login') {
       setIsConsoleMode(false);
       setAuthViewState('login');
       try {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        if (typeof window !== 'undefined') {
+          if (window.location.hash) {
+            window.history.replaceState(null, '', window.location.pathname);
+          }
+          window.scrollTo(0, 0);
+        }
       } catch {}
     } else if (target === 'register') {
       setIsConsoleMode(false);
@@ -354,13 +370,20 @@ export default function App() {
       'components',
       'patterns',
       'resources',
+      'services',
+      'cli',
     ];
     if (validViews.includes(view)) {
       setLandingView(view);
       // Ensure we're in landing mode (not login/register)
       if (authViewState !== 'landing') setAuthViewState('landing');
       try {
-        window.scrollTo({ top: 0, behavior: 'auto' });
+        if (typeof window !== 'undefined') {
+          if (window.location.hash) {
+            window.history.replaceState(null, '', window.location.pathname);
+          }
+          window.scrollTo(0, 0);
+        }
       } catch {}
     }
   };
@@ -518,6 +541,12 @@ export default function App() {
       case 'patterns':
       case 'resources':
         PageComponent = DocumentationPage;
+        break;
+      case 'services':
+        PageComponent = ServiceCatalogPage;
+        break;
+      case 'cli':
+        PageComponent = WebTerminalPage;
         break;
       case 'not-found':
         PageComponent = NotFoundPage;

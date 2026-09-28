@@ -11,7 +11,6 @@ import {
   Boxes,
   HardDrive,
   Database,
-  GitBranch,
   Activity,
   ArrowRight,
   User as UserIcon,
@@ -20,6 +19,9 @@ import {
   LogOut,
   Shield,
   ChevronDown,
+  Zap,
+  Network,
+  Terminal,
 } from 'lucide-react';
 import { Logo } from '../Logo';
 import { Button } from './Button';
@@ -47,6 +49,8 @@ export type LandingView =
   | 'privacy'
   | 'disclaimer'
   | 'terms'
+  | 'services'
+  | 'cli'
   | 'not-found';
 
 export interface NavbarProps {
@@ -70,11 +74,11 @@ const platformModules = [
   {
     icon: Boxes,
     name: 'Managed Kubernetes',
-    desc: 'Self-healing, multi-cluster K8s control plane',
+    desc: 'Self-healing, multi-cluster K8s control plane (1.27–1.30)',
   },
   {
     icon: HardDrive,
-    name: 'Object Storage',
+    name: 'Object Storage (ArvStore)',
     desc: 'S3-compatible, ultra-low latency distributed storage',
   },
   {
@@ -83,14 +87,24 @@ const platformModules = [
     desc: 'High-availability Postgres, Redis & MySQL clusters',
   },
   {
-    icon: GitBranch,
-    name: 'GitOps Pipelines',
-    desc: 'Automated CI/CD releases with canary safety gates',
+    icon: Zap,
+    name: 'Serverless Functions',
+    desc: 'Sub-millisecond cold start event-driven execution',
+  },
+  {
+    icon: Network,
+    name: 'Virtual Private Cloud',
+    desc: 'Isolated software-defined networks & security groups',
+  },
+  {
+    icon: Shield,
+    name: 'Zero-Trust IAM & KMS',
+    desc: 'Hardware-backed secrets & RFC 6238 TOTP MFA',
   },
   {
     icon: Activity,
     name: 'SRE Observability',
-    desc: 'Sub-second metrics, Loki log stream & alert triage',
+    desc: 'Prometheus TSDB, Loki log streams & alert triage',
   },
 ];
 
@@ -190,6 +204,17 @@ export const Navbar: React.FC<NavbarProps> = ({
     };
   }, [mobileOpen]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMobileOpen(false);
+        setUserMenuOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const navLinkBase =
     'text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-brandGold-600 dark:hover:text-brandGold-400 transition-colors relative py-2 min-h-[44px] flex items-center';
 
@@ -200,8 +225,13 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const handleNavClick = (view: LandingView) => {
     setMobileOpen(false);
+    if (typeof window !== 'undefined') {
+      if (window.location.hash) {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+      window.scrollTo(0, 0);
+    }
     onNavigate?.(view);
-    setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 50);
   };
 
   return (
@@ -215,8 +245,8 @@ export const Navbar: React.FC<NavbarProps> = ({
         ].join(' ')}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="h-16 sm:h-20 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-6 lg:gap-8 shrink-0">
+          <div className="h-16 sm:h-20 flex items-center justify-between gap-2 lg:gap-3">
+            <div className="flex items-center gap-2 lg:gap-3 shrink-0">
               <button
                 onClick={() => handleNavClick('home')}
                 className="flex items-center -m-2 p-2 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-brandGold-500/50"
@@ -224,43 +254,74 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <Logo size="md" />
               </button>
 
-              <nav className="hidden lg:flex items-center gap-1">
+              <div className="hidden 2xl:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[11px] font-mono font-medium shadow-xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span>ap-south-1 • 8ms</span>
+              </div>
+
+              <nav className="hidden lg:flex items-center gap-0.5 xl:gap-1">
                 <Dropdown align="start" side="bottom">
                   <DropdownTrigger asChild>
                     <button
                       className={[
                         navLinkBase,
-                        'flex items-center gap-1.5 px-3 rounded-lg hover:bg-slate-100/60 dark:hover:bg-brandObsidian-800/60',
-                        currentView === 'features' ? activeLink(true) : '',
+                        'flex items-center gap-1 px-2.5 rounded-lg hover:bg-slate-100/60 dark:hover:bg-brandObsidian-800/60',
+                        currentView === 'foundations' ? activeLink(true) : '',
                       ].join(' ')}
                     >
                       {t('nav.platform')}
                       <ChevronRight className="w-3.5 h-3.5 -rotate-90 opacity-60" />
                     </button>
                   </DropdownTrigger>
-                  <DropdownMenu className="w-[480px] p-3 grid grid-cols-2 gap-2 bg-white dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-700 rounded-2xl shadow-xl">
-                    {platformModules.map((mod) => {
-                      const Icon = mod.icon;
-                      return (
-                        <button
-                          key={mod.name}
-                          onClick={() => handleNavClick('features')}
-                          className="group flex items-start gap-3 p-2.5 rounded-xl text-left transition-all hover:bg-brandGold-50/60 dark:hover:bg-brandObsidian-800"
-                        >
-                          <div className="shrink-0 w-9 h-9 rounded-xl bg-brandGold-500/10 text-brandGold-600 dark:text-brandGold-400 flex items-center justify-center group-hover:bg-brandGold-500 group-hover:text-white transition-colors">
-                            <Icon className="w-4.5 h-4.5" />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white group-hover:text-brandGold-600 dark:group-hover:text-brandGold-400 transition-colors">
-                              {mod.name}
+                  <DropdownMenu className="w-[540px] p-3.5 bg-white dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-700 rounded-2xl shadow-2xl">
+                    <div className="grid grid-cols-2 gap-2">
+                      {platformModules.map((mod) => {
+                        const Icon = mod.icon;
+                        return (
+                          <button
+                            key={mod.name}
+                            onClick={() => handleNavClick('features')}
+                            className="group flex items-start gap-3 p-2.5 rounded-xl text-left transition-all hover:bg-brandGold-50/80 dark:hover:bg-brandObsidian-800/80 cursor-pointer"
+                          >
+                            <div className="shrink-0 w-9 h-9 rounded-xl bg-brandGold-500/10 text-brandGold-600 dark:text-brandGold-400 flex items-center justify-center group-hover:bg-brandGold-500 group-hover:text-white transition-colors">
+                              <Icon className="w-4.5 h-4.5" />
                             </div>
-                            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug line-clamp-2">
-                              {mod.desc}
+                            <div className="min-w-0">
+                              <div className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white group-hover:text-brandGold-600 dark:group-hover:text-brandGold-400 transition-colors">
+                                {mod.name}
+                              </div>
+                              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug line-clamp-2">
+                                {mod.desc}
+                              </div>
                             </div>
-                          </div>
-                        </button>
-                      );
-                    })}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-2.5 pt-2.5 border-t border-slate-100 dark:border-brandObsidian-800 flex items-center justify-between px-2 text-xs">
+                      <button
+                        onClick={() => handleNavClick('services')}
+                        className="font-medium text-slate-600 dark:text-slate-400 hover:text-brandGold-600 dark:hover:text-brandGold-400 flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <span>All Services (20+)</span>
+                        <ChevronRight className="w-3 h-3 opacity-60" />
+                      </button>
+                      <button
+                        onClick={() => handleNavClick('cli')}
+                        className="font-medium text-slate-600 dark:text-slate-400 hover:text-brandGold-600 dark:hover:text-brandGold-400 flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <Terminal className="w-3 h-3 text-brandGold-500" />
+                        <span>Web Terminal</span>
+                        <ChevronRight className="w-3 h-3 opacity-60" />
+                      </button>
+                      <button
+                        onClick={() => handleNavClick('documentation')}
+                        className="font-medium text-slate-600 dark:text-slate-400 hover:text-brandGold-600 dark:hover:text-brandGold-400 flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <span>Architecture Docs</span>
+                        <ChevronRight className="w-3 h-3 opacity-60" />
+                      </button>
+                    </div>
                   </DropdownMenu>
                 </Dropdown>
 
@@ -268,7 +329,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => handleNavClick('features')}
                   className={[
                     navLinkBase,
-                    'px-3 rounded-lg',
+                    'px-2.5 rounded-lg',
                     currentView === 'features' ? activeLink(true) : '',
                   ].join(' ')}
                 >
@@ -276,21 +337,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleNavClick('community')}
+                  onClick={() => handleNavClick('services')}
                   className={[
                     navLinkBase,
-                    'px-3 rounded-lg',
-                    currentView === 'community' ? activeLink(true) : '',
+                    'px-2.5 rounded-lg',
+                    currentView === 'services' ? activeLink(true) : '',
                   ].join(' ')}
                 >
-                  {t('nav.community')}
+                  Services
                 </button>
 
                 <button
                   onClick={() => handleNavClick('pricing')}
                   className={[
                     navLinkBase,
-                    'px-3 rounded-lg',
+                    'px-2.5 rounded-lg',
                     currentView === 'pricing' ? activeLink(true) : '',
                   ].join(' ')}
                 >
@@ -301,50 +362,60 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => handleNavClick('documentation')}
                   className={[
                     navLinkBase,
-                    'px-3 rounded-lg',
+                    'px-2.5 rounded-lg',
                     currentView === 'documentation' ? activeLink(true) : '',
                   ].join(' ')}
                 >
-                  {t('nav.documentation')}
+                  Docs
                 </button>
 
                 <button
-                  onClick={() => handleNavClick('user-manual')}
+                  onClick={() => handleNavClick('cli')}
                   className={[
                     navLinkBase,
-                    'px-3 rounded-lg',
-                    currentView === 'user-manual' ? activeLink(true) : '',
+                    'px-2.5 rounded-lg flex items-center gap-1.5',
+                    currentView === 'cli' ? activeLink(true) : '',
                   ].join(' ')}
                 >
-                  Manual
+                  <Terminal className="w-3.5 h-3.5 text-brandGold-500" />
+                  Terminal
+                </button>
+
+                <button
+                  onClick={() => handleNavClick('community')}
+                  className={[
+                    navLinkBase,
+                    'px-2.5 rounded-lg',
+                    currentView === 'community' ? activeLink(true) : '',
+                  ].join(' ')}
+                >
+                  {t('nav.community')}
                 </button>
               </nav>
             </div>
 
-            <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
               <button
                 onClick={onOpenCommandPalette}
-                className="hidden md:flex items-center justify-between gap-2.5 h-10 w-44 sm:w-52 lg:w-60 px-3.5 rounded-xl border border-slate-300 dark:border-brandObsidian-700 bg-slate-100/90 dark:bg-brandObsidian-900/90 text-slate-700 dark:text-slate-200 text-xs sm:text-sm hover:border-brandGold-500 hover:bg-white dark:hover:bg-brandObsidian-800 shadow-sm transition-all duration-200 group cursor-pointer shrink-0 focus:outline-none focus:ring-2 focus:ring-brandGold-500/30 btn-press"
+                className="hidden xl:flex items-center justify-between gap-2 h-9 w-32 xl:w-40 px-3 rounded-xl border border-slate-300 dark:border-brandObsidian-700 bg-slate-100/90 dark:bg-brandObsidian-900/90 text-slate-700 dark:text-slate-200 text-xs hover:border-brandGold-500 hover:bg-white dark:hover:bg-brandObsidian-800 shadow-sm transition-all duration-200 group cursor-pointer shrink-0 focus:outline-none focus:ring-2 focus:ring-brandGold-500/30 btn-press"
                 title="Search console or documentation (⌘K)"
               >
-                <span className="flex items-center gap-2 min-w-0">
-                  <Search className="w-4 h-4 text-brandGold-600 dark:text-brandGold-400 group-hover:scale-110 transition-transform shrink-0" />
-                  <span className="truncate font-semibold text-slate-700 dark:text-slate-200">{t('common.search')}...</span>
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <Search className="w-3.5 h-3.5 text-brandGold-600 dark:text-brandGold-400 group-hover:scale-110 transition-transform shrink-0" />
+                  <span className="truncate font-semibold text-slate-700 dark:text-slate-200">{t('common.search')}</span>
                 </span>
-                <span className="flex items-center gap-1 shrink-0">
-                  <kbd className="flex items-center justify-center px-2 py-0.5 text-[10px] font-mono font-bold rounded-md border border-slate-300 dark:border-brandObsidian-600 bg-white dark:bg-brandObsidian-950 text-slate-600 dark:text-slate-300 shadow-xs group-hover:border-brandGold-500/50 group-hover:text-brandGold-600 dark:group-hover:text-brandGold-400 transition-colors">
-                    ⌘K
-                  </kbd>
-                </span>
+                <kbd className="flex items-center justify-center px-1.5 py-0.5 text-[10px] font-mono font-bold rounded-md border border-slate-300 dark:border-brandObsidian-600 bg-white dark:bg-brandObsidian-950 text-slate-600 dark:text-slate-300 shadow-xs">
+                  ⌘K
+                </kbd>
               </button>
 
               <button
                 onClick={onOpenCommandPalette}
-                className="md:hidden flex items-center justify-center w-10 h-10 rounded-xl border border-slate-300 dark:border-brandObsidian-700 bg-slate-100 dark:bg-brandObsidian-900 text-slate-700 dark:text-slate-200 hover:text-brandGold-600 hover:border-brandGold-500 transition-colors shadow-sm btn-press"
+                className="xl:hidden flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl border border-slate-300 dark:border-brandObsidian-700 bg-slate-100 dark:bg-brandObsidian-900 text-slate-700 dark:text-slate-200 hover:text-brandGold-600 hover:border-brandGold-500 transition-colors shadow-sm btn-press shrink-0"
                 aria-label="Search"
                 title="Search or press ⌘K"
               >
-                <Search className="w-4.5 h-4.5 text-brandGold-600 dark:text-brandGold-400" />
+                <Search className="w-4 h-4 text-brandGold-600 dark:text-brandGold-400" />
               </button>
 
               {/* Desktop Auth State */}
@@ -442,20 +513,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                     )}
                   </div>
                 ) : (
-                  <>
-                    <Button variant="ghost" size="md" onClick={onGoToLogin} className="hover:text-brandGold-600 dark:hover:text-brandGold-400">
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Button variant="ghost" size="sm" onClick={onGoToLogin} className="hover:text-brandGold-600 dark:hover:text-brandGold-400 whitespace-nowrap text-xs sm:text-sm font-semibold px-2.5">
                       {t('nav.login')}
                     </Button>
                     <Button
                       variant="primary"
-                      size="md"
+                      size="sm"
                       onClick={onGoToRegister}
-                      className="bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold shadow-md shadow-brandGold-500/20"
-                      rightIcon={<ArrowRight className="w-4 h-4" />}
+                      className="bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold shadow-md shadow-brandGold-500/20 whitespace-nowrap shrink-0 px-3 py-1.5 text-xs sm:text-sm"
+                      rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
                     >
                       {t('nav.register')}
                     </Button>
-                  </>
+                  </div>
                 )}
               </div>
 
@@ -532,38 +603,92 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </button>
                   </div>
 
-                  <div className="p-5 space-y-1">
-                    <div className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 font-mono">
-                      {t('nav.platform')}
+                  <div className="p-4 space-y-6">
+                    {/* Category: Core Infrastructure */}
+                    <div className="space-y-1">
+                      <div className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 font-mono">
+                        Core Infrastructure
+                      </div>
+                      {[
+                        { view: 'home' as LandingView, label: 'Platform Overview' },
+                        { view: 'features' as LandingView, label: 'Feature Matrix (18+ Primitives)' },
+                        { view: 'services' as LandingView, label: 'Service Catalog (20+ Services)' },
+                        { view: 'cli' as LandingView, label: 'Interactive Web Terminal (CLI)' },
+                        { view: 'developers' as LandingView, label: 'Developer Hub & CLI' },
+                        { view: 'pricing' as LandingView, label: 'Pricing & FinOps Engine' },
+                      ].map((item) => (
+                        <button
+                          key={item.view}
+                          onClick={() => handleNavClick(item.view)}
+                          className={[
+                            'w-full min-h-[44px] flex items-center justify-between px-3.5 py-2.5 rounded-xl text-left text-sm font-semibold transition-colors',
+                            currentView === item.view
+                              ? 'bg-brandGold-500/10 text-brandGold-600 dark:text-brandGold-400'
+                              : 'text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-brandObsidian-800/60',
+                          ].join(' ')}
+                        >
+                          <span>{item.label}</span>
+                          <ChevronRight className="w-4 h-4 opacity-50" />
+                        </button>
+                      ))}
                     </div>
-                    {([
-                      { view: 'home' as LandingView, label: t('nav.home') },
-                      { view: 'features' as LandingView, label: t('nav.features') },
-                      { view: 'community' as LandingView, label: t('nav.community') },
-                      { view: 'pricing' as LandingView, label: t('nav.pricing') },
-                      { view: 'documentation' as LandingView, label: t('nav.documentation') },
-                      { view: 'user-manual' as LandingView, label: 'User Manual' },
-                      { view: 'about' as LandingView, label: t('nav.about') },
-                      { view: 'contact' as LandingView, label: t('nav.contact') },
-                      { view: 'faq' as LandingView, label: t('nav.faq') },
-                    ]).map((item, i) => (
-                      <motion.button
-                        key={item.view}
-                        initial={{ opacity: 0, x: 12 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.03 * i, duration: 0.2 }}
-                        onClick={() => handleNavClick(item.view)}
-                        className={[
-                          'w-full min-h-[44px] flex items-center justify-between px-4 py-3 rounded-xl text-left text-sm sm:text-base font-semibold transition-colors',
-                          currentView === item.view
-                            ? 'bg-brandGold-500/10 text-brandGold-600 dark:text-brandGold-400'
-                            : 'text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-brandObsidian-800/60',
-                        ].join(' ')}
-                      >
-                        <span>{item.label}</span>
-                        <ChevronRight className="w-4 h-4 opacity-50" />
-                      </motion.button>
-                    ))}
+
+                    {/* Category: Documentation & Architecture */}
+                    <div className="space-y-1">
+                      <div className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 font-mono">
+                        Documentation & SOPs
+                      </div>
+                      {[
+                        { view: 'documentation' as LandingView, label: 'Architecture Docs & API' },
+                        { view: 'getting-started' as LandingView, label: '5-Minute Quickstart Guide' },
+                        { view: 'user-manual' as LandingView, label: 'Security & Auth Manual' },
+                        { view: 'faq' as LandingView, label: 'Frequently Asked Questions' },
+                      ].map((item) => (
+                        <button
+                          key={item.view}
+                          onClick={() => handleNavClick(item.view)}
+                          className={[
+                            'w-full min-h-[44px] flex items-center justify-between px-3.5 py-2.5 rounded-xl text-left text-sm font-semibold transition-colors',
+                            currentView === item.view
+                              ? 'bg-brandGold-500/10 text-brandGold-600 dark:text-brandGold-400'
+                              : 'text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-brandObsidian-800/60',
+                          ].join(' ')}
+                        >
+                          <span>{item.label}</span>
+                          <ChevronRight className="w-4 h-4 opacity-50" />
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Category: Ecosystem & Governance */}
+                    <div className="space-y-1">
+                      <div className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 font-mono">
+                        Ecosystem & Legal
+                      </div>
+                      {[
+                        { view: 'about' as LandingView, label: 'About Aravanta Cloud OS' },
+                        { view: 'community' as LandingView, label: 'SRE Engineering Community' },
+                        { view: 'contact' as LandingView, label: 'Contact & War-Room' },
+                        { view: 'sitemap' as LandingView, label: 'Platform Sitemap' },
+                        { view: 'privacy' as LandingView, label: 'Privacy Policy (DPDPA)' },
+                        { view: 'terms' as LandingView, label: 'Terms of Use & SLAs' },
+                        { view: 'disclaimer' as LandingView, label: 'Platform Disclaimer' },
+                      ].map((item) => (
+                        <button
+                          key={item.view}
+                          onClick={() => handleNavClick(item.view)}
+                          className={[
+                            'w-full min-h-[44px] flex items-center justify-between px-3.5 py-2.5 rounded-xl text-left text-sm font-semibold transition-colors',
+                            currentView === item.view
+                              ? 'bg-brandGold-500/10 text-brandGold-600 dark:text-brandGold-400'
+                              : 'text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-brandObsidian-800/60',
+                          ].join(' ')}
+                        >
+                          <span>{item.label}</span>
+                          <ChevronRight className="w-4 h-4 opacity-50" />
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="px-5 py-5 mt-2 border-t border-slate-200 dark:border-brandObsidian-800 space-y-3">

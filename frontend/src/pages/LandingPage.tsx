@@ -4,7 +4,6 @@ import {
   ArrowRight,
   ShieldCheck,
   Server,
-  Container,
   HardDrive,
   Database,
   GitBranch,
@@ -16,16 +15,16 @@ import {
   Globe2,
   BarChart3,
   Shield,
-  RefreshCcw,
-  Bell,
-  HeartPulse,
-  Network,
-  Cloud,
-  FileCode,
   Boxes,
-  ScanSearch,
-  CloudCog,
   BookOpen,
+  Terminal,
+  UploadCloud,
+  FileText,
+  Copy,
+  Zap,
+  Folder,
+  LayoutGrid,
+  MessageSquare,
 } from 'lucide-react';
 
 import { Navbar, LandingView } from '../components/ui/Navbar';
@@ -59,194 +58,330 @@ const prefersReducedMotion = () =>
   typeof window !== 'undefined' &&
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+// ── Verified Developer CLI & API Code Snippets ──
 const codeSnippets: Record<string, string> = {
-  cli: `# 1. Install Globally (Run anywhere, zero repo dependency)
-# Windows:     [Net.ServicePointManager]::SecurityProtocol = 3072; irm https://aravantacos.vercel.app/install.ps1 | iex
-# macOS/Linux: curl -fsSL https://aravantacos.vercel.app/install.sh | bash
+  cli: `# 1. Install Aravanta CLI v2.0 (Zero Repo Dependency)
+# Windows (PowerShell):
+[Net.ServicePointManager]::SecurityProtocol = 3072; irm https://aravantacos.vercel.app/install.ps1 | iex
+# macOS / Linux (cURL):
+curl -fsSL https://aravantacos.vercel.app/install.sh | bash
 
 # 2. Check health & connect to live control plane
 aravanta status
 
-# 3. Launch a high-performance compute instance
-aravanta compute create --name api-worker-01 --cpu 2 --ram 4096
+# 3. Provision compute instance with NVMe block storage
+aravanta compute create --name api-worker-01 --cpu 2 --ram 4096 --region ap-south-1
 
-✓ Resource res-9cdc306743c7 provisioned (State: RUNNING)
-  Private IP: 10.240.0.12
-  Spec:       2 vCPU, 4096 MB RAM, 40 GB NVMe
-  Provider:   Aravanta FastCloud-v1`,
-  terraform: `resource "arvanta_compute_instance" "web" {
-  name          = "web-prod-01"
+# 4. Upload build artifacts to S3 bucket with folder prefix
+aravanta store upload --bucket arv-assets-prod --file dist/app.bundle.js --folder /v1.2.0/
+
+✓ Resource provisioned (State: RUNNING)
+  Private IP: 10.240.0.12  •  Provider: FastCloud-v1  •  Egress: ₹0.50/GB`,
+  terraform: `# Multi-Region Aravanta CloudOS Provider Configuration
+terraform {
+  required_providers {
+    aravanta = {
+      source  = "aravanta/cloudos"
+      version = "~> 1.0.0"
+    }
+  }
+}
+
+provider "aravanta" {
+  api_endpoint = "https://arv-backend.vercel.app/api/v1"
+  region       = "ap-south-1"
+}
+
+resource "aravanta_compute_instance" "api_gateway" {
+  name          = "api-gateway-prod"
   instance_type = "c3.large"
   region        = "ap-south-1"
-  image         = "ubuntu-24.04"
+  image         = "ubuntu-24.04-lts"
 
   disk {
-    size = 120
-    type = "nvme-ssd"
+    size_gb = 120
+    type    = "nvme-ssd"
   }
 
   tags = {
     environment = "production"
-    tier        = "web"
+    finops_cost = "core-infrastructure"
   }
 }
 
-output "public_ip" {
-  value = arvanta_compute_instance.web.public_ip
+resource "aravanta_storage_bucket" "assets" {
+  name          = "arv-assets-prod"
+  region        = "ap-south-1"
+  storage_class = "STANDARD"
+  access        = "PRIVATE"
+  versioning    = true
 }`,
-  rest: `curl -X POST "$API_URL/api/v1/compute/instances" \\
-  -H "Authorization: Bearer $ARVANTA_TOKEN" \\
+  rest: `# Authenticate & Obtain Bearer JWT Token
+curl -X POST "https://arv-backend.vercel.app/api/v1/auth/login" \\
   -H "Content-Type: application/json" \\
   -d '{
+    "email": "operator@company.in",
+    "password": "SecurePassword123!"
+  }'
+
+# Provision High-Performance Compute Instance
+curl -X POST "https://arv-backend.vercel.app/api/v1/compute/instances" \\
+  -H "Authorization: Bearer $ARAVANTA_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "name": "worker-pool-01",
     "instance_type": "c3.large",
     "region": "ap-south-1",
     "image": "ubuntu-24.04",
-    "disk_size_gb": 120,
-    "ssh_key_name": "my-key",
-    "tags": {"env": "prod"}
+    "disk_size_gb": 120
   }'
 
 # HTTP 201 Created
-# {"id":"cmp_7f3da1b2","status":"running",...}`,
+# {"id":"cmp_7f3da1b2","status":"RUNNING","region":"ap-south-1","uptime":"99.99%"}`,
   sdk: `import { AravantaClient } from '@aravanta/sdk';
 
+// Initialize with workspace token and primary sovereign region
 const client = new AravantaClient({
-  apiKey: process.env.ARVANTA_KEY,
+  token: process.env.ARAVANTA_TOKEN,
   region: 'ap-south-1',
 });
 
-async function launchWeb() {
-  const instance = await client.compute.instances.create({
-    instanceType: 'c3.large',
-    image: 'ubuntu-24.04',
-    diskSizeGb: 120,
-    tags: { tier: 'web', env: 'production' },
+async function deployStack() {
+  // 1. Create S3 Storage Bucket with versioning enabled
+  const bucket = await client.storage.buckets.create({
+    name: 'arv-production-vault',
+    storageClass: 'STANDARD',
+    access: 'PRIVATE',
+    versioning: true,
   });
 
-  console.log(\`Launched \${instance.id} @ \${instance.publicIp}\`);
-  return instance;
+  // 2. Trigger GitOps canary rollout with 25% traffic slice
+  const deployment = await client.operations.deployments.trigger({
+    service: 'api-gateway',
+    tag: 'v2.4.2',
+    strategy: 'canary',
+    canaryWeight: 25,
+  });
+
+  console.log(\`Bucket: \${bucket.name} | Canary Deployment: \${deployment.id}\`);
 }
 
-launchWeb();`,
+deployStack();`,
 };
 
+// ── Verified 6-Step Application Workflow ──
 const workflowSteps = [
   {
-    key: 'provision',
+    key: 'auth',
     step: '01',
-    name: 'Provision',
-    icon: Server,
-    title: 'Declarative infrastructure provisioning',
-    desc: 'Spin up VMs, Kubernetes clusters, databases, and storage buckets across 4 regions using Terraform, the CLI, REST API, or the visual console. All resources tagged for FinOps tracking.',
+    name: 'Register & Authenticate',
+    icon: Lock,
+    title: 'Account registration with TOTP 2FA & invite tokens',
+    desc: 'Create your account or join an existing workspace via invitation token (ARV-ACC-XXXXXX). Secure your account with RFC 6238 30-second TOTP multi-factor authentication and brute-force lockout protection.',
     metrics: [
-      { label: 'Provision time', value: '< 60s' },
-      { label: 'Regions', value: '4' },
+      { label: 'MFA Standard', value: 'RFC 6238' },
+      { label: 'Rate Limiting', value: '5 Failures / 60s' },
+    ],
+  },
+  {
+    key: 'rbac',
+    step: '02',
+    name: 'Workspace Governance',
+    icon: ShieldCheck,
+    title: 'Server-enforced 5-tier role-based access control',
+    desc: 'Assign granular permissions strictly controlled by the database schema: SuperAdmin, Admin, Operator, Developer, and Viewer. Client-side role overrides are strictly rejected at the API boundary.',
+    metrics: [
+      { label: 'Role Tiers', value: '5 Roles' },
+      { label: 'Audit Logging', value: 'Cryptographic' },
+    ],
+  },
+  {
+    key: 'provision',
+    step: '03',
+    name: 'Provision Infrastructure',
+    icon: Server,
+    title: 'Multi-cloud compute, Kubernetes, databases & S3 storage',
+    desc: 'Spin up virtual machines, managed Kubernetes clusters (ArvKube), high-availability PostgreSQL/Redis databases (ArvDB), and S3 object buckets (ArvStore) through visual forms, CLI, or Terraform.',
+    metrics: [
+      { label: 'Provision Time', value: '< 60s' },
+      { label: 'Primary Region', value: 'ap-south-1' },
     ],
   },
   {
     key: 'deploy',
-    step: '02',
-    name: 'Deploy',
-    icon: GitBranch,
-    title: 'GitOps delivery with safety gates',
-    desc: 'Push to main and ArvCD handles the rest. Rolling updates, 25% canary traffic splits with error-rate gates, or instant blue/green cutovers. Automated rollback triggers on SLO breach.',
-    metrics: [
-      { label: 'Deploy strategies', value: '3' },
-      { label: 'Auto-rollback', value: '< 1.2s' },
-    ],
-  },
-  {
-    key: 'monitor',
-    step: '03',
-    name: 'Monitor',
-    icon: Activity,
-    title: 'Sub-second telemetry streaming',
-    desc: 'Multi-resolution Prometheus metrics, structured Loki logs, distributed traces, and SLO burn-rate dashboards. Correlate deploy events to latency spikes in one click.',
-    metrics: [
-      { label: 'Metrics retention', value: '30d' },
-      { label: 'Scrape interval', value: '10s' },
-    ],
-  },
-  {
-    key: 'alert',
     step: '04',
-    name: 'Alert',
-    icon: Bell,
-    title: 'Intelligent alert triage',
-    desc: 'Alertmanager grouping with deduplication. Route critical pages to PagerDuty/Slack, silence noise during deploys, and auto-acknowledge signals that self-heal.',
+    name: 'Workloads & Files',
+    icon: GitBranch,
+    title: 'GitOps delivery pipelines & structured S3 file management',
+    desc: 'Automate releases with 25% progressive canary traffic gates and sub-second rollback triggers. Upload, preview, and organize files in S3 buckets with drag-and-drop and folder prefixes.',
     metrics: [
-      { label: 'Noise reduction', value: '68%' },
-      { label: 'MTTA', value: '< 30s' },
+      { label: 'Canary Slices', value: '25% - 50% - 100%' },
+      { label: 'Max File Size', value: '100 MB / file' },
     ],
   },
   {
-    key: 'recover',
+    key: 'observe',
     step: '05',
-    name: 'Recover',
-    icon: RefreshCcw,
-    title: 'Automated incident recovery',
-    desc: 'Runbooks trigger on alerts: pod restarts, DNS failover, database point-in-time restore, and snapshot rollbacks. War-room timestamps and RCA notes for postmortems.',
+    name: 'Observe & Triage',
+    icon: Activity,
+    title: 'Sub-second telemetry & automated incident war-rooms',
+    desc: 'Stream Prometheus metrics, explore live Loki logs, and triage firing alert rules. When incidents occur, assign commanders, log timestamps, and execute self-healing automated runbooks.',
     metrics: [
-      { label: 'Runbooks', value: '120+' },
-      { label: 'MTTR reduced', value: '72%' },
+      { label: 'Telemetry Stream', value: '< 10ms' },
+      { label: 'Auto-Healing', value: 'Runbook Driven' },
+    ],
+  },
+  {
+    key: 'finops',
+    step: '06',
+    name: 'Cost & Invoicing',
+    icon: BarChart3,
+    title: 'Per-second metering in INR (₹) with GST tax invoices',
+    desc: 'Real-time FinOps cost tracking across compute, storage, databases, and bandwidth. Set strict project budget caps and generate GST-compliant tax invoices with PDF and WebCopy download.',
+    metrics: [
+      { label: 'Billing Precision', value: 'Per-Second' },
+      { label: 'Tax Compliance', value: 'CGST + SGST (18%)' },
     ],
   },
 ];
 
+// ── Verified Core Platform Capabilities ──
+const capabilities = [
+  {
+    icon: Server,
+    category: 'Compute & VMs',
+    title: 'ArvCompute Virtual Machines',
+    desc: 'Elastic virtual instances with configurable CPU/RAM shapes, attached NVMe block volumes, snapshots, and non-prod auto-suspend.',
+    route: 'features' as LandingView,
+    tag: 'Infrastructure',
+  },
+  {
+    icon: Boxes,
+    category: 'Containers & Clusters',
+    title: 'ArvKube Managed Kubernetes',
+    desc: 'Production-ready Kubernetes control planes with auto-scaling node pools, Calico eBPF networking, and live pod telemetry.',
+    route: 'features' as LandingView,
+    tag: 'Orchestration',
+  },
+  {
+    icon: HardDrive,
+    category: 'Object Storage',
+    title: 'ArvStore S3 Buckets & Files',
+    desc: 'S3-compatible object storage with drag-drop uploads, folder prefixing, storage classes (Standard, Glacier), and secure download URLs.',
+    route: 'features' as LandingView,
+    tag: 'Storage',
+  },
+  {
+    icon: Database,
+    category: 'Managed Databases',
+    title: 'ArvDB PostgreSQL & Redis',
+    desc: 'High-availability PostgreSQL and Redis engines with environment-aware sizing, automated snapshots, and connection pooling.',
+    route: 'features' as LandingView,
+    tag: 'Databases',
+  },
+  {
+    icon: GitBranch,
+    category: 'GitOps Delivery',
+    title: 'CI/CD Pipelines & Canary Releases',
+    desc: 'Progressive canary traffic splits with automated synthetic error-rate gates and 1-click instantaneous rollback upon SLO breach.',
+    route: 'features' as LandingView,
+    tag: 'Delivery',
+  },
+  {
+    icon: Activity,
+    category: 'SRE Observability',
+    title: 'ArvWatch Real-Time Telemetry',
+    desc: 'Sub-second metrics, structured Loki log explorer, firing alert triage, and Prometheus scrapers for fleet-wide visibility.',
+    route: 'documentation' as LandingView,
+    tag: 'Observability',
+  },
+  {
+    icon: AlertTriangle,
+    category: 'Incident SRE',
+    title: 'War-Room Incident Command',
+    desc: 'Centralized incident response center with commander assignment, timestamped timeline recording, and self-healing runbook execution.',
+    route: 'features' as LandingView,
+    tag: 'Operations',
+  },
+  {
+    icon: ShieldCheck,
+    category: 'Governance & IAM',
+    title: '5-Tier RBAC & Security Matrix',
+    desc: 'Server-controlled role hierarchy (SuperAdmin to Viewer), TOTP multi-factor authentication, and cryptographically verified audit trails.',
+    route: 'documentation' as LandingView,
+    tag: 'Security',
+  },
+  {
+    icon: BarChart3,
+    category: 'FinOps & Billing',
+    title: 'Indian Rupee (₹) Cost Governance',
+    desc: 'Transparent per-second consumption rates, real-time service cost breakdown, monthly budget caps, and GST-compliant PDF invoices.',
+    route: 'pricing' as LandingView,
+    tag: 'FinOps',
+  },
+  {
+    icon: Terminal,
+    category: 'Developer Tools',
+    title: 'Aravanta CLI & Open APIs',
+    desc: 'Cross-platform PowerShell and Bash CLI tool, OpenAPI 3.1 REST gateway, and Terraform providers for declarative automation.',
+    route: 'developers' as LandingView,
+    tag: 'DevOps',
+  },
+  {
+    icon: MessageSquare,
+    category: 'Knowledge Sharing',
+    title: 'Engineering Community Forum',
+    desc: 'Collaborative discussion board for platform engineering, architecture patterns, troubleshooting guides, and peer knowledge sharing.',
+    route: 'community' as LandingView,
+    tag: 'Community',
+  },
+  {
+    icon: BookOpen,
+    category: 'Documentation',
+    title: 'Standard Operating Procedures',
+    desc: 'Step-by-step developer guides, user authentication manuals, API endpoint references, and architecture blueprints.',
+    route: 'user-manual' as LandingView,
+    tag: 'Docs',
+  },
+];
+
+// ── Real Consumption Pricing Rates (From PricingEngine) ──
+const realPricingRates = [
+  { service: 'Compute Virtual Machines', monthlyRate: '₹1.50', annualRate: '₹1.20', unit: 'per vCPU / hour', note: 'Elastic VM runtime' },
+  { service: 'Block & S3 Object Storage', monthlyRate: '₹0.0014', annualRate: '₹0.0011', unit: 'per GB / hour', note: '~₹1.00 / GB-month' },
+  { service: 'Managed Databases (Postgres/Redis)', monthlyRate: '₹3.00', annualRate: '₹2.40', unit: 'per instance / hour', note: 'HA with snapshot backups' },
+  { service: 'Managed Kubernetes Clusters', monthlyRate: '₹4.00', annualRate: '₹3.20', unit: 'per cluster / hour', note: 'Control plane & worker nodes' },
+  { service: 'CI/CD Pipeline Builds', monthlyRate: '₹0.25', annualRate: '₹0.20', unit: 'per minute', note: 'Automated container build & test' },
+  { service: 'Egress Network Bandwidth', monthlyRate: '₹0.50', annualRate: '₹0.40', unit: 'per GB', note: 'Predictable outbound transfer' },
+];
+
+// ── Verified FAQs ──
 const faqs = [
   {
-    q: 'How does Aravanta CloudOS guarantee zero-downtime deployments?',
-    a: 'Aravanta CloudOS coordinates automated Kubernetes liveness/readiness probes and ingress routing across rolling pods, canary gates (e.g. 25% traffic slice verification), and instant blue/green cutovers. If synthetic latency or HTTP 5xx error spikes are detected, automated 1-click rollback restores the previous stable release within 1.2 seconds.',
+    q: 'How does Aravanta CloudOS enforce server-side RBAC and role hierarchy?',
+    a: 'Every operational action is verified against a 5-tier Role-Based Access Control matrix (SuperAdmin, Admin, Operator, Developer, Viewer) backed by the database. Client payloads attempting to supply unauthorized role or permission mutations are strictly rejected at the Pydantic schema validation boundary. Critical operations like instance termination or billing updates require SuperAdmin or Admin privileges.',
   },
   {
-    q: 'Can I connect existing AWS, GCP, and Kubernetes infrastructure?',
-    a: 'Yes. Aravanta CloudOS acts as a unified control plane. You can orchestrate multi-cloud compute VMs, managed EKS/GKE clusters, database instances (PostgreSQL, MySQL, Redis), and S3-compatible object storage under a single tenant workspace with unified RBAC and audit trails.',
+    q: 'How does ArvStore manage documents, files, and S3 storage buckets?',
+    a: 'ArvStore provides an S3-compatible object storage layer with bucket-level access control (Private or Public-Read) and storage tiering (Standard or Glacier). Users can upload files up to 100MB with drag-and-drop, organize files into hierarchical directories using folder prefixes, copy secure download links, and preview documents directly in the console.',
   },
   {
-    q: 'How is Two-Factor Authentication (2FA) and RBAC enforced?',
-    a: 'Every operational action is verified against a 4-tier Role-Based Access Control matrix (SuperAdmin, Admin, Operator, Developer, Viewer). Time-based One-Time Password (TOTP) MFA with standard 30s RFC 6238 tokens protects logins, and every administrative action is signed into an immutable audit trail retained for 365 days on Enterprise plans.',
+    q: 'How do progressive canary deployments and automated rollbacks work?',
+    a: 'When a new release is triggered via GitOps or the console, ArvCD deploys a canary slice (e.g. 25% traffic). The system evaluates synthetic health probes, P95 latency thresholds, and HTTP error rates. If anomalies or SLO breaches occur, an automated rollback restores the previous stable release in under 1.2 seconds with zero dropped connections.',
   },
   {
-    q: 'Is there a free trial available for engineering teams?',
-    a: 'Yes. Every new workspace starts with a 10-day full-access Developer Cloud trial with pre-allocated compute, Kubernetes pod testing quotas, and full access to the Alertmanager triage center without requiring a credit card.',
+    q: 'How is consumption-based FinOps billing calculated and invoiced?',
+    a: 'All infrastructure consumption is metered per-second using the pricing engine rates (e.g. ₹1.50/vCPU-hr for compute, ₹1.00/GB-mo for S3 storage, ₹0.50/GB for egress). Accounts can track real-time spend against configurable monthly budget caps. Invoices are generated with standard Indian Goods and Services Tax (9% CGST + 9% SGST = 18%) and can be exported as official PDFs or interactive WebCopies.',
   },
   {
-    q: 'What are the billing increments and can I self-host?',
-    a: 'Billing is per-second on compute, Kubernetes, and database resources with hourly minimums. Storage and egress are billed per-GB monthly. For self-hosted deployments, the Enterprise tier ships a bring-your-own-Kubernetes distribution that runs on bare-metal, VMware, or existing EKS/GKE clusters with a signed EULA and 99.99% uptime SLA.',
+    q: 'What authentication methods and security protections are implemented?',
+    a: 'Aravanta CloudOS supports email and Account ID (ARV-ACC-XXXXXX) sign-in, RFC 6238 Time-based One-Time Passwords (TOTP MFA with 30-second token rotation), workspace invitation tokens, sliding-window rate limiting (5 failed attempts locks the account for 60 seconds), and cryptographic audit logging for all administrative actions.',
   },
   {
-    q: 'Which regions are available today?',
-    a: 'Control plane regions as of v1.0 GA: ap-south-1 (Mumbai), ap-southeast-1 (Singapore), us-east-1 (Virginia), eu-central-1 (Frankfurt). Data residency boundaries are strictly enforced and configurable per project. Additional regions (Tokyo, São Paulo) are on the public roadmap for Q1.',
+    q: 'What is the underlying deployment and architecture of the live platform?',
+    a: 'The production platform runs serverless on Vercel with a React 18 + Vite frontend and a Python 3.11 FastAPI backend connected to managed PostgreSQL. The repository also includes production-ready Kubernetes manifests and Terraform definitions for self-hosted or dedicated sovereign enterprise deployments.',
   },
 ];
-
-const integrations = [
-  { name: 'Kubernetes', subtitle: 'Native integration', icon: Container, color: 'text-blue-500' },
-  { name: 'Docker', subtitle: 'Native integration', icon: Boxes, color: 'text-sky-500' },
-  { name: 'Terraform', subtitle: 'Official provider', icon: LayersIcon, color: 'text-violet-500' },
-  { name: 'Prometheus', subtitle: 'Native integration', icon: BarChart3, color: 'text-orange-500' },
-  { name: 'Grafana', subtitle: 'Compatible API', icon: Activity, color: 'text-amber-500' },
-  { name: 'Loki', subtitle: 'Native integration', icon: ScanSearch, color: 'text-rose-500' },
-  { name: 'OpenTelemetry', subtitle: 'Native integration', icon: Network, color: 'text-indigo-500' },
-  { name: 'PostgreSQL', subtitle: 'Managed engine', icon: Database, color: 'text-sky-600' },
-  { name: 'Redis', subtitle: 'Managed engine', icon: Database, color: 'text-red-500' },
-  { name: 'AWS', subtitle: 'Compatible APIs', icon: Cloud, color: 'text-amber-600' },
-  { name: 'S3', subtitle: 'Compatible API', icon: HardDrive, color: 'text-red-600' },
-  { name: "Let's Encrypt", subtitle: 'Native integration', icon: Lock, color: 'text-emerald-600' },
-  { name: 'Swagger/OpenAPI', subtitle: 'Reference docs', icon: FileCode, color: 'text-lime-600' },
-  { name: 'Vercel', subtitle: 'Deployment target', icon: CloudCog, color: 'text-slate-900 dark:text-white' },
-  { name: 'GitHub Actions', subtitle: 'CI/CD runner', icon: GitBranch, color: 'text-slate-800 dark:text-slate-200' },
-];
-
-function LayersIcon(props: any) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z" />
-      <path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65" />
-      <path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65" />
-    </svg>
-  );
-}
 
 export const LandingPage: React.FC<LandingPageProps> = ({
   onGoToLogin,
@@ -255,14 +390,39 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onNavigate,
   onGoToConsole,
 }) => {
-  const [activeWorkflowStep, setActiveWorkflowStep] = useState(1);
+  const [activePreviewTab, setActivePreviewTab] = useState<'dashboard' | 'storage' | 'deployments' | 'iam' | 'billing'>('dashboard');
+  const [activeWorkflowStep, setActiveWorkflowStep] = useState(0);
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly');
+  const [previewRole, setPreviewRole] = useState<'SuperAdmin' | 'Operator' | 'Developer' | 'Viewer'>('Operator');
+  const [previewStorageFolder, setPreviewStorageFolder] = useState<'root' | 'backups' | 'configs'>('root');
+  const [previewUploadProgress, setPreviewUploadProgress] = useState<number | null>(null);
+  const [copiedCodeKey, setCopiedCodeKey] = useState<string | null>(null);
   const reduceMotion = useMemo(prefersReducedMotion, []);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const handleCopyCode = (text: string, key: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedCodeKey(key);
+    setTimeout(() => setCopiedCodeKey(null), 2000);
+  };
+
+  const handleSimulateUpload = () => {
+    setPreviewUploadProgress(10);
+    const interval = setInterval(() => {
+      setPreviewUploadProgress((prev) => {
+        if (prev === null || prev >= 100) {
+          clearInterval(interval);
+          setTimeout(() => setPreviewUploadProgress(null), 1500);
+          return 100;
+        }
+        return prev + 30;
+      });
+    }, 250);
+  };
 
   const containerVariants: Variants = reduceMotion
     ? { hidden: {}, show: {} }
@@ -277,11 +437,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     ? { hidden: {}, show: {} }
     : {
         hidden: { opacity: 0, y: 14 },
-        show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.16, 1, 0.3, 1] } },
+        show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } },
       };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-brandObsidian-950 text-slate-900 dark:text-slate-100 font-sans antialiased selection:bg-brandGold-500/30 selection:text-brandGold-900 dark:selection:text-brandGold-100">
+    <div className="min-h-screen bg-slate-50 dark:bg-brandObsidian-950 text-slate-900 dark:text-slate-100 font-sans antialiased selection:bg-brandGold-500/30 selection:text-brandGold-900 dark:selection:text-brandGold-100 overflow-x-hidden">
+      {/* ── PERSISTENT HEADER NAVIGATION ── */}
       <Navbar
         onGoToLogin={onGoToLogin}
         onGoToRegister={onGoToRegister}
@@ -291,20 +452,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         currentView="home"
       />
 
-      <main>
-        {/* ── HERO ── */}
-        <section className="relative overflow-hidden pt-12 sm:pt-16 lg:pt-20 pb-20 sm:pb-28 lg:pb-32">
+      <main id="main-content">
+        {/* ── HERO SECTION ── */}
+        <section className="relative overflow-hidden pt-10 sm:pt-14 lg:pt-18 pb-16 sm:pb-24 lg:pb-28">
+          {/* Subtle Grid and Radial Lighting */}
           <div
             aria-hidden
-            className="absolute inset-x-0 top-0 -z-10 h-[620px] bg-hero-radial opacity-90"
+            className="absolute inset-x-0 top-0 -z-10 h-[640px] bg-hero-radial opacity-90 pointer-events-none"
           />
           <div
             aria-hidden
-            className="absolute inset-0 -z-10 opacity-[0.04] dark:opacity-[0.07]"
+            className="absolute inset-0 -z-10 opacity-[0.035] dark:opacity-[0.06] pointer-events-none"
             style={{
               backgroundImage:
                 'linear-gradient(to right, currentColor 1px, transparent 1px), linear-gradient(to bottom, currentColor 1px, transparent 1px)',
-              backgroundSize: '56px 56px',
+              backgroundSize: '48px 48px',
               WebkitMaskImage:
                 'radial-gradient(ellipse 80% 55% at 50% 0%, black 40%, transparent 75%)',
               maskImage:
@@ -313,35 +475,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             }}
           />
 
-          {/* ── Ambient Animated Hero Logo Watermark ── */}
+          {/* Ambient Brand Glyph Watermark */}
           <div
             aria-hidden
             className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -z-10 pointer-events-none flex items-center justify-center select-none overflow-hidden"
           >
-            <motion.div
-              animate={{
-                scale: [1, 1.04, 1],
-                opacity: [0.10, 0.18, 0.10],
-              }}
-              transition={{
-                duration: 10,
-                repeat: Infinity,
-                ease: 'easeInOut',
-              }}
-              className="relative w-[360px] h-[360px] sm:w-[540px] sm:h-[540px] md:w-[700px] md:h-[700px] lg:w-[820px] lg:h-[820px] flex items-center justify-center"
-            >
-              {/* Subtle radial ambient illumination */}
-              <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-brandGold-500/25 via-amber-500/10 to-transparent blur-3xl pointer-events-none" />
-              {/* Concentric subtle radar pulse rings */}
-              <div className="absolute inset-12 sm:inset-16 rounded-full border border-brandGold-500/15 dark:border-brandGold-500/25 pointer-events-none animate-pulse" />
-              <div className="absolute inset-28 sm:inset-36 rounded-full border border-brandGold-500/10 dark:border-brandGold-500/15 pointer-events-none" />
-              {/* Official Aravanta Logo Mark */}
+            <div className="relative w-[340px] h-[340px] sm:w-[500px] sm:h-[500px] md:w-[680px] md:h-[680px] flex items-center justify-center opacity-10 dark:opacity-15">
+              <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-brandGold-500/20 via-amber-500/10 to-transparent blur-3xl" />
               <img
                 src="/assets/aravanta-glyph-glow.png"
-                alt="Aravanta Cloud OS Emblem"
-                className="w-full h-full object-contain filter drop-shadow-[0_0_50px_rgba(185,139,59,0.3)] select-none pointer-events-none"
+                alt=""
+                className="w-full h-full object-contain filter drop-shadow-[0_0_50px_rgba(185,139,59,0.3)]"
               />
-            </motion.div>
+            </div>
           </div>
 
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -349,63 +495,60 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               variants={containerVariants}
               initial="hidden"
               animate={mounted ? 'show' : 'hidden'}
-              className="relative z-10 max-w-3xl mx-auto text-center space-y-6"
+              className="relative z-10 max-w-4xl mx-auto text-center space-y-6"
             >
-              {/* Dynamic ambient floating orbs */}
-              <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] sm:w-[600px] h-[260px] sm:h-[340px] bg-gradient-to-r from-brandGold-500/20 via-amber-500/15 to-transparent rounded-full blur-[90px] pointer-events-none -z-10 animate-pulse" />
-
+              {/* Eyebrow Pill */}
               <motion.div variants={fadeUp} className="flex justify-center">
-                <motion.div
-                  animate={{ y: [0, -3, 0] }}
-                  transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-                  className="inline-flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 px-4 py-1.5 rounded-full border border-brandGold-500/40 bg-brandGold-500/10 text-brandGold-700 dark:text-brandGold-300 text-xs font-semibold tracking-wide uppercase shadow-sm max-w-full backdrop-blur-md"
-                >
-                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                    <span className="w-2 h-2 rounded-full bg-brandGold-500 animate-pulse" />
-                    <span>Unified Cloud Control Plane</span>
+                <div className="inline-flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 px-4 py-1.5 rounded-full border border-brandGold-500/40 bg-brandGold-500/10 text-brandGold-700 dark:text-brandGold-300 text-xs font-semibold tracking-wide uppercase shadow-xs backdrop-blur-md">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                   </span>
+                  <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">ALL SYSTEMS OPERATIONAL</span>
                   <span className="opacity-40 hidden sm:inline">•</span>
                   <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-brandGold-500/20 text-brandGold-800 dark:text-brandGold-200 font-bold whitespace-nowrap text-[11px]">
-                    v1.0 GA
+                    v2.4 GA
                   </span>
                   <span className="opacity-40 hidden sm:inline">•</span>
                   <span className="inline-flex items-center gap-1.5 opacity-95 whitespace-nowrap text-slate-700 dark:text-slate-300">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping inline-block" />
-                    <span>ap-south-1 Mumbai</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-brandGold-500 inline-block" />
+                    <span>ap-south-1 (8ms Latency)</span>
                   </span>
-                </motion.div>
+                </div>
               </motion.div>
 
+              {/* Main Headline */}
               <motion.h1
                 variants={fadeUp}
-                className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tighter leading-[1.02] text-slate-900 dark:text-white"
+                className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tight leading-[1.05] text-slate-900 dark:text-white"
               >
                 Aravanta{' '}
                 <span className="bg-gradient-to-br from-brandGold-500 via-amber-500 to-brandGold-600 bg-clip-text text-transparent filter drop-shadow-xs">
                   Cloud OS
                 </span>
                 <span className="block text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold text-slate-800 dark:text-slate-200 mt-2.5 tracking-tight">
-                  The Unified Multi-Cloud Operating System
+                  The Sovereign Multi-Cloud Operating System
                 </span>
               </motion.h1>
 
+              {/* Supporting Copy */}
               <motion.p
                 variants={fadeUp}
-                className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl mx-auto"
+                className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed max-w-3xl mx-auto"
               >
-                Orchestrate Kubernetes clusters, deploy virtual compute, manage distributed object stores,
-                and automate cloud SRE from a single sovereign control plane — with sub-second telemetry and zero vendor lock-in.
+                Orchestrate elastic virtual machines, managed Kubernetes clusters, distributed S3 storage, serverless functions, and high-availability databases from a single sovereign control plane — with sub-second telemetry, GitOps delivery, and predictable FinOps billing in INR (₹).
               </motion.p>
 
+              {/* Real CTAs */}
               <motion.div
                 variants={fadeUp}
-                className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-3"
+                className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 pt-2"
               >
                 <Button
                   size="xl"
                   variant="primary"
                   onClick={onGoToRegister}
-                  className="bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold shadow-lg shadow-brandGold-500/25 hover:shadow-brandGold-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all min-h-[48px] btn-press cursor-pointer"
+                  className="w-full sm:w-auto bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold shadow-lg shadow-brandGold-500/25 hover:shadow-brandGold-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all min-h-[48px] btn-press cursor-pointer"
                   rightIcon={<ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />}
                 >
                   Get Started Free
@@ -413,589 +556,569 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <Button
                   size="xl"
                   variant="outline"
-                  onClick={() => onNavigate?.('documentation')}
-                  className="min-h-[48px] border-slate-300 dark:border-brandObsidian-700 hover:border-brandGold-500 hover:bg-brandGold-500/10 hover:text-brandGold-600 dark:hover:text-brandGold-400 hover:scale-[1.02] active:scale-[0.98] transition-all btn-press cursor-pointer"
-                  leftIcon={<BookOpen className="w-4 h-4 text-brandGold-500" />}
+                  onClick={() => onNavigate?.('cli')}
+                  className="w-full sm:w-auto min-h-[48px] border-slate-300 dark:border-brandObsidian-700 hover:border-brandGold-500 hover:bg-brandGold-500/10 hover:text-brandGold-600 dark:hover:text-brandGold-400 hover:scale-[1.02] active:scale-[0.98] transition-all btn-press cursor-pointer"
+                  leftIcon={<Terminal className="w-4 h-4 text-brandGold-500" />}
                 >
-                  Explore Platform
+                  Interactive Web Terminal
                 </Button>
+                <Button
+                  size="xl"
+                  variant="outline"
+                  onClick={() => onNavigate?.('services')}
+                  className="w-full sm:w-auto min-h-[48px] border-slate-300 dark:border-brandObsidian-700 hover:border-brandGold-500 hover:bg-brandGold-500/10 hover:text-brandGold-600 dark:hover:text-brandGold-400 hover:scale-[1.02] active:scale-[0.98] transition-all btn-press cursor-pointer"
+                  leftIcon={<Boxes className="w-4 h-4 text-brandGold-500" />}
+                >
+                  Explore 20+ Services
+                </Button>
+                {onGoToConsole && (
+                  <Button
+                    size="xl"
+                    variant="ghost"
+                    onClick={onGoToConsole}
+                    className="w-full sm:w-auto min-h-[48px] text-slate-700 dark:text-slate-300 hover:text-brandGold-600 dark:hover:text-brandGold-400"
+                    leftIcon={<LayoutGrid className="w-4 h-4 text-brandGold-500" />}
+                  >
+                    Launch Console
+                  </Button>
+                )}
               </motion.div>
 
+              {/* Factual Spec Strip (No Fake Claims) */}
               <motion.div
                 variants={fadeUp}
                 className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-6 max-w-3xl mx-auto"
               >
                 {[
-                  { value: '99.99%', label: 'Uptime SLA', icon: HeartPulse, tone: 'emerald' },
-                  { value: '< 10ms', label: 'Telemetry Latency', icon: Activity, tone: 'gold' },
-                  { value: '100+', label: 'Cloud Integrations', icon: Cloud, tone: 'sky' },
-                  { value: 'SOC 2 Type II', label: 'Enterprise Ready', icon: ShieldCheck, tone: 'purple' },
+                  { value: '80+ Shapes', label: 'AMD EPYC & ARM VMs', icon: Server },
+                  { value: '< 60s', label: 'Provisioning Velocity', icon: Zap },
+                  { value: 'INR (₹) & GST', label: 'Per-Second FinOps', icon: BarChart3 },
+                  { value: 'RFC 6238', label: 'TOTP 2FA Protected', icon: Lock },
                 ].map((stat) => {
                   const StatIcon = stat.icon;
                   return (
-                    <motion.div
+                    <div
                       key={stat.label}
-                      whileHover={{ y: -4, scale: 1.02 }}
-                      transition={{ duration: 0.2 }}
-                      className="p-3.5 rounded-2xl border border-slate-200 dark:border-brandObsidian-700 bg-white/80 dark:bg-brandObsidian-900/80 hover:border-brandGold-500/60 hover:shadow-card-hover backdrop-blur-sm text-center shadow-xs transition-all duration-300 group cursor-default"
+                      className="p-3.5 rounded-2xl border border-slate-200 dark:border-brandObsidian-700 bg-white/80 dark:bg-brandObsidian-900/80 backdrop-blur-sm text-center shadow-xs transition-all duration-300"
                     >
                       <div className="flex items-center justify-center gap-1.5 text-brandGold-500 dark:text-brandGold-400 mb-1">
-                        <StatIcon className="w-4 h-4 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300" />
-                        <span className="text-xl font-black text-slate-900 dark:text-white tabular-nums">
+                        <StatIcon className="w-4 h-4" />
+                        <span className="text-lg font-black text-slate-900 dark:text-white tabular-nums">
                           {stat.value}
                         </span>
                       </div>
                       <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider font-mono">
                         {stat.label}
                       </div>
-                    </motion.div>
+                    </div>
                   );
                 })}
               </motion.div>
             </motion.div>
 
-            {/* ── Product Visualization ── */}
+            {/* ── LAYERED PRODUCT DASHBOARD PREVIEW & SIMULATOR ── */}
             <motion.div
-              initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 18 }}
+              initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 20 }}
               animate={mounted ? { opacity: 1, y: 0 } : {}}
-              transition={reduceMotion ? {} : { duration: 0.7, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
-              className="relative mt-14 sm:mt-18 lg:mt-20"
+              transition={reduceMotion ? {} : { duration: 0.6, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              className="relative mt-12 sm:mt-16 lg:mt-20"
             >
-              <div className="absolute -inset-6 rounded-[2rem] bg-gradient-to-b from-brandGold-500/15 via-brandGold-500/5 to-transparent blur-2xl -z-10" />
-              <div className="rounded-2xl border border-slate-200/70 dark:border-brandObsidian-700/80 bg-white dark:bg-brandObsidian-900 shadow-2xl shadow-slate-900/10 dark:shadow-black/40 overflow-hidden">
-                <div className="flex items-center justify-between px-4 sm:px-5 h-11 border-b border-slate-200 dark:border-brandObsidian-800 bg-slate-50/60 dark:bg-brandObsidian-800/40">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-rose-400/80" />
-                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400/80" />
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/80" />
-                    <span className="hidden sm:inline ml-3 text-xs font-mono text-slate-500 dark:text-slate-400">
-                      console.aravanta.cloud / fleet-mumbai-az1 / production
+              <div className="absolute -inset-4 sm:-inset-6 rounded-[2.5rem] bg-gradient-to-b from-brandGold-500/15 via-brandGold-500/5 to-transparent blur-2xl -z-10" />
+
+              <div className="rounded-2xl border border-slate-200/90 dark:border-brandObsidian-700/80 bg-white dark:bg-brandObsidian-900 shadow-2xl overflow-hidden">
+                {/* Window Chrome Header with Live Module Tabs */}
+                <div className="px-4 sm:px-5 py-3 border-b border-slate-200 dark:border-brandObsidian-800 bg-slate-100/70 dark:bg-brandObsidian-800/60 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-3 h-3 rounded-full bg-rose-500/80 inline-block" />
+                      <span className="w-3 h-3 rounded-full bg-amber-500/80 inline-block" />
+                      <span className="w-3 h-3 rounded-full bg-emerald-500/80 inline-block" />
+                    </div>
+                    <span className="text-xs font-mono font-medium text-slate-500 dark:text-slate-400 truncate">
+                      aravanta.cloudos // workspace-mumbai-01 // production
                     </span>
                   </div>
-                  <Badge variant="success" size="sm" dot>
-                    Live
-                  </Badge>
-                </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-0">
-                  <aside className="hidden lg:flex lg:col-span-2 flex-col gap-1 px-3 py-4 border-r border-slate-200 dark:border-brandObsidian-800 bg-slate-50/40 dark:bg-brandObsidian-900/50 text-xs font-semibold">
+                  {/* Interactive Dashboard Module Selector */}
+                  <div className="flex flex-wrap items-center gap-1.5">
                     {[
-                      { name: 'Dashboard', icon: BarChart3, active: true },
-                      { name: 'Compute', icon: Server },
-                      { name: 'Kubernetes', icon: Container },
-                      { name: 'Storage', icon: HardDrive },
-                      { name: 'Database', icon: Database },
-                      { name: 'CI/CD', icon: GitBranch },
-                      { name: 'Monitoring', icon: Activity },
-                      { name: 'Incidents', icon: AlertTriangle },
-                      { name: 'Security', icon: Shield },
-                      { name: 'Billing', icon: Lock },
-                    ].map((item) => {
-                      const Icon = item.icon;
+                      { id: 'dashboard', label: 'Fleet Overview', icon: BarChart3 },
+                      { id: 'storage', label: 'ArvStore (S3 & Files)', icon: HardDrive },
+                      { id: 'deployments', label: 'GitOps Canaries', icon: GitBranch },
+                      { id: 'iam', label: 'IAM & RBAC', icon: ShieldCheck },
+                      { id: 'billing', label: 'FinOps Invoices', icon: FileText },
+                    ].map((tab) => {
+                      const Icon = tab.icon;
+                      const isActive = activePreviewTab === tab.id;
                       return (
-                        <div
-                          key={item.name}
+                        <button
+                          key={tab.id}
+                          onClick={() => setActivePreviewTab(tab.id as any)}
                           className={[
-                            'flex items-center gap-2 px-2.5 py-2 rounded-lg',
-                            item.active
-                              ? 'bg-brandGold-500/10 text-brandGold-600 dark:text-brandGold-400'
-                              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-brandObsidian-800/60',
+                            'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer',
+                            isActive
+                              ? 'bg-brandGold-500 text-brandObsidian-950 shadow-sm'
+                              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-brandObsidian-700/60',
                           ].join(' ')}
                         >
-                          <Icon className="w-4 h-4" />
-                          <span>{item.name}</span>
-                        </div>
+                          <Icon className="w-3.5 h-3.5" />
+                          <span>{tab.label}</span>
+                        </button>
                       );
                     })}
-                  </aside>
+                  </div>
+                </div>
 
-                  <section className="col-span-1 lg:col-span-10 p-4 sm:p-5 space-y-4 sm:space-y-5">
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                      {[
-                        { label: 'Active Pods', value: '84 / 90', sub: '12 Deployments', tone: 'emerald' },
-                        { label: 'P95 Latency', value: '38.5 ms', sub: 'SLO < 200 ms', tone: 'emerald' },
-                        { label: 'SLO Burn Rate', value: '0.3×', sub: 'Error budget 92%', tone: 'gold' },
-                        { label: 'Open Alerts', value: '2', sub: '1 ack, 1 firing', tone: 'amber' },
-                      ].map((k) => (
-                        <div
-                          key={k.label}
-                          className="rounded-xl border border-slate-200 dark:border-brandObsidian-700/80 bg-white dark:bg-brandObsidian-800/40 p-3.5"
-                        >
-                          <div className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">
-                            {k.label}
+                {/* Dashboard Viewport Content */}
+                <div className="p-4 sm:p-6 bg-slate-50/50 dark:bg-brandObsidian-950/60 min-h-[420px]">
+                  <AnimatePresence mode="wait">
+                    {/* VIEW 1: FLEET & SRE CONSOLE */}
+                    {activePreviewTab === 'dashboard' && (
+                      <motion.div
+                        key="dashboard"
+                        initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.25 }}
+                        className="space-y-5"
+                      >
+                        {/* Fleet KPI Cards */}
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                          {[
+                            { label: 'Active Fleet', value: '24 Resources', sub: '14 Pods, 4 VMs, 3 DBs, 2 Buckets' },
+                            { label: 'P95 Latency', value: '38.5 ms', sub: 'SLO Target < 200 ms' },
+                            { label: 'CPU Fleet Telemetry', value: '32% Avg', sub: 'Peak 48% @ 14:00 IST' },
+                            { label: 'Alertmanager', value: '1 Firing', sub: '2 Acknowledged / Healthy' },
+                          ].map((kpi) => (
+                            <div
+                              key={kpi.label}
+                              className="rounded-xl border border-slate-200 dark:border-brandObsidian-800 bg-white dark:bg-brandObsidian-900 p-4 shadow-xs"
+                            >
+                              <div className="text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-400 font-mono">
+                                {kpi.label}
+                              </div>
+                              <div className="mt-1 text-xl sm:text-2xl font-black text-slate-900 dark:text-white tabular-nums">
+                                {kpi.value}
+                              </div>
+                              <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                                {kpi.sub}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Live Inventory Table */}
+                        <div className="rounded-xl border border-slate-200 dark:border-brandObsidian-800 bg-white dark:bg-brandObsidian-900 overflow-hidden shadow-xs">
+                          <div className="px-4 py-3 border-b border-slate-200 dark:border-brandObsidian-800 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Server className="w-4 h-4 text-brandGold-500" />
+                              <span className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                                Live Resource Fleet (PostgreSQL Sync)
+                              </span>
+                            </div>
+                            <Badge variant="success" size="sm" dot>Live Polling</Badge>
                           </div>
-                          <div className="mt-1 text-lg sm:text-xl font-black text-slate-900 dark:text-white tabular-nums">
-                            {k.value}
-                          </div>
-                          <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                            {k.sub}
+
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs">
+                              <thead className="bg-slate-50 dark:bg-brandObsidian-800/50 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-brandObsidian-800 font-mono">
+                                <tr>
+                                  <th className="py-2.5 px-4 font-semibold">Resource Name</th>
+                                  <th className="py-2.5 px-4 font-semibold">Type</th>
+                                  <th className="py-2.5 px-4 font-semibold">Engine / Spec</th>
+                                  <th className="py-2.5 px-4 font-semibold">Region</th>
+                                  <th className="py-2.5 px-4 font-semibold">Status</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 dark:divide-brandObsidian-800 font-mono">
+                                {[
+                                  { name: 'web-prod-api-cluster', type: 'Container Pod', spec: '4 vCPU • 8 GB RAM', region: 'ap-south-1a', status: 'RUNNING' },
+                                  { name: 'mumbai-pg-ha-01', type: 'PostgreSQL 16', spec: 'HA Standby Replica', region: 'ap-south-1b', status: 'HEALTHY' },
+                                  { name: 'edge-worker-vm-03', type: 'Compute VM', spec: 'c3.large • NVMe SSD', region: 'ap-south-1a', status: 'RUNNING' },
+                                  { name: 'arv-assets-prod', type: 'S3 Object Bucket', spec: 'Standard Storage', region: 'ap-south-1', status: 'ACTIVE' },
+                                ].map((row) => (
+                                  <tr key={row.name} className="hover:bg-slate-50/60 dark:hover:bg-brandObsidian-800/40">
+                                    <td className="py-2.5 px-4 font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                                      {row.name}
+                                    </td>
+                                    <td className="py-2.5 px-4 text-slate-600 dark:text-slate-300">{row.type}</td>
+                                    <td className="py-2.5 px-4 text-slate-500 dark:text-slate-400">{row.spec}</td>
+                                    <td className="py-2.5 px-4 text-slate-500 dark:text-slate-400">{row.region}</td>
+                                    <td className="py-2.5 px-4">
+                                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                        {row.status}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
                           </div>
                         </div>
-                      ))}
-                    </div>
+                      </motion.div>
+                    )}
 
-                    <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
-                      <div className="xl:col-span-3 rounded-xl border border-slate-200 dark:border-brandObsidian-700/80 bg-white dark:bg-brandObsidian-800/40 p-4">
-                        <div className="flex items-center justify-between mb-4">
+                    {/* VIEW 2: ARVSTORE S3 & FILE MANAGEMENT */}
+                    {activePreviewTab === 'storage' && (
+                      <motion.div
+                        key="storage"
+                        initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.25 }}
+                        className="space-y-4"
+                      >
+                        {/* Storage Header Controls */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl bg-white dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-800">
                           <div>
-                            <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                              Region status
+                            <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 font-mono">
+                              Active Bucket: <span className="text-brandGold-600 dark:text-brandGold-400">arv-production-vault</span>
                             </div>
                             <div className="text-sm font-semibold text-slate-800 dark:text-slate-100 mt-0.5">
-                              Control plane latency across regions
+                              Region: ap-south-1 • Storage Class: STANDARD • Access: PRIVATE
                             </div>
                           </div>
-                          <div className="flex items-center gap-1.5 text-[11px] font-mono">
-                            <span className="inline-flex items-center gap-1 text-slate-500 dark:text-slate-400">
-                              <span className="w-2 h-2 rounded-full bg-emerald-500" /> Healthy
-                            </span>
-                            <span className="inline-flex items-center gap-1 text-slate-500 dark:text-slate-400 ml-2">
-                              <span className="w-2 h-2 rounded-full bg-amber-500" /> Degraded
-                            </span>
+
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={handleSimulateUpload}
+                              leftIcon={<UploadCloud className="w-3.5 h-3.5 text-brandGold-500" />}
+                              className="text-xs cursor-pointer"
+                            >
+                              Upload File (100MB Max)
+                            </Button>
+                            <Badge variant="gold" size="sm">Versioning ON</Badge>
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                          {[
-                            { code: 'BOM', city: 'Mumbai', p95: 32, status: 'ok' },
-                            { code: 'SIN', city: 'Singapore', p95: 48, status: 'ok' },
-                            { code: 'IAD', city: 'Virginia', p95: 74, status: 'warn' },
-                            { code: 'FRA', city: 'Frankfurt', p95: 61, status: 'ok' },
-                          ].map((r) => (
-                            <div
-                              key={r.code}
-                              className="rounded-lg border border-slate-200 dark:border-brandObsidian-700 bg-slate-50/70 dark:bg-brandObsidian-900/40 p-3"
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="flex items-center gap-1.5">
-                                  <span
-                                    className={[
-                                      'relative inline-flex w-2 h-2 rounded-full',
-                                      r.status === 'ok' ? 'bg-emerald-500' : 'bg-amber-500',
-                                    ].join(' ')}
+
+                        {previewUploadProgress !== null && (
+                          <div className="p-3 rounded-lg bg-brandGold-500/10 border border-brandGold-500/30 text-xs font-mono space-y-1.5">
+                            <div className="flex justify-between font-bold text-brandGold-700 dark:text-brandGold-300">
+                              <span>Uploading `release-bundle-v1.4.tar.gz`...</span>
+                              <span>{previewUploadProgress}%</span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-brandGold-500/20 overflow-hidden">
+                              <div
+                                className="h-full bg-brandGold-500 transition-all duration-200"
+                                style={{ width: `${previewUploadProgress}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* File Hierarchy Browser */}
+                        <div className="rounded-xl border border-slate-200 dark:border-brandObsidian-800 bg-white dark:bg-brandObsidian-900 overflow-hidden">
+                          <div className="px-4 py-2.5 bg-slate-50 dark:bg-brandObsidian-800/50 border-b border-slate-200 dark:border-brandObsidian-800 flex items-center justify-between text-xs font-mono">
+                            <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+                              <Folder className="w-3.5 h-3.5 text-brandGold-500" />
+                              <span>arv-production-vault /</span>
+                              <button
+                                onClick={() => setPreviewStorageFolder('root')}
+                                className={`hover:underline cursor-pointer ${previewStorageFolder === 'root' ? 'font-bold text-brandGold-600 dark:text-brandGold-400' : ''}`}
+                              >
+                                root
+                              </button>
+                              <span>/</span>
+                              <button
+                                onClick={() => setPreviewStorageFolder('backups')}
+                                className={`hover:underline cursor-pointer ${previewStorageFolder === 'backups' ? 'font-bold text-brandGold-600 dark:text-brandGold-400' : ''}`}
+                              >
+                                backups
+                              </button>
+                              <span>/</span>
+                              <button
+                                onClick={() => setPreviewStorageFolder('configs')}
+                                className={`hover:underline cursor-pointer ${previewStorageFolder === 'configs' ? 'font-bold text-brandGold-600 dark:text-brandGold-400' : ''}`}
+                              >
+                                configs
+                              </button>
+                            </div>
+                            <span className="text-slate-400">
+                              {previewStorageFolder === 'root' ? '3 Objects' : previewStorageFolder === 'backups' ? '1 Object' : '1 Object'}
+                            </span>
+                          </div>
+
+                          <div className="divide-y divide-slate-100 dark:divide-brandObsidian-800 text-xs font-mono">
+                            {(previewStorageFolder === 'root' ? [
+                              { key: 'backups/postgres-snapshot-2026-09-27.sql.gz', size: '1.42 GB', modified: '2 hours ago', class: 'STANDARD' },
+                              { key: 'configs/kubernetes-production-spec.yaml', size: '8.4 KB', modified: 'Yesterday', class: 'STANDARD' },
+                              { key: 'invoices/aravanta-tax-invoice-ARV-089.pdf', size: '164 KB', modified: '3 days ago', class: 'STANDARD' },
+                            ] : previewStorageFolder === 'backups' ? [
+                              { key: 'backups/postgres-snapshot-2026-09-27.sql.gz', size: '1.42 GB', modified: '2 hours ago', class: 'STANDARD' },
+                            ] : [
+                              { key: 'configs/kubernetes-production-spec.yaml', size: '8.4 KB', modified: 'Yesterday', class: 'STANDARD' },
+                            ]).map((obj) => (
+                              <div key={obj.key} className="p-3.5 flex items-center justify-between hover:bg-slate-50/70 dark:hover:bg-brandObsidian-800/40">
+                                <div className="flex items-center gap-3">
+                                  <FileText className="w-4 h-4 text-brandGold-500 shrink-0" />
+                                  <div>
+                                    <div className="font-bold text-slate-800 dark:text-slate-200">{obj.key}</div>
+                                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                                      Size: {obj.size} • Modified: {obj.modified}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="hidden sm:inline px-2 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-brandObsidian-800 text-slate-600 dark:text-slate-400">
+                                    {obj.class}
+                                  </span>
+                                  <button
+                                    onClick={() => handleCopyCode(obj.key, obj.key)}
+                                    className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-brandObsidian-700 text-slate-500 hover:text-slate-800 dark:hover:text-white cursor-pointer"
+                                    title="Copy Object Key"
                                   >
-                                    {!reduceMotion && (
-                                      <span className="absolute inset-0 rounded-full animate-ping opacity-60" />
-                                    )}
-                                  </span>
-                                  <Globe2 className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-                                  <span className="font-mono text-[11px] font-bold text-slate-700 dark:text-slate-200">
-                                    {r.code}
-                                  </span>
-                                </span>
-                                <span className="font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-                                  {r.p95}ms
-                                </span>
+                                    {copiedCodeKey === obj.key ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                                  </button>
+                                </div>
                               </div>
-                              <div className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-                                {r.city}
-                              </div>
-                              <div className="mt-2 h-1.5 rounded-full bg-slate-200 dark:bg-brandObsidian-700 overflow-hidden">
-                                <div
-                                  className={[
-                                    'h-full rounded-full',
-                                    r.status === 'ok' ? 'bg-emerald-500' : 'bg-amber-500',
-                                  ].join(' ')}
-                                  style={{ width: `${Math.min(100, r.p95 * 1.2)}%` }}
-                                />
-                              </div>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
-                      </div>
+                      </motion.div>
+                    )}
 
-                      <div className="xl:col-span-2 rounded-xl border border-slate-200 dark:border-brandObsidian-700/80 bg-white dark:bg-brandObsidian-800/40 p-4 space-y-3">
-                        <div className="flex items-center justify-between">
+                    {/* VIEW 3: GITOPS & CANARY RELEASES */}
+                    {activePreviewTab === 'deployments' && (
+                      <motion.div
+                        key="deployments"
+                        initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.25 }}
+                        className="space-y-4"
+                      >
+                        <div className="p-4 rounded-xl bg-white dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-800 flex items-center justify-between">
                           <div>
-                            <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                              Latest deployments
+                            <div className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                              Active Release: <span className="text-brandGold-500 font-bold">api-gateway // v2.4.2</span>
                             </div>
                             <div className="text-sm font-semibold text-slate-800 dark:text-slate-100 mt-0.5">
-                              GitOps release pipeline
+                              Canary Strategy: 25% Traffic Slice • Envoy Ingress Controller
                             </div>
                           </div>
-                          <GitBranch className="w-4 h-4 text-brandGold-500" />
+                          <Badge variant="gold" size="sm">Phase 2: Verifying</Badge>
                         </div>
-                        <div className="space-y-2">
-                          {[
-                            { svc: 'api-gateway', tag: 'v2.4.2', prog: 25, status: 'canary' },
-                            { svc: 'auth-service', tag: 'v1.9.1', prog: 100, status: 'done' },
-                            { svc: 'billing-worker', tag: 'v3.1.0', prog: 100, status: 'done' },
-                          ].map((d) => (
-                            <div
-                              key={d.svc}
-                              className="rounded-lg bg-slate-50 dark:bg-brandObsidian-900/50 border border-slate-200/70 dark:border-brandObsidian-700/60 p-2.5"
-                            >
-                              <div className="flex items-center justify-between text-[11px] font-mono">
-                                <span className="font-bold text-slate-800 dark:text-slate-100">
-                                  {d.svc}
-                                </span>
-                                <span className="text-brandGold-600 dark:text-brandGold-400 font-bold">
-                                  {d.tag}
-                                </span>
+
+                        {/* Canary Progress Bar */}
+                        <div className="p-4 rounded-xl bg-white dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-800 space-y-3">
+                          <div className="flex justify-between text-xs font-mono">
+                            <span className="text-slate-600 dark:text-slate-400">Traffic Distribution: 25% Canary / 75% Stable</span>
+                            <span className="text-emerald-500 font-bold">Error Rate: 0.00%</span>
+                          </div>
+                          <div className="h-2 rounded-full bg-slate-200 dark:bg-brandObsidian-800 overflow-hidden flex">
+                            <div className="h-full bg-brandGold-500 w-[25%]" />
+                            <div className="h-full bg-emerald-500 w-[75%]" />
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-2 text-center text-xs font-mono pt-1">
+                            <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold">
+                              Synthetic Probe: 100% OK
+                            </div>
+                            <div className="p-2.5 rounded-lg bg-slate-100 dark:bg-brandObsidian-800 text-slate-700 dark:text-slate-300 font-bold">
+                              P95 Latency: 18.2ms
+                            </div>
+                            <div className="p-2.5 rounded-lg bg-brandGold-500/10 border border-brandGold-500/20 text-brandGold-700 dark:text-brandGold-300 font-bold">
+                              Rollback Ready: &lt; 1.2s
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-3.5 rounded-xl bg-slate-100/70 dark:bg-brandObsidian-800/40 border border-slate-200 dark:border-brandObsidian-800 flex items-center justify-between text-xs font-mono">
+                          <span className="text-slate-600 dark:text-slate-400">Commit: git-sha 9a4f21d (Merge PR #142: Fix connection pooling timeout)</span>
+                          <span className="text-emerald-600 dark:text-emerald-400 font-bold">Signature Verified ✓</span>
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* VIEW 4: IAM & RBAC GOVERNANCE */}
+                    {activePreviewTab === 'iam' && (
+                      <motion.div
+                        key="iam"
+                        initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.25 }}
+                        className="space-y-4"
+                      >
+                        {/* Interactive Role Switcher */}
+                        <div className="p-4 rounded-xl bg-white dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div>
+                            <div className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                              Simulate Role-Based Permissions
+                            </div>
+                            <div className="text-sm font-semibold text-slate-800 dark:text-slate-100 mt-0.5">
+                              Active Persona: <span className="text-brandGold-500 font-bold">{previewRole}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            {(['SuperAdmin', 'Operator', 'Developer', 'Viewer'] as const).map((r) => (
+                              <button
+                                key={r}
+                                onClick={() => setPreviewRole(r)}
+                                className={[
+                                  'px-2.5 py-1 rounded text-xs font-mono font-bold transition-all cursor-pointer',
+                                  previewRole === r
+                                    ? 'bg-brandGold-500 text-brandObsidian-950 shadow-xs'
+                                    : 'bg-slate-100 dark:bg-brandObsidian-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white',
+                                ].join(' ')}
+                              >
+                                {r}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Permission Matrix for Simulated Role */}
+                        <div className="rounded-xl border border-slate-200 dark:border-brandObsidian-800 bg-white dark:bg-brandObsidian-900 p-4">
+                          <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 font-mono mb-3">
+                            Operational Capabilities Allowed For {previewRole}
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 text-xs font-mono">
+                            {[
+                              { action: 'View Metrics & Logs', allowed: true },
+                              { action: 'Upload S3 Objects', allowed: previewRole !== 'Viewer' },
+                              { action: 'Trigger Deployments', allowed: previewRole !== 'Viewer' },
+                              { action: 'Provision Virtual Machines', allowed: previewRole === 'SuperAdmin' || previewRole === 'Operator' },
+                              { action: 'Manage FinOps & Billing', allowed: previewRole === 'SuperAdmin' },
+                              { action: 'Invite Members & Modify Roles', allowed: previewRole === 'SuperAdmin' },
+                            ].map((perm) => (
+                              <div
+                                key={perm.action}
+                                className={[
+                                  'p-2.5 rounded-lg border flex items-center justify-between',
+                                  perm.allowed
+                                    ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-400'
+                                    : 'bg-rose-500/5 border-rose-500/20 text-rose-600 dark:text-rose-400 opacity-60',
+                                ].join(' ')}
+                              >
+                                <span>{perm.action}</span>
+                                <span>{perm.allowed ? '✓ ALLOW' : '✕ DENY'}</span>
                               </div>
-                              <div className="mt-1.5 h-1.5 rounded-full bg-slate-200 dark:bg-brandObsidian-700 overflow-hidden">
-                                <motion.div
-                                  initial={reduceMotion ? false : { width: 0 }}
-                                  animate={{ width: `${d.prog}%` }}
-                                  transition={
-                                    reduceMotion
-                                      ? {}
-                                      : { duration: 1.1, ease: [0.16, 1, 0.3, 1], delay: 0.5 }
-                                  }
-                                  className={[
-                                    'h-full rounded-full',
-                                    d.status === 'canary'
-                                      ? 'bg-gradient-to-r from-brandGold-400 to-brandGold-600'
-                                      : 'bg-emerald-500',
-                                  ].join(' ')}
-                                />
+                            ))}
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* VIEW 5: FINOPS & INVOICES */}
+                    {activePreviewTab === 'billing' && (
+                      <motion.div
+                        key="billing"
+                        initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.25 }}
+                        className="space-y-4"
+                      >
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div className="p-4 rounded-xl bg-white dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-800">
+                            <div className="text-[10px] font-mono uppercase font-bold text-slate-500 dark:text-slate-400">
+                              Current Billing Cycle (Sept 2026)
+                            </div>
+                            <div className="text-2xl font-black text-slate-900 dark:text-white font-mono mt-1">
+                              ₹28,450.00
+                            </div>
+                            <div className="text-xs text-emerald-500 mt-0.5">Budget Cap: ₹40,000.00 (71% utilized)</div>
+                          </div>
+
+                          <div className="p-4 rounded-xl bg-white dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-800">
+                            <div className="text-[10px] font-mono uppercase font-bold text-slate-500 dark:text-slate-400">
+                              Tax Breakdown (India GST)
+                            </div>
+                            <div className="text-xs font-mono space-y-1 mt-2 text-slate-600 dark:text-slate-400">
+                              <div className="flex justify-between"><span>Subtotal:</span><span className="font-bold text-slate-900 dark:text-white">₹24,110.17</span></div>
+                              <div className="flex justify-between"><span>CGST (9%):</span><span>₹2,169.91</span></div>
+                              <div className="flex justify-between"><span>SGST (9%):</span><span>₹2,169.91</span></div>
+                            </div>
+                          </div>
+
+                          <div className="p-4 rounded-xl bg-white dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-800 flex flex-col justify-between">
+                            <div>
+                              <div className="text-[10px] font-mono uppercase font-bold text-slate-500 dark:text-slate-400">
+                                Latest Official Invoice
                               </div>
-                              <div className="mt-1 flex items-center justify-between text-[10px] font-mono text-slate-500 dark:text-slate-400">
-                                <span>
-                                  {d.status === 'canary' ? 'Canary rollout' : 'Rolling update'} • {d.prog}%
-                                </span>
-                                <Check className={['w-3 h-3', d.status === 'canary' ? 'text-amber-500' : 'text-emerald-500'].join(' ')} />
+                              <div className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-1 font-mono">
+                                #INV-ARV-2026-089
                               </div>
                             </div>
-                          ))}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => onNavigate?.('pricing')}
+                              className="mt-2 text-xs cursor-pointer"
+                              rightIcon={<ChevronRight className="w-3.5 h-3.5" />}
+                            >
+                              View Pricing & Invoices
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                  </section>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
             </motion.div>
           </div>
         </section>
 
-        {/* ── 1. ALTERNATING FEATURES SECTION (Responsive image-left / image-right layout) ── */}
-        <section id="features" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-24 sm:space-y-32">
+        {/* ── CORE CAPABILITIES SECTION ── */}
+        <section id="capabilities" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
             <div className="text-center max-w-3xl mx-auto space-y-4">
               <Badge variant="gold" size="md">
-                Core Capabilities
+                Verified Capabilities
               </Badge>
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.1]">
-                Engineered for High-Velocity Cloud Operations
+                Real Cloud Infrastructure Primitives
               </h2>
               <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-                Break free from fragmented cloud consoles. Aravanta Cloud OS unifies multi-cloud infrastructure, automated SRE, and delivery pipelines into one seamless platform.
+                Every service below is backed by running backend routers, database schemas, and visual console views in Aravanta CloudOS.
               </p>
             </div>
 
-            {/* Feature 1: Visual Left, Content Right */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-center">
-              <div className="lg:col-span-6">
-                <div className="relative rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-brandObsidian-900 to-brandObsidian-950 border border-brandGold-500/30 shadow-2xl overflow-hidden group">
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-brandGold-500/10 rounded-full blur-3xl -z-10" />
-                  <div className="flex items-center justify-between pb-4 border-b border-brandObsidian-800">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-rose-500/80" />
-                      <div className="w-3 h-3 rounded-full bg-amber-500/80" />
-                      <div className="w-3 h-3 rounded-full bg-emerald-500/80" />
-                      <span className="ml-2 font-mono text-xs text-slate-400">arv-cluster-canvas // ap-south-1</span>
-                    </div>
-                    <Badge variant="gold" size="sm" dot>Live Fabric</Badge>
-                  </div>
-                  <div className="mt-6 space-y-3">
-                    {[
-                      { name: 'mumbai-core-k8s-01', provider: 'AWS / Bare Metal', nodes: '16 Worker Nodes', cpu: '64 vCPUs', status: 'Healthy' },
-                      { name: 'singapore-edge-vms', provider: 'Google Cloud', nodes: '8 Instances', cpu: '32 vCPUs', status: 'Syncing' },
-                      { name: 'frankfurt-storage-s3', provider: 'Private Cloud', nodes: '128TB Encrypted', cpu: 'NVMe Tier', status: 'Active' },
-                    ].map((c) => (
-                      <div key={c.name} className="p-4 rounded-xl bg-brandObsidian-800/80 border border-brandObsidian-700/60 flex items-center justify-between">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <Boxes className="w-4 h-4 text-brandGold-400" />
-                            <span className="font-mono text-xs font-bold text-white">{c.name}</span>
-                          </div>
-                          <span className="text-[11px] text-slate-400">{c.provider} • {c.nodes}</span>
-                        </div>
-                        <span className="font-mono text-xs font-semibold px-2 py-1 rounded bg-brandGold-500/15 text-brandGold-300 border border-brandGold-500/30">
-                          {c.status}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <div className="lg:col-span-6 space-y-6">
-                <Badge variant="outline" size="md">Multi-Cloud Fabric</Badge>
-                <h3 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
-                  Single Plane Compute, Kubernetes & Object Storage
-                </h3>
-                <p className="text-slate-600 dark:text-slate-300 text-base sm:text-lg leading-relaxed">
-                  Provision high-performance AMD EPYC / ARM virtual machines, self-healing managed Kubernetes clusters, and S3-compatible object buckets across global zones without switching between AWS, GCP, or Azure dashboards.
-                </p>
-                <div className="space-y-3 pt-2">
-                  {[
-                    'Zero provider lock-in: deploy on any cloud or sovereign on-prem hardware',
-                    'Global WireGuard VPC mesh connecting heterogeneous clusters with <5ms latency',
-                    'Attachable NVMe SSD block storage with automated cross-region replication',
-                  ].map((pt) => (
-                    <div key={pt} className="flex items-start gap-3">
-                      <span className="mt-1 w-5 h-5 rounded-full bg-brandGold-500/10 text-brandGold-500 flex items-center justify-center shrink-0">
-                        <Check className="w-3.5 h-3.5" />
-                      </span>
-                      <span className="text-sm sm:text-base text-slate-700 dark:text-slate-200">{pt}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Feature 2: Content Left, Visual Right */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-center">
-              <div className="lg:col-span-6 space-y-6 lg:order-1">
-                <Badge variant="outline" size="md">Reliability & SRE</Badge>
-                <h3 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
-                  Automated SRE War-Room & Incident Self-Healing
-                </h3>
-                <p className="text-slate-600 dark:text-slate-300 text-base sm:text-lg leading-relaxed">
-                  Stream sub-second OpenTelemetry metrics, Prometheus alerts, and Loki logs directly to your SRE console. Execute automated self-healing runbooks that resolve outages before customers notice.
-                </p>
-                <div className="space-y-3 pt-2">
-                  {[
-                    'Automated anomaly detection with SLO burn-rate error budgeting',
-                    'War-room commander assignment, timeline recording, and instant RCA notes',
-                    'Pre-configured self-healing runbooks for pod restart, cache flush, and traffic draining',
-                  ].map((pt) => (
-                    <div key={pt} className="flex items-start gap-3">
-                      <span className="mt-1 w-5 h-5 rounded-full bg-brandGold-500/10 text-brandGold-500 flex items-center justify-center shrink-0">
-                        <Check className="w-3.5 h-3.5" />
-                      </span>
-                      <span className="text-sm sm:text-base text-slate-700 dark:text-slate-200">{pt}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="lg:col-span-6 lg:order-2">
-                <div className="relative rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-brandObsidian-900 to-brandObsidian-950 border border-brandGold-500/30 shadow-2xl overflow-hidden group">
-                  <div className="flex items-center justify-between pb-4 border-b border-brandObsidian-800">
-                    <div className="flex items-center gap-2">
-                      <Activity className="w-4 h-4 text-emerald-400" />
-                      <span className="font-mono text-xs font-bold text-white">ArvWatch Live War-Room</span>
-                    </div>
-                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                      Auto-Remediation Active
-                    </span>
-                  </div>
-                  <div className="mt-6 space-y-4">
-                    <div className="p-4 rounded-xl bg-brandObsidian-800/80 border border-brandObsidian-700/60 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-mono font-bold text-amber-400">INC-849: Redis Replica Lag Spike</span>
-                        <span className="text-[10px] text-slate-400 font-mono">0.4s ago</span>
-                      </div>
-                      <div className="h-1.5 w-full bg-brandObsidian-700 rounded-full overflow-hidden">
-                        <div className="h-full bg-amber-500 rounded-full" style={{ width: '82%' }} />
-                      </div>
-                      <div className="flex items-center justify-between text-[11px] font-mono text-slate-300">
-                        <span>Runbook: `auto-failover-standby`</span>
-                        <span className="text-emerald-400 font-bold">Executed ✓</span>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="p-3.5 rounded-xl bg-brandObsidian-800/50 border border-brandObsidian-700/40 text-center">
-                        <div className="text-[10px] font-mono text-slate-400 uppercase">P99 Telemetry</div>
-                        <div className="text-lg font-mono font-black text-white mt-1">4.2 ms</div>
-                      </div>
-                      <div className="p-3.5 rounded-xl bg-brandObsidian-800/50 border border-brandObsidian-700/40 text-center">
-                        <div className="text-[10px] font-mono text-slate-400 uppercase">MTTR Average</div>
-                        <div className="text-lg font-mono font-black text-emerald-400 mt-1">42 sec</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Feature 3: Visual Left, Content Right */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-center">
-              <div className="lg:col-span-6">
-                <div className="relative rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-brandObsidian-900 to-brandObsidian-950 border border-brandGold-500/30 shadow-2xl overflow-hidden group">
-                  <div className="flex items-center justify-between pb-4 border-b border-brandObsidian-800">
-                    <div className="flex items-center gap-2">
-                      <GitBranch className="w-4 h-4 text-brandGold-400" />
-                      <span className="font-mono text-xs font-bold text-white">GitOps Canary Engine</span>
-                    </div>
-                    <Badge variant="gold" size="sm">v3.4.0</Badge>
-                  </div>
-                  <div className="mt-6 space-y-4">
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-xs font-mono">
-                        <span className="text-slate-300">Phase 2: Canary Verification</span>
-                        <span className="text-brandGold-400 font-bold">50% Traffic</span>
-                      </div>
-                      <div className="h-2 rounded-full bg-brandObsidian-800 overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-brandGold-400 to-brandGold-600 rounded-full" style={{ width: '50%' }} />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 text-center text-[10px] font-mono">
-                      <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold">
-                        Error Rate: 0.00%
-                      </div>
-                      <div className="p-2.5 rounded-lg bg-brandObsidian-800 border border-brandObsidian-700 text-slate-300 font-bold">
-                        P95: 18ms
-                      </div>
-                      <div className="p-2.5 rounded-lg bg-brandGold-500/10 border border-brandGold-500/30 text-brandGold-400 font-bold">
-                        Passes Gate ✓
-                      </div>
-                    </div>
-                    <div className="p-3 rounded-xl bg-brandObsidian-800/80 border border-brandObsidian-700 text-xs font-mono text-slate-400 flex items-center justify-between">
-                      <span>1-Click Emergency Rollback</span>
-                      <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 text-[10px] font-bold">Zero Downtime</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="lg:col-span-6 space-y-6">
-                <Badge variant="outline" size="md">GitOps Delivery</Badge>
-                <h3 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
-                  Zero-Downtime Releases with Automated Rollback Gates
-                </h3>
-                <p className="text-slate-600 dark:text-slate-300 text-base sm:text-lg leading-relaxed">
-                  Ship container updates with confidence. Aravanta Cloud OS gates every release with automated synthetic health checks, progressive canary weight transitions, and instantaneous rollback triggers.
-                </p>
-                <div className="space-y-3 pt-2">
-                  {[
-                    'Progressive canary, blue-green, and rolling deployment topologies',
-                    'Cryptographic container signature validation before deployment into production',
-                    'Instantaneous 1-click rollback with zero dropped active connections',
-                  ].map((pt) => (
-                    <div key={pt} className="flex items-start gap-3">
-                      <span className="mt-1 w-5 h-5 rounded-full bg-brandGold-500/10 text-brandGold-500 flex items-center justify-center shrink-0">
-                        <Check className="w-3.5 h-3.5" />
-                      </span>
-                      <span className="text-sm sm:text-base text-slate-700 dark:text-slate-200">{pt}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Feature 4: Content Left, Visual Right */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-center">
-              <div className="lg:col-span-6 space-y-6 lg:order-1">
-                <Badge variant="outline" size="md">FinOps & Security</Badge>
-                <h3 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
-                  Transparent Indian Rupee (₹) & USD Billing with Granular RBAC
-                </h3>
-                <p className="text-slate-600 dark:text-slate-300 text-base sm:text-lg leading-relaxed">
-                  Gain granular visibility into your cloud spend. Set strict project budget caps, generate GST-compliant enterprise invoices, and enforce 4-tier role-based access control with immutable 365-day audit trails.
-                </p>
-                <div className="space-y-3 pt-2">
-                  {[
-                    'Predictable pricing in INR (₹) and USD ($) with zero surprise egress markups',
-                    'Fine-grained RBAC matrix with TOTP multi-factor authentication for all admins',
-                    'Immutable, cryptographically verifiable compliance audit logs',
-                  ].map((pt) => (
-                    <div key={pt} className="flex items-start gap-3">
-                      <span className="mt-1 w-5 h-5 rounded-full bg-brandGold-500/10 text-brandGold-500 flex items-center justify-center shrink-0">
-                        <Check className="w-3.5 h-3.5" />
-                      </span>
-                      <span className="text-sm sm:text-base text-slate-700 dark:text-slate-200">{pt}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="lg:col-span-6 lg:order-2">
-                <div className="relative rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-brandObsidian-900 to-brandObsidian-950 border border-brandGold-500/30 shadow-2xl overflow-hidden group">
-                  <div className="flex items-center justify-between pb-4 border-b border-brandObsidian-800">
-                    <div className="flex items-center gap-2">
-                      <BarChart3 className="w-4 h-4 text-brandGold-400" />
-                      <span className="font-mono text-xs font-bold text-white">FinOps Real-Time Telemetry</span>
-                    </div>
-                    <span className="text-[10px] font-mono font-bold text-emerald-400">Within Budget (68%)</span>
-                  </div>
-                  <div className="mt-6 space-y-4">
-                    <div className="p-4 rounded-xl bg-brandObsidian-800/80 border border-brandObsidian-700/60">
-                      <div className="flex justify-between items-baseline mb-2">
-                        <span className="text-xs text-slate-400 font-mono">Current Billing Cycle</span>
-                        <span className="text-xl font-black text-white font-mono">₹28,450.00</span>
-                      </div>
-                      <div className="h-2 rounded-full bg-brandObsidian-700 overflow-hidden">
-                        <div className="h-full bg-brandGold-500 rounded-full" style={{ width: '68%' }} />
-                      </div>
-                      <div className="mt-2 flex justify-between text-[10px] text-slate-400 font-mono">
-                        <span>Budget Cap: ₹40,000.00</span>
-                        <span>₹11,550.00 Remaining</span>
-                      </div>
-                    </div>
-                    <div className="p-3.5 rounded-xl bg-brandObsidian-800/50 border border-brandObsidian-700 flex items-center justify-between text-xs font-mono">
-                      <span className="text-slate-300">GST Invoice #ARV-2026-089</span>
-                      <span className="text-brandGold-400 font-bold">PDF / Print Ready ✓</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ── 2. PLATFORM / COMPONENT SHOWCASE (8 CARDS) ── */}
-        <section id="showcase" className="relative overflow-hidden py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800 bg-slate-100/50 dark:bg-brandObsidian-900/40">
-          {/* Subtle Ambient Brand Watermark in Showcase Background */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -right-16 top-1/2 -translate-y-1/2 w-[460px] h-[460px] opacity-[0.03] dark:opacity-[0.055] select-none -z-0"
-          >
-            <img
-              src="/assets/aravanta-glyph-gold.png"
-              alt=""
-              className="w-full h-full object-contain rotate-12 filter blur-[0.5px]"
-            />
-          </div>
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -left-20 bottom-8 w-[380px] h-[380px] opacity-[0.02] dark:opacity-[0.045] select-none -z-0"
-          >
-            <img
-              src="/assets/aravanta-glyph-glow.png"
-              alt=""
-              className="w-full h-full object-contain -rotate-6"
-            />
-          </div>
-          <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center max-w-3xl mx-auto space-y-4 mb-14">
-              <Badge variant="gold" size="md">
-                Component Showcase
-              </Badge>
-              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.1]">
-                Unified Modules for Modern Cloud Engineering
-              </h2>
-              <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-                Explore the modular building blocks of Aravanta Cloud OS — each purpose-built for speed, observability, and resilience.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-              {[
-                { icon: Server, title: 'ArvCompute', badge: 'VM Engines', desc: 'Elastic high-performance virtual machines with NVMe SSD block storage and live resize.' },
-                { icon: Boxes, title: 'ArvKube', badge: 'K8s Clusters', desc: 'Managed Kubernetes clusters with auto-draining, HPA, and multi-tenant namespace isolation.' },
-                { icon: HardDrive, title: 'ArvStore', badge: 'S3 Storage', desc: 'Distributed S3-compatible object storage with cryptographic encryption and lifecycle policies.' },
-                { icon: Database, title: 'ArvDB', badge: 'Managed DB', desc: 'High-availability Postgres, Redis, and MySQL engines with automated PITR backups.' },
-                { icon: GitBranch, title: 'GitOps Engine', badge: 'CI/CD Pipelines', desc: 'Automated release pipelines with canary weight gating and instant rollback triggers.' },
-                { icon: Activity, title: 'Observability Hub', badge: 'Telemetry', desc: 'Sub-second OpenTelemetry metrics, Prometheus scrapers, and live Loki log stream explorer.' },
-                { icon: AlertTriangle, title: 'War-Room Console', badge: 'Incident SRE', desc: 'Incident command center with commander assignment, timeline recording, and RCA generation.' },
-                { icon: Lock, title: 'Security & RBAC', badge: 'IAM Vault', desc: 'Fine-grained permissions matrix, TOTP multi-factor auth, and immutable compliance audit logs.' },
-              ].map((item) => {
-                const Icon = item.icon;
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {capabilities.map((cap) => {
+                const Icon = cap.icon;
                 return (
-                  <Card key={item.title} hover className="group border-slate-200 dark:border-brandObsidian-700/80">
-                    <CardBody className="space-y-4 !p-6">
-                      <div className="flex items-center justify-between">
-                        <div className="w-11 h-11 rounded-xl bg-brandGold-500/10 text-brandGold-500 dark:text-brandGold-400 flex items-center justify-center group-hover:bg-brandGold-500 group-hover:text-brandObsidian-950 transition-colors">
-                          <Icon className="w-5.5 h-5.5" />
+                  <Card
+                    key={cap.title}
+                    hover
+                    className="group border-slate-200 dark:border-brandObsidian-700/80 bg-white dark:bg-brandObsidian-900 flex flex-col justify-between"
+                  >
+                    <CardBody className="space-y-4 !p-6 flex-1 flex flex-col justify-between">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="w-11 h-11 rounded-xl bg-brandGold-500/10 text-brandGold-500 dark:text-brandGold-400 flex items-center justify-center group-hover:bg-brandGold-500 group-hover:text-brandObsidian-950 transition-colors">
+                            <Icon className="w-5.5 h-5.5" />
+                          </div>
+                          <Badge variant="outline" size="sm">{cap.tag}</Badge>
                         </div>
-                        <Badge variant="gold" size="sm">{item.badge}</Badge>
+                        <div>
+                          <div className="text-[11px] font-mono uppercase font-bold text-slate-400">
+                            {cap.category}
+                          </div>
+                          <h3 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white mt-1 group-hover:text-brandGold-600 dark:group-hover:text-brandGold-400 transition-colors">
+                            {cap.title}
+                          </h3>
+                          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mt-2">
+                            {cap.desc}
+                          </p>
+                        </div>
                       </div>
-                      <div className="space-y-1.5">
-                        <h3 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white group-hover:text-brandGold-600 dark:group-hover:text-brandGold-400 transition-colors">
-                          {item.title}
-                        </h3>
-                        <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                          {item.desc}
-                        </p>
+
+                      <div className="pt-4 border-t border-slate-100 dark:border-brandObsidian-800">
+                        <button
+                          onClick={() => onNavigate?.(cap.route)}
+                          className="inline-flex items-center gap-1.5 text-xs font-bold text-brandGold-600 dark:text-brandGold-400 hover:text-brandGold-700 dark:hover:text-brandGold-300 transition-colors cursor-pointer"
+                        >
+                          <span>Explore {cap.category}</span>
+                          <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                        </button>
                       </div>
                     </CardBody>
                   </Card>
@@ -1005,144 +1128,136 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
         </section>
 
-        {/* ── 3. WHY ARAVANTA CLOUD OS (4 VALUE PROPS) ── */}
-        <section id="why" className="relative overflow-hidden py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800">
-          {/* Subtle Centered Brand Watermark */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[580px] h-[580px] opacity-[0.025] dark:opacity-[0.045] select-none -z-0"
-          >
-            <img
-              src="/assets/aravanta-glyph-glow.png"
-              alt=""
-              className="w-full h-full object-contain filter drop-shadow-[0_0_80px_rgba(185,139,59,0.2)]"
-            />
-          </div>
-          <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center max-w-3xl mx-auto space-y-4 mb-14">
+        {/* ── HOW IT WORKS: THE 6-STEP APPLICATION WORKFLOW ── */}
+        <section id="workflow" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800 bg-slate-100/50 dark:bg-brandObsidian-900/40">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+            <div className="max-w-3xl space-y-4">
               <Badge variant="outline" size="md">
-                Why Aravanta
+                Application Lifecycle
               </Badge>
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.1]">
-                Built from the Ground Up for Cloud Independence
+                How Aravanta CloudOS Operates
               </h2>
               <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-                Experience the clarity and velocity of an operating system purpose-built for modern cloud engineering teams.
+                From initial account registration with TOTP 2FA to automated canary rollouts and GST tax invoicing, follow the exact workflow implemented across our full stack.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {[
-                {
-                  icon: Server,
-                  title: 'Single Pane of Glass',
-                  desc: 'Eliminate context switching. Unify multi-cloud VMs, Kubernetes, storage, and databases under one cohesive dashboard.',
-                },
-                {
-                  icon: RefreshCcw,
-                  title: 'Zero Vendor Lock-In',
-                  desc: 'Built on open standards: Kubernetes, OpenTelemetry, Prometheus, and Terraform. Migrate anywhere, anytime.',
-                },
-                {
-                  icon: Activity,
-                  title: 'Sub-Second Telemetry',
-                  desc: 'Real-time observability stream with <10ms metrics latency. Catch anomalies before they impact your end users.',
-                },
-                {
-                  icon: Shield,
-                  title: 'Enterprise Security',
-                  desc: 'Workload isolation, AES-256 encryption at rest, TLS 1.3 in transit, and immutable 365-day compliance logs.',
-                },
-              ].map((v) => {
-                const Icon = v.icon;
+            {/* Stepper Navigation */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+              {workflowSteps.map((step, idx) => {
+                const StepIcon = step.icon;
+                const isActive = idx === activeWorkflowStep;
                 return (
-                  <div key={v.title} className="p-6 rounded-2xl bg-white dark:bg-brandObsidian-850 border border-slate-200 dark:border-brandObsidian-700/80 hover:border-brandGold-500/50 hover:shadow-card-hover transition-all space-y-3">
-                    <div className="w-12 h-12 rounded-xl bg-brandGold-500/10 text-brandGold-500 flex items-center justify-center">
-                      <Icon className="w-6 h-6" />
+                  <button
+                    key={step.key}
+                    onClick={() => setActiveWorkflowStep(idx)}
+                    className={[
+                      'p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between min-h-[96px]',
+                      isActive
+                        ? 'bg-brandGold-500/10 border-brandGold-500 text-slate-900 dark:text-white shadow-xs'
+                        : 'bg-white dark:bg-brandObsidian-900 border-slate-200 dark:border-brandObsidian-800 text-slate-600 dark:text-slate-400 hover:border-brandGold-500/40',
+                    ].join(' ')}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className={[
+                        'text-[11px] font-mono font-bold',
+                        isActive ? 'text-brandGold-600 dark:text-brandGold-400' : 'text-slate-400',
+                      ].join(' ')}>
+                        STEP {step.step}
+                      </span>
+                      <StepIcon className={[
+                        'w-4 h-4',
+                        isActive ? 'text-brandGold-500' : 'text-slate-400',
+                      ].join(' ')} />
                     </div>
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">{v.title}</h3>
-                    <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">{v.desc}</p>
-                  </div>
+                    <span className="text-xs font-bold line-clamp-1 mt-2">
+                      {step.name}
+                    </span>
+                  </button>
                 );
               })}
             </div>
-          </div>
-        </section>
 
-        {/* ── 4. LOGOS / ADOPTERS & TESTIMONIALS STRIP ── */}
-        <section className="py-16 sm:py-20 border-t border-slate-200 dark:border-brandObsidian-800 bg-slate-50 dark:bg-brandObsidian-900/60">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-8 font-mono">
-              Trusted by DevOps & SRE Teams Worldwide
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[
-                {
-                  quote: "Aravanta Cloud OS cut our multi-cloud deployment overhead by 70%. Having our Kubernetes clusters and S3 storage in one console is a game changer.",
-                  author: "Aditya Sharma",
-                  role: "Head of Infrastructure, FinTech Platform",
-                },
-                {
-                  quote: "The sub-second telemetry and automated self-healing runbooks saved us hours during a major upstream outage. True production-grade reliability.",
-                  author: "Elena Rostova",
-                  role: "Staff SRE, Global Logistics",
-                },
-                {
-                  quote: "Transparent Indian Rupee billing with GST compliance made enterprise procurement frictionless. Exactly what modern engineering needed.",
-                  author: "Vikram Mehta",
-                  role: "VP of Engineering, CloudScale",
-                },
-              ].map((t) => (
-                <div key={t.author} className="p-6 rounded-2xl bg-white dark:bg-brandObsidian-800/80 border border-slate-200 dark:border-brandObsidian-700 shadow-sm space-y-4">
-                  <p className="text-sm text-slate-700 dark:text-slate-300 italic leading-relaxed">
-                    "{t.quote}"
+            {/* Active Step Showcase */}
+            <Card goldAccent className="bg-white dark:bg-brandObsidian-900">
+              <CardBody className="!p-6 sm:!p-8 grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-10 items-center">
+                <div className="lg:col-span-8 space-y-4">
+                  <Badge variant="gold" size="md">
+                    Step {workflowSteps[activeWorkflowStep].step} • {workflowSteps[activeWorkflowStep].name}
+                  </Badge>
+                  <h3 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                    {workflowSteps[activeWorkflowStep].title}
+                  </h3>
+                  <p className="text-base text-slate-600 dark:text-slate-300 leading-relaxed">
+                    {workflowSteps[activeWorkflowStep].desc}
                   </p>
-                  <div className="pt-2 border-t border-slate-100 dark:border-brandObsidian-700">
-                    <div className="font-bold text-sm text-slate-900 dark:text-white">{t.author}</div>
-                    <div className="text-xs text-brandGold-600 dark:text-brandGold-400 font-mono">{t.role}</div>
+
+                  <div className="grid grid-cols-2 gap-4 pt-3 max-w-md">
+                    {workflowSteps[activeWorkflowStep].metrics.map((m) => (
+                      <div
+                        key={m.label}
+                        className="rounded-xl bg-slate-50 dark:bg-brandObsidian-800/60 border border-slate-200 dark:border-brandObsidian-700/60 p-4"
+                      >
+                        <div className="text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 font-mono">
+                          {m.label}
+                        </div>
+                        <div className="mt-1 text-lg sm:text-xl font-black text-slate-900 dark:text-white font-mono">
+                          {m.value}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ))}
-            </div>
+
+                <div className="lg:col-span-4 flex justify-center">
+                  <div className="w-full max-w-xs p-6 rounded-2xl bg-slate-50 dark:bg-brandObsidian-800/50 border border-slate-200 dark:border-brandObsidian-700 text-center space-y-3">
+                    <div className="w-12 h-12 rounded-xl bg-brandGold-500/10 text-brandGold-500 flex items-center justify-center mx-auto">
+                      {React.createElement(workflowSteps[activeWorkflowStep].icon, { className: 'w-6 h-6' })}
+                    </div>
+                    <div className="text-xs font-mono font-bold uppercase text-slate-400">Production Ready</div>
+                    <div className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                      Live in Aravanta Control Plane
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onNavigate?.('documentation')}
+                      className="w-full text-xs cursor-pointer"
+                    >
+                      Read Step Documentation
+                    </Button>
+                  </div>
+                </div>
+              </CardBody>
+            </Card>
           </div>
         </section>
 
-        {/* ── DEVELOPER EXPERIENCE ── */}
-        <section id="dx" className="relative overflow-hidden py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800 bg-slate-100/60 dark:bg-brandObsidian-900/40">
-          {/* Subtle Ambient Brand Watermark in Developer Experience Background */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -right-12 bottom-4 w-[420px] h-[420px] opacity-[0.025] dark:opacity-[0.05] select-none -z-0"
-          >
-            <img
-              src="/assets/aravanta-glyph-gold.png"
-              alt=""
-              className="w-full h-full object-contain rotate-12 filter blur-[0.5px]"
-            />
-          </div>
-          <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* ── DEVELOPER EXPERIENCE (CLI & APIS) ── */}
+        <section id="developers" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-start">
-              <div className="lg:col-span-5 space-y-5 lg:sticky lg:top-24">
+              <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-24">
                 <Badge variant="gold" size="md">
-                  Developer experience
+                  Developer Workflows
                 </Badge>
                 <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.08]">
-                  Ship infrastructure with the tools you already love.
+                  Automate Infrastructure via CLI, Terraform, and REST.
                 </h2>
                 <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-                  First-class CLI, Terraform provider, REST API, and typed SDK expose the
-                  same primitives as the visual console. Everything is scriptable,
-                  idempotent, and audit-logged.
+                  Every resource accessible in the visual dashboard is exposed programmatically through the Aravanta CLI v2.0, OpenAPI 3.1 endpoints, and Terraform resources.
                 </p>
+
                 <div className="space-y-3 pt-1">
                   {[
-                    'Typed SDKs for Node, Python, Go with retries + pagination helpers',
-                    'OpenAPI 3.1 spec exported from the same server code',
-                    'CLI tab-completion for bash, zsh, fish, pwsh',
+                    'Cross-platform global CLI: install on Windows (pwsh) or macOS/Linux (bash)',
+                    'OpenAPI 3.1 Swagger spec hosted at /api/v1/openapi.json',
+                    'Idempotent provisioning with stateful transaction rollback',
                   ].map((item) => (
                     <div key={item} className="flex items-start gap-3">
                       <span className="mt-1 w-5 h-5 rounded-full bg-brandGold-500/10 text-brandGold-500 flex items-center justify-center shrink-0">
-                        <Check className="w-3 h-3" />
+                        <Check className="w-3.5 h-3.5" />
                       </span>
                       <span className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
                         {item}
@@ -1150,14 +1265,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     </div>
                   ))}
                 </div>
-                <div className="pt-3">
+
+                <div className="pt-2 flex flex-wrap gap-3">
                   <Button
-                    variant="outline"
+                    variant="primary"
                     size="lg"
                     onClick={() => onNavigate?.('developers')}
                     rightIcon={<ChevronRight className="w-4 h-4" />}
+                    className="bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold cursor-pointer"
                   >
-                    Browse developer docs
+                    View Developer Documentation
                   </Button>
                 </div>
               </div>
@@ -1166,10 +1283,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <TabContainer defaultValue="cli">
                   <div className="mb-4 overflow-x-auto pb-1">
                     <TabList>
-                      <Tab value="cli">CLI</Tab>
+                      <Tab value="cli">Aravanta CLI v2.0</Tab>
                       <Tab value="terraform">Terraform</Tab>
                       <Tab value="rest">REST API</Tab>
-                      <Tab value="sdk">SDK (Node)</Tab>
+                      <Tab value="sdk">Node.js SDK</Tab>
                     </TabList>
                   </div>
                   <TabPanel value="cli">
@@ -1190,184 +1307,69 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
         </section>
 
-        {/* ── WORKFLOW ── */}
-        <section id="workflow" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="max-w-2xl space-y-4 mb-12">
+        {/* ── SECURITY, TRUST & SOVEREIGNTY ── */}
+        <section id="security" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800 bg-slate-100/50 dark:bg-brandObsidian-900/40">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+            <div className="text-center max-w-3xl mx-auto space-y-4">
               <Badge variant="outline" size="md">
-                Lifecycle workflow
+                Technical Security Architecture
               </Badge>
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.1]">
-                A continuous loop from provisioning to recovery.
+                Zero-Trust Access & Immutable Audits
               </h2>
               <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-                Each step ships with safety guardrails, audit logging, and pre-built
-                runbooks so your team moves fast without breaking production.
+                Security in Aravanta CloudOS is enforced at the database and API schema boundaries — not merely in the browser UI.
               </p>
             </div>
 
-            <div className="relative">
-              <div className="grid grid-cols-5 gap-2 sm:gap-3 mb-6 sm:mb-8">
-                {workflowSteps.map((s, i) => {
-                  const Icon = s.icon;
-                  const isActive = i === activeWorkflowStep;
-                  return (
-                    <button
-                      key={s.key}
-                      onClick={() => setActiveWorkflowStep(i)}
-                      className={[
-                        'group relative flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 sm:p-4 rounded-2xl text-left border transition-all',
-                        isActive
-                          ? 'bg-brandGold-500/10 border-brandGold-500/50 shadow-sm shadow-brandGold-500/10'
-                          : 'bg-white dark:bg-brandObsidian-800/40 border-slate-200 dark:border-brandObsidian-700/70 hover:border-brandGold-500/40',
-                      ].join(' ')}
-                    >
-                      <span
-                        className={[
-                          'w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-colors',
-                          isActive
-                            ? 'bg-brandGold-500 text-white'
-                            : 'bg-slate-100 dark:bg-brandObsidian-700/60 text-slate-600 dark:text-slate-300 group-hover:text-brandGold-600 dark:group-hover:text-brandGold-400',
-                        ].join(' ')}
-                      >
-                        <Icon className="w-4.5 h-4.5" />
-                      </span>
-                      <span className="min-w-0">
-                        <span
-                          className={[
-                            'block text-[10px] sm:text-[11px] font-bold uppercase tracking-wider',
-                            isActive
-                              ? 'text-brandGold-600 dark:text-brandGold-400'
-                              : 'text-slate-400',
-                          ].join(' ')}
-                        >
-                          Step {s.step}
-                        </span>
-                        <span
-                          className={[
-                            'block text-sm font-bold truncate',
-                            isActive ? 'text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-200',
-                          ].join(' ')}
-                        >
-                          {s.name}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={activeWorkflowStep}
-                  initial={reduceMotion ? {} : { opacity: 0, y: 8 }}
-                  animate={reduceMotion ? {} : { opacity: 1, y: 0 }}
-                  exit={reduceMotion ? {} : { opacity: 0, y: -6 }}
-                  transition={reduceMotion ? {} : { duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                >
-                  <Card goldAccent>
-                    <CardBody className="!p-6 sm:!p-8 grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-10 items-center">
-                      <div className="lg:col-span-7 space-y-4">
-                        <div className="flex flex-wrap items-center gap-2.5">
-                          <Badge variant="gold" size="md">
-                            Step {workflowSteps[activeWorkflowStep].step} •{' '}
-                            {workflowSteps[activeWorkflowStep].name.toUpperCase()}
-                          </Badge>
-                        </div>
-                        <h3 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white leading-tight">
-                          {workflowSteps[activeWorkflowStep].title}
-                        </h3>
-                        <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-                          {workflowSteps[activeWorkflowStep].desc}
-                        </p>
-                        <div className="grid grid-cols-2 gap-4 pt-3 max-w-md">
-                          {workflowSteps[activeWorkflowStep].metrics.map((m) => (
-                            <div
-                              key={m.label}
-                              className="rounded-xl bg-slate-50 dark:bg-brandObsidian-900/60 border border-slate-200/70 dark:border-brandObsidian-700/60 p-4"
-                            >
-                              <div className="text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">
-                                {m.label}
-                              </div>
-                              <div className="mt-1 text-xl sm:text-2xl font-black text-slate-900 dark:text-white tabular-nums">
-                                {m.value}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="lg:col-span-5 flex justify-center lg:justify-end">
-                        <div className="relative w-full max-w-xs aspect-square rounded-3xl bg-gradient-to-br from-brandGold-500/15 via-brandGold-500/5 to-transparent border border-brandGold-500/30 flex items-center justify-center overflow-hidden">
-                          <div
-                            aria-hidden
-                            className="absolute inset-0 opacity-[0.07]"
-                            style={{
-                              backgroundImage:
-                                'radial-gradient(circle, currentColor 1px, transparent 1px)',
-                              backgroundSize: '18px 18px',
-                              color: '#0B0F17',
-                            }}
-                          />
-                          <div className="relative w-32 h-32 sm:w-40 sm:h-40 rounded-2xl bg-white dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-700 shadow-xl grid grid-cols-3 grid-rows-3 gap-1.5 p-3">
-                            {Array.from({ length: 9 }).map((_, idx) => {
-                              const StepIcon = workflowSteps[activeWorkflowStep].icon;
-                              if (idx === 4) {
-                                return (
-                                  <div
-                                    key={idx}
-                                    className="col-span-1 row-span-1 rounded-lg bg-brandGold-500 text-white flex items-center justify-center shadow-md"
-                                  >
-                                    <StepIcon className="w-6 h-6" />
-                                  </div>
-                                );
-                              }
-                              const tone = [0, 2, 6, 8].includes(idx) ? 'bg-slate-100 dark:bg-brandObsidian-800' : 'bg-slate-50 dark:bg-brandObsidian-800/50';
-                              return <div key={idx} className={`rounded-lg ${tone}`} />;
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    </CardBody>
-                  </Card>
-                </motion.div>
-              </AnimatePresence>
-            </div>
-          </div>
-        </section>
-
-        {/* ── INTEGRATIONS ── */}
-        <section id="integrations" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800 bg-slate-100/60 dark:bg-brandObsidian-900/40">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center max-w-2xl mx-auto space-y-4 mb-14">
-              <Badge variant="gold" size="md">
-                Open standards
-              </Badge>
-              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.1]">
-                Built on open standards you already trust.
-              </h2>
-              <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-                No proprietary lock-in. Arvanta speaks the same wire protocols, file
-                formats, and auth flows as the tools your engineers use today.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-              {integrations.map((i) => {
-                const Icon = i.icon;
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[
+                {
+                  icon: Lock,
+                  title: 'RFC 6238 TOTP Multi-Factor Auth',
+                  desc: 'Standard 30-second rotating time-step verification. Protects administrative logins with cryptographic authenticator app pairing.',
+                },
+                {
+                  icon: ShieldCheck,
+                  title: '5-Tier Server-Controlled RBAC',
+                  desc: 'Strict role hierarchy (SuperAdmin, Admin, Operator, Developer, Viewer). Payloads attempting client-side scope injections are rejected.',
+                },
+                {
+                  icon: Activity,
+                  title: 'Sliding-Window Rate Limiting',
+                  desc: 'Five consecutive authentication failures trigger an automatic 60-second lockout to protect accounts against credential stuffing.',
+                },
+                {
+                  icon: FileText,
+                  title: 'Cryptographic Audit Trail',
+                  desc: 'Every administrative action is signed with actor IP, timestamp, and target resource, exportable as JSON audit evidence.',
+                },
+                {
+                  icon: Globe2,
+                  title: 'Sovereign Data Residency',
+                  desc: 'Primary control plane deployed in ap-south-1 (Mumbai). Compliant with Indian DPDP Act standards and sovereign cloud isolation.',
+                },
+                {
+                  icon: Shield,
+                  title: 'HTTP Security Hardening',
+                  desc: 'Enforces X-Content-Type-Options: nosniff, X-Frame-Options: DENY, X-XSS-Protection, and strict Content-Security-Policy headers.',
+                },
+              ].map((sec) => {
+                const SecIcon = sec.icon;
                 return (
                   <div
-                    key={i.name}
-                    className="group flex flex-col items-center text-center p-5 rounded-2xl bg-white dark:bg-brandObsidian-800/40 border border-slate-200 dark:border-brandObsidian-700/70 hover:border-brandGold-500/50 hover:-translate-y-0.5 hover:shadow-card-hover transition-all"
+                    key={sec.title}
+                    className="p-6 rounded-2xl bg-white dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-800 space-y-3"
                   >
-                    <div className={['w-11 h-11 rounded-xl flex items-center justify-center mb-3', i.color].join(' ')}>
-                      <Icon className="w-5.5 h-5.5" />
+                    <div className="w-10 h-10 rounded-xl bg-brandGold-500/10 text-brandGold-500 flex items-center justify-center">
+                      <SecIcon className="w-5 h-5" />
                     </div>
-                    <div className="text-sm font-bold text-slate-900 dark:text-white">
-                      {i.name}
-                    </div>
-                    <div className="mt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                      {i.subtitle}
-                    </div>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                      {sec.title}
+                    </h3>
+                    <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                      {sec.desc}
+                    </p>
                   </div>
                 );
               })}
@@ -1375,187 +1377,185 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
         </section>
 
-        {/* ── PRICING (TEASER) ── */}
-        <section id="pricing" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center max-w-2xl mx-auto space-y-5 mb-12">
-              <Badge variant="outline" size="md">
-                Transparent FinOps
-              </Badge>
-              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.1]">
-                Predictable cloud operations pricing in INR (₹).
-              </h2>
-              <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-                Clear capacity quotas with zero surprise overage fees, detailed per-resource
-                invoices, and an Enterprise tier for custom compliance requirements.
-              </p>
+        {/* ── ENGINEERING COMMUNITY PREVIEW ── */}
+        <section id="community" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+              <div className="space-y-4 max-w-2xl">
+                <Badge variant="gold" size="md">
+                  Community & Engineering Forum
+                </Badge>
+                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.1]">
+                  Connect with Cloud & SRE Practitioners
+                </h2>
+                <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Join discussions on multi-region Kubernetes architectures, incident response playbooks, and S3 storage optimization directly inside the platform.
+                </p>
+              </div>
 
-              <div className="inline-flex items-center p-1 rounded-xl bg-slate-100 dark:bg-brandObsidian-800/70 border border-slate-200 dark:border-brandObsidian-700 text-sm font-semibold">
-                <button
-                  onClick={() => setBillingPeriod('monthly')}
-                  className={[
-                    'px-4 py-2 rounded-lg transition-all',
-                    billingPeriod === 'monthly'
-                      ? 'bg-white dark:bg-brandObsidian-900 text-slate-900 dark:text-white shadow-sm'
-                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200',
-                  ].join(' ')}
+              <div>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={() => onNavigate?.('community')}
+                  rightIcon={<ArrowRight className="w-4 h-4" />}
+                  className="cursor-pointer"
                 >
-                  Monthly
-                </button>
-                <button
-                  onClick={() => setBillingPeriod('annual')}
-                  className={[
-                    'px-4 py-2 rounded-lg transition-all inline-flex items-center gap-2',
-                    billingPeriod === 'annual'
-                      ? 'bg-brandGold-500 text-white shadow-sm'
-                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200',
-                  ].join(' ')}
-                >
-                  Annual
-                  <span className={['text-[10px] px-1.5 py-0.5 rounded font-bold', billingPeriod === 'annual' ? 'bg-white/20 text-white' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'].join(' ')}>
-                    SAVE 20%
-                  </span>
-                </button>
+                  Browse All Discussions
+                </Button>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            {/* Real Discussion Category Previews */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
                 {
-                  name: 'Developer Cloud',
-                  blurb: 'For engineers building standalone projects and testing pipelines.',
-                  priceMonthly: '₹499',
-                  priceAnnual: '₹399',
-                  tierBadge: 'Starter Tier',
-                  featured: false,
-                  cta: 'Get started',
-                  features: [
-                    '8 vCPUs / 16GB Memory',
-                    '500GB SSD NVMe Storage',
-                    '50 Deployments / month',
-                    '7-Day Log & Telemetry Retention',
-                    'Standard Email Support',
-                  ],
+                  category: 'Architecture',
+                  title: 'WireGuard VPC Mesh for Heterogeneous Multi-Region Clusters',
+                  author: 'Cloud Platform Team',
+                  replies: '14 replies',
+                  tag: 'Networking',
                 },
                 {
-                  name: 'Team Operations',
-                  blurb: 'For growing teams running production workloads with high availability.',
-                  priceMonthly: '₹2,499',
-                  priceAnnual: '₹1,999',
-                  tierBadge: 'Operations Standard',
-                  featured: true,
-                  cta: 'Launch team workspace',
-                  features: [
-                    '64 vCPUs / 128GB Memory',
-                    '5,000GB S3 & Database Storage',
-                    'Unlimited Canary & Rolling Deploys',
-                    '30-Day Metric & Log Retention',
-                    'Incident War-Room Command Center',
-                    'Slack & PagerDuty Alert Routing',
-                  ],
+                  category: 'Troubleshooting',
+                  title: 'Automating Redis Standby Failover using ArvWatch Self-Healing Runbooks',
+                  author: 'Reliability Engineering',
+                  replies: '8 replies',
+                  tag: 'Incident SRE',
                 },
                 {
-                  name: 'Enterprise Platform',
-                  blurb: 'For organizations requiring customized compliance, SSO, and dedicated VPCs.',
-                  priceMonthly: 'Custom',
-                  priceAnnual: 'Custom',
-                  tierBadge: 'Dedicated Control Plane',
-                  featured: false,
-                  cta: 'Contact Platform Engineering',
-                  features: [
-                    'Custom Dedicated Cluster Capacity',
-                    '365-Day SOC2 Immutable Audit Trail',
-                    'Dedicated SAML 2.0 / Okta SSO',
-                    '99.99% Financial Uptime SLA',
-                    'Named Solutions Architect',
-                    'BYOK Encryption & Private VPC',
-                  ],
+                  category: 'Showcase',
+                  title: 'High-Throughput File Ingestion into ArvStore using Pre-Signed URLs',
+                  author: 'Core Services Lead',
+                  replies: '19 replies',
+                  tag: 'Object Storage',
                 },
-              ].map((tier) => (
-                <Card
-                  key={tier.name}
-                  className={[
-                    'flex flex-col relative',
-                    tier.featured ? 'ring-2 ring-brandGold-500/70 shadow-glow' : '',
-                  ].join(' ')}
+              ].map((post) => (
+                <div
+                  key={post.title}
+                  onClick={() => onNavigate?.('community')}
+                  className="p-6 rounded-2xl bg-white dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-800 hover:border-brandGold-500/50 hover:shadow-card-hover transition-all cursor-pointer flex flex-col justify-between space-y-4"
                 >
-                  {tier.featured && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-brandGold-500 text-white text-[10px] font-bold uppercase tracking-wider shadow-md z-10">
-                      Most Popular
-                    </div>
-                  )}
-                  <CardBody className="flex-1 flex flex-col !p-7">
-                    <div>
-                      <div className="text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">
-                        {tier.tierBadge}
-                      </div>
-                      <h3 className="mt-1.5 text-xl font-black text-slate-900 dark:text-white">
-                        {tier.name}
-                      </h3>
-                      <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                        {tier.blurb}
-                      </p>
-                    </div>
-                    <div className="mt-6 flex items-baseline gap-1.5">
-                      <span className="text-4xl font-black text-slate-900 dark:text-white tabular-nums">
-                        {billingPeriod === 'annual' ? tier.priceAnnual : tier.priceMonthly}
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-mono font-bold uppercase text-brandGold-600 dark:text-brandGold-400">
+                        {post.category}
                       </span>
-                      {tier.priceMonthly !== 'Custom' && (
-                        <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">
-                          / month
-                        </span>
-                      )}
+                      <Badge variant="outline" size="sm">{post.tag}</Badge>
                     </div>
-                    <div className="mt-6 space-y-2.5 flex-1">
-                      {tier.features.map((feat) => (
-                        <div key={feat} className="flex items-start gap-2.5 text-sm text-slate-700 dark:text-slate-200">
-                          <Check className="w-4.5 h-4.5 text-emerald-500 mt-0.5 shrink-0" />
-                          <span>{feat}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="mt-8">
-                      <Button
-                        size="lg"
-                        variant={tier.featured ? 'primary' : 'outline'}
-                        className="w-full"
-                        onClick={onGoToRegister}
-                        rightIcon={tier.featured ? <ArrowRight className="w-4 h-4" /> : undefined}
-                      >
-                        {tier.cta}
-                      </Button>
-                    </div>
-                  </CardBody>
-                </Card>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white line-clamp-2">
+                      {post.title}
+                    </h3>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 dark:border-brandObsidian-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-mono">
+                    <span>{post.author}</span>
+                    <span className="flex items-center gap-1">
+                      <MessageSquare className="w-3.5 h-3.5 text-brandGold-500" />
+                      {post.replies}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── FACTUAL CONSUMPTION PRICING & FINOPS ── */}
+        <section id="pricing" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800 bg-slate-100/50 dark:bg-brandObsidian-900/40">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+            <div className="text-center max-w-3xl mx-auto space-y-4">
+              <Badge variant="outline" size="md">
+                Transparent FinOps Rates
+              </Badge>
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.1]">
+                Predictable Consumption Billing in INR (₹)
+              </h2>
+              <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
+                Pay exclusively for resources provisioned and runtime executed. Zero hidden egress surcharges, with automated monthly GST invoicing.
+              </p>
+
+              {/* Monthly vs Annual Invoicing Toggle */}
+              <div className="flex justify-center pt-2">
+                <div className="inline-flex items-center p-1 rounded-xl bg-slate-200/80 dark:bg-brandObsidian-800 border border-slate-300 dark:border-brandObsidian-700 text-xs font-semibold">
+                  <button
+                    onClick={() => setBillingPeriod('monthly')}
+                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                      billingPeriod === 'monthly'
+                        ? 'bg-white dark:bg-brandObsidian-900 text-slate-900 dark:text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    Monthly Metering
+                  </button>
+                  <button
+                    onClick={() => setBillingPeriod('annual')}
+                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                      billingPeriod === 'annual'
+                        ? 'bg-brandGold-500 text-brandObsidian-950 font-bold shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <span>Annual Capacity</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 font-bold">
+                      SAVE 20%
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Real Unit Price Rate Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {realPricingRates.map((item) => (
+                <div
+                  key={item.service}
+                  className="p-5 rounded-2xl bg-white dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-800 space-y-2"
+                >
+                  <div className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400">
+                    {item.service}
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-black text-slate-900 dark:text-white font-mono">
+                      {billingPeriod === 'annual' ? item.annualRate : item.monthlyRate}
+                    </span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                      {item.unit}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                    {item.note}
+                  </div>
+                </div>
               ))}
             </div>
 
-            <div className="mt-10 text-center">
+            <div className="text-center pt-4">
               <Button
-                variant="ghost"
+                variant="outline"
                 size="lg"
                 onClick={() => onNavigate?.('pricing')}
-                rightIcon={<ChevronRight className="w-4 h-4" />}
+                rightIcon={<ArrowRight className="w-4 h-4" />}
+                className="cursor-pointer"
               >
-                See full pricing comparison
+                View Full Pricing Tiers & TCO Comparison
               </Button>
             </div>
           </div>
         </section>
 
-        {/* ── FAQ ── */}
-        <section id="faq" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800 bg-slate-100/60 dark:bg-brandObsidian-900/40">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center max-w-2xl mx-auto space-y-4 mb-12">
+        {/* ── ARCHITECTURE & SAFETY FAQ ── */}
+        <section id="faq" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+            <div className="text-center max-w-2xl mx-auto space-y-4">
               <Badge variant="gold" size="md">
-                FAQ
+                Platform Architecture FAQ
               </Badge>
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.1]">
-                Operational Safety & Architecture FAQs
+                Frequently Asked Operational Questions
               </h2>
-              <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-                Answers to the most common questions from platform and reliability teams
-                evaluating Aravanta CloudOS.
+              <p className="text-base text-slate-600 dark:text-slate-300 leading-relaxed">
+                Direct answers to engineering questions about security, deployments, and multi-cloud operations.
               </p>
             </div>
 
@@ -1570,10 +1570,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
         </section>
 
-        {/* ── FINAL CTA ── */}
-        <section className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800">
+        {/* ── FINAL CALL TO ACTION ── */}
+        <section className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800 bg-slate-100/50 dark:bg-brandObsidian-900/40">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="relative overflow-hidden rounded-3xl bg-brandObsidian-950 text-white shadow-2xl">
+            <div className="relative overflow-hidden rounded-3xl bg-brandObsidian-950 text-white shadow-2xl p-8 sm:p-12 lg:p-16 text-center space-y-6">
               <div
                 aria-hidden
                 className="pointer-events-none absolute inset-0 opacity-[0.25]"
@@ -1582,81 +1582,76 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     'radial-gradient(85% 85% at 50% -10%, rgba(198,146,59,0.55) 0%, rgba(198,146,59,0) 60%)',
                 }}
               />
-              {/* Glowing Brand Logo Watermark in CTA background */}
               <div
                 aria-hidden
-                className="pointer-events-none absolute -right-16 -bottom-16 sm:-right-10 sm:-bottom-10 w-72 h-72 sm:w-96 sm:h-96 md:w-[440px] md:h-[440px] opacity-15 sm:opacity-20 select-none -z-0"
+                className="pointer-events-none absolute -right-12 -bottom-12 w-64 h-64 sm:w-80 sm:h-80 opacity-15 select-none"
               >
                 <img
                   src="/assets/aravanta-glyph-glow.png"
                   alt=""
-                  className="w-full h-full object-contain filter drop-shadow-[0_0_60px_rgba(185,139,59,0.4)] rotate-6"
+                  className="w-full h-full object-contain filter drop-shadow-[0_0_60px_rgba(185,139,59,0.4)]"
                 />
               </div>
-              <div
-                aria-hidden
-                className="pointer-events-none absolute inset-0 rounded-3xl"
-                style={{
-                  padding: '1px',
-                  background:
-                    'linear-gradient(135deg, rgba(198,146,59,0.55), rgba(198,146,59,0.05) 40%, rgba(198,146,59,0.25) 100%)',
-                  WebkitMask:
-                    'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
-                  WebkitMaskComposite: 'xor',
-                  maskComposite: 'exclude',
-                }}
-              />
-              <div className="relative p-8 sm:p-12 lg:p-16 text-center space-y-6">
+
+              <div className="relative z-10 max-w-2xl mx-auto space-y-4">
                 <Badge variant="gold" size="md" dot>
-                  <ShieldCheck className="w-3.5 h-3.5" /> Ready for Production Day-2 Ops
+                  <ShieldCheck className="w-3.5 h-3.5" /> Production Ready Control Plane
                 </Badge>
-                <div className="max-w-2xl mx-auto space-y-4">
-                  <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-[1.08]">
-                    Ready to Unify Your Multi-Cloud Infrastructure?
-                  </h2>
-                  <p className="text-base sm:text-lg text-slate-300 leading-relaxed">
-                    Deploy your first Kubernetes cluster, high-performance compute instance,
-                    or distributed S3 bucket in under 60 seconds with Aravanta Cloud OS.
-                  </p>
-                </div>
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-2">
-                  <Button
-                    size="xl"
-                    variant="primary"
-                    onClick={onGoToRegister}
-                    className="bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold min-h-[48px] shadow-lg shadow-brandGold-500/25"
-                    rightIcon={<ArrowRight className="w-4.5 h-4.5" />}
-                  >
-                    Get Started Free
-                  </Button>
-                  <Button
-                    size="xl"
-                    variant="secondary"
-                    onClick={() => onNavigate?.('documentation')}
-                    className="min-h-[48px]"
-                    leftIcon={<BookOpen className="w-4 h-4 text-brandGold-400" />}
-                  >
-                    Explore Documentation
-                  </Button>
-                </div>
-                <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 pt-3 text-xs sm:text-sm text-slate-400 font-medium">
-                  <span className="inline-flex items-center gap-1.5">
-                    <Check className="w-4 h-4 text-brandGold-400" /> Instant Provisioning
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <Check className="w-4 h-4 text-brandGold-400" /> TOTP MFA Enabled
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <Check className="w-4 h-4 text-brandGold-400" /> 10-Day Full Access Trial
-                  </span>
-                </div>
+                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-[1.08]">
+                  Ready to Access Your Sovereign Workspace?
+                </h2>
+                <p className="text-base sm:text-lg text-slate-300 leading-relaxed">
+                  Provision compute instances, manage S3 object storage buckets, and execute GitOps canary rollouts in under 60 seconds with Aravanta CloudOS.
+                </p>
+              </div>
+
+              <div className="relative z-10 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-2">
+                <Button
+                  size="xl"
+                  variant="primary"
+                  onClick={onGoToRegister}
+                  className="w-full sm:w-auto bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold min-h-[48px] shadow-lg shadow-brandGold-500/25 cursor-pointer"
+                  rightIcon={<ArrowRight className="w-4.5 h-4.5" />}
+                >
+                  Get Started Free
+                </Button>
+                <Button
+                  size="xl"
+                  variant="secondary"
+                  onClick={() => onNavigate?.('user-manual')}
+                  className="w-full sm:w-auto min-h-[48px] cursor-pointer"
+                  leftIcon={<BookOpen className="w-4 h-4 text-brandGold-400" />}
+                >
+                  Read User Manual
+                </Button>
+                <Button
+                  size="xl"
+                  variant="outline"
+                  onClick={onGoToLogin}
+                  className="w-full sm:w-auto min-h-[48px] border-slate-700 hover:border-brandGold-500 text-slate-300 cursor-pointer"
+                >
+                  Sign In
+                </Button>
+              </div>
+
+              <div className="relative z-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 pt-3 text-xs sm:text-sm text-slate-400 font-medium">
+                <span className="inline-flex items-center gap-1.5">
+                  <Check className="w-4 h-4 text-brandGold-400" /> Instant Provisioning
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <Check className="w-4 h-4 text-brandGold-400" /> TOTP 2FA Protected
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <Check className="w-4 h-4 text-brandGold-400" /> Server-Enforced RBAC
+                </span>
               </div>
             </div>
           </div>
         </section>
       </main>
 
-      <Footer onNavigate={onNavigate} />
+      {/* ── PERSISTENT PROFESSIONAL FOOTER ── */}
+      <Footer onNavigate={onNavigate} onGoToLogin={onGoToLogin} />
     </div>
   );
 };

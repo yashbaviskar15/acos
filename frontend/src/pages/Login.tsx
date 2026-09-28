@@ -21,6 +21,12 @@ import {
   Check,
   Building2,
   RefreshCw,
+  Mail,
+  User,
+  Terminal,
+  Shield,
+  ArrowRight,
+  Database,
 } from 'lucide-react';
 import { Logo } from '../components/Logo';
 import { apiFetch } from '../config/api';
@@ -88,10 +94,9 @@ export const Login: React.FC<LoginProps> = ({
   inviteToken = null,
   sessionInvalidatedReason = null,
   brandName = 'Aravanta Cloud OS',
-  brandTagline = 'Unified Multi-Cloud Operations Platform',
+  brandTagline = 'Sovereign Multi-Cloud Operations Platform',
   brandLogo,
 }) => {
-  // Theme context integration
   const { theme, toggleTheme } = useTheme();
   const isDark = theme === 'dark';
 
@@ -257,7 +262,7 @@ export const Login: React.FC<LoginProps> = ({
     } else {
       const remainingAttempts = MAX_CONSECUTIVE_FAILURES - nextCount;
       const warning = remainingAttempts <= 2
-        ? ` (${remainingAttempts} attempt${remainingAttempts === 1 ? '' : 's'} remaining before temporary lockout)`
+        ? ` (${remainingAttempts} attempt${remainingAttempts === 1 ? '' : 's'} remaining before lockout)`
         : '';
       setError((serverMessage || 'Authentication failed. Please verify your credentials.') + warning);
     }
@@ -625,14 +630,12 @@ export const Login: React.FC<LoginProps> = ({
     setOauthPromptProvider(null);
 
     try {
-      // Check if official OAuth URL is configured
       const urlData = await apiFetch<any>(`/api/v1/auth/oauth/${provider}/url`).catch(() => null);
       if (urlData && urlData.configured && urlData.url) {
         window.location.href = urlData.url;
         return;
       }
 
-      // Execute direct seamless OAuth login
       const cleanTarget = targetEmail.trim().toLowerCase();
       const loginPayload = {
         provider,
@@ -674,14 +677,12 @@ export const Login: React.FC<LoginProps> = ({
   // ── Handler: OAuth Button Click ──
   const handleOAuthClick = (provider: 'google' | 'github') => {
     if (lockoutRemaining > 0) return;
-    // If user has already typed a valid email in the sign-in input, immediately sign in with it!
     if (email.trim() && isValidEmail(email.trim())) {
       executeOAuthLogin(provider, email.trim());
       return;
     }
 
-    // Default fast suggestions or prompt
-    const defaultEmail = provider === 'google' ? 'yashbaviskar67@gmail.com' : 'yashbaviskar15@github.com';
+    const defaultEmail = provider === 'google' ? 'operator@aravanta.cloud' : 'operator@github.com';
     setOauthPromptEmail(email.trim() || defaultEmail);
     setOauthPromptProvider(provider);
   };
@@ -697,229 +698,291 @@ export const Login: React.FC<LoginProps> = ({
   }, []);
 
   return (
-    <div className="w-full min-h-screen md:h-screen m-0 p-0 overflow-x-hidden bg-slate-50 dark:bg-[#0B0F17] flex flex-col md:flex-row font-sans selection:bg-[#C6923B]/30 selection:text-[#C6923B] touch-manipulation select-none">
+    <div className="w-full min-h-screen bg-slate-50 dark:bg-[#070B14] flex flex-col md:flex-row font-sans selection:bg-brandGold-500/30 selection:text-brandGold-400 touch-manipulation transition-colors duration-300">
 
       {/* ──────────────────────────────────────────────────────────── */}
-      {/* LEFT PANEL: Enterprise SRE Control Plane Deck (Desktop Only) */}
+      {/* LEFT PANEL: Enterprise Sovereign Control Plane Showcase      */}
       {/* ──────────────────────────────────────────────────────────── */}
-      <div className="hidden md:flex md:w-[45%] lg:w-[40%] h-full bg-[#0B0F17] text-white border-r border-slate-800/80 p-6 lg:p-10 flex-col justify-between overflow-y-auto">
-        <div className="space-y-6">
+      <div className="hidden lg:flex lg:w-[46%] xl:w-[44%] relative bg-[#090D18] text-white border-r border-slate-800/80 p-8 xl:p-12 flex-col justify-between overflow-hidden">
+        {/* Subtle Ambient Glow Orbs */}
+        <div className="absolute -top-24 -left-24 w-96 h-96 bg-brandGold-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-1/2 left-1/3 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Content Container */}
+        <div className="relative z-10 space-y-7">
           {/* Brand Header */}
-          <div className="flex items-center gap-3">
-            {brandLogo || <Logo size="md" variant="dark" />}
+          <div className="flex items-center justify-between">
+            {brandLogo || <Logo size="md" variant="dark" subtitle="Sovereign Cloud Platform" />}
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-mono font-bold bg-brandGold-500/10 text-brandGold-400 border border-brandGold-500/30">
+              <span className="w-1.5 h-1.5 rounded-full bg-brandGold-400 animate-pulse" />
+              {brandTagline}
+            </span>
           </div>
 
           {/* Value Proposition */}
-          <div className="space-y-2.5">
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-[#C6923B]/10 border border-[#C6923B]/30 text-[#E5B04E] text-[11px] font-mono font-bold">
-              <span className="w-2 h-2 rounded-full bg-[#C6923B] animate-pulse" />
-              {brandTagline}
-            </div>
-            <h1 className="text-xl lg:text-2xl font-black tracking-tight text-white font-sans leading-snug">
-              A single control plane for mission-critical cloud workloads.
+          <div className="space-y-3">
+            <h1 className="text-2xl xl:text-3xl font-black tracking-tight text-white leading-tight font-sans">
+              The Sovereign Multi-Cloud Operating System
             </h1>
-            <p className="text-xs text-slate-400 font-normal leading-relaxed">
-              Automate Kubernetes GitOps pipelines, monitor telemetry with sub-second MTTR, and manage multi-tenant infrastructure with zero-trust RBAC.
+            <p className="text-xs xl:text-sm text-slate-300 font-normal leading-relaxed">
+              Unified control plane orchestrating high-performance virtual compute, managed Kubernetes, NVMe object storage, and zero-trust IAM with sub-10ms Indian edge latency.
             </p>
           </div>
 
-          {/* Real-time Infrastructure Health Strip */}
-          <div className="bg-[#111827]/90 rounded-xl border border-slate-800 p-3 space-y-2 font-mono text-xs shadow-inner">
-            <div className="flex items-center justify-between">
-              <span className="text-slate-400 flex items-center gap-2">
-                <Activity className="w-3.5 h-3.5 text-emerald-400" /> Control Plane SLA
+          {/* Real-time Infrastructure Telemetry Deck */}
+          <div className="rounded-2xl bg-[#0D1424] border border-slate-800/90 shadow-2xl p-4 space-y-3 font-mono text-xs">
+            {/* Terminal Window Header */}
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500/80 inline-block" />
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80 inline-block" />
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80 inline-block" />
+                <Terminal className="w-3.5 h-3.5 text-brandGold-400 ml-1.5" />
+                <span className="text-[11px] text-slate-400 font-bold ml-1">aravanta-control-plane</span>
+              </div>
+              <span className="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                ap-south-1: 8ms
               </span>
-              <span className="text-emerald-400 font-bold">99.98% Available</span>
             </div>
 
-            <div className="flex items-center justify-between">
-              <span className="text-slate-400 flex items-center gap-2">
-                <Globe className="w-3.5 h-3.5 text-[#E5B04E]" /> Primary Region
-              </span>
-              <span className="text-white font-bold">ap-south-1 (Mumbai, 4 AZs)</span>
-            </div>
+            {/* Metrics Rows */}
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-400 flex items-center gap-2">
+                  <Activity className="w-3.5 h-3.5 text-emerald-400" /> Platform Availability SLA
+                </span>
+                <span className="text-emerald-400 font-bold">99.99% Operational</span>
+              </div>
 
-            <div className="flex items-center justify-between">
-              <span className="text-slate-400 flex items-center gap-2">
-                <Lock className="w-3.5 h-3.5 text-purple-400" /> Identity Governance
-              </span>
-              <span className="text-purple-400 font-bold">Zero-Trust & TOTP MFA</span>
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-400 flex items-center gap-2">
+                  <Globe className="w-3.5 h-3.5 text-brandGold-400" /> Sovereign Datacenter
+                </span>
+                <span className="text-slate-200 font-bold">Mumbai (4 Availability Zones)</span>
+              </div>
+
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-400 flex items-center gap-2">
+                  <ShieldCheck className="w-3.5 h-3.5 text-blue-400" /> Identity Architecture
+                </span>
+                <span className="text-blue-400 font-bold">Zero-Trust RBAC &amp; TOTP</span>
+              </div>
+
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-400 flex items-center gap-2">
+                  <Lock className="w-3.5 h-3.5 text-purple-400" /> Cryptographic Envelope
+                </span>
+                <span className="text-purple-400 font-bold">FIPS 140-3 &amp; AES-256 GCM</span>
+              </div>
             </div>
           </div>
 
-          {/* Architectural Capabilities */}
+          {/* Architectural Primitives Quad */}
           <div className="space-y-2">
-            <span className="text-[10px] font-bold font-mono uppercase tracking-wider text-slate-500">
-              Core Capabilities
+            <span className="text-[10px] font-bold font-mono uppercase tracking-wider text-slate-400">
+              Core Cloud Primitives
             </span>
-            <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-              <div className="p-2 rounded-lg bg-[#111827]/60 border border-slate-800/80 text-slate-300 flex items-center gap-2">
-                <Cpu className="w-3.5 h-3.5 text-[#E5B04E]" /> Elastic Compute
+            <div className="grid grid-cols-2 gap-2.5 text-xs font-mono">
+              <div className="p-2.5 rounded-xl bg-[#0D1424]/80 border border-slate-800 hover:border-brandGold-500/40 text-slate-200 flex items-center gap-2.5 transition-colors">
+                <Cpu className="w-4 h-4 text-brandGold-400 shrink-0" />
+                <div className="min-w-0">
+                  <p className="font-bold truncate text-[11px]">Elastic Compute</p>
+                  <p className="text-[10px] text-slate-400 truncate">KVM Virtual Machines</p>
+                </div>
               </div>
-              <div className="p-2 rounded-lg bg-[#111827]/60 border border-slate-800/80 text-slate-300 flex items-center gap-2">
-                <Boxes className="w-3.5 h-3.5 text-purple-400" /> Kubernetes EKS
+              <div className="p-2.5 rounded-xl bg-[#0D1424]/80 border border-slate-800 hover:border-brandGold-500/40 text-slate-200 flex items-center gap-2.5 transition-colors">
+                <Boxes className="w-4 h-4 text-purple-400 shrink-0" />
+                <div className="min-w-0">
+                  <p className="font-bold truncate text-[11px]">Managed K8s</p>
+                  <p className="text-[10px] text-slate-400 truncate">ArvKube Engine</p>
+                </div>
               </div>
-              <div className="p-2 rounded-lg bg-[#111827]/60 border border-slate-800/80 text-slate-300 flex items-center gap-2">
-                <Layers className="w-3.5 h-3.5 text-emerald-400" /> GitOps Engine
+              <div className="p-2.5 rounded-xl bg-[#0D1424]/80 border border-slate-800 hover:border-brandGold-500/40 text-slate-200 flex items-center gap-2.5 transition-colors">
+                <Database className="w-4 h-4 text-emerald-400 shrink-0" />
+                <div className="min-w-0">
+                  <p className="font-bold truncate text-[11px]">S3 Object Storage</p>
+                  <p className="text-[10px] text-slate-400 truncate">NVMe Distributed</p>
+                </div>
               </div>
-              <div className="p-2 rounded-lg bg-[#111827]/60 border border-slate-800/80 text-slate-300 flex items-center gap-2">
-                <ShieldCheck className="w-3.5 h-3.5 text-amber-400" /> SRE Alertmanager
+              <div className="p-2.5 rounded-xl bg-[#0D1424]/80 border border-slate-800 hover:border-brandGold-500/40 text-slate-200 flex items-center gap-2.5 transition-colors">
+                <Layers className="w-4 h-4 text-blue-400 shrink-0" />
+                <div className="min-w-0">
+                  <p className="font-bold truncate text-[11px]">GitOps Pipelines</p>
+                  <p className="text-[10px] text-slate-400 truncate">Canary Rollouts</p>
+                </div>
               </div>
+            </div>
+          </div>
+
+          {/* Testimonial Quote */}
+          <div className="p-3.5 rounded-2xl bg-[#0D1424]/60 border border-slate-800/80 text-slate-300 space-y-1.5">
+            <p className="text-xs italic text-slate-300 leading-relaxed font-sans">
+              "Aravanta unified our Kubernetes and object storage workloads with sub-10ms edge latency and airtight Indian data residency compliance."
+            </p>
+            <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 pt-1 border-t border-slate-800/60">
+              <span className="text-brandGold-400 font-bold font-sans">Lead SRE Architect</span>
+              <span>Tier-1 Enterprise Banking</span>
             </div>
           </div>
         </div>
 
         {/* Security & Compliance Footer */}
-        <div className="pt-4 border-t border-slate-800/80 flex items-center justify-between text-[11px] font-mono text-slate-500">
+        <div className="relative z-10 pt-5 border-t border-slate-800/80 flex items-center justify-between text-[11px] font-mono text-slate-400">
           <span className="flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> SOC 2 Type II Certified
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> DPDPA 2023 &amp; ISO 27001
           </span>
-          <span>TLS 1.3 Strict</span>
+          <span className="flex items-center gap-1.5">
+            <Lock className="w-3.5 h-3.5 text-brandGold-400" /> Tier-4 Sovereign Datacenters
+          </span>
         </div>
       </div>
 
       {/* ──────────────────────────────────────────────────────────── */}
-      {/* RIGHT PANEL: Compact, Fully Responsive Authentication View   */}
+      {/* RIGHT PANEL: Sleek, High-Converting Authentication Centerpiece */}
       {/* ──────────────────────────────────────────────────────────── */}
-      <div className="flex-1 w-full min-h-screen md:min-h-0 md:h-full bg-slate-50 dark:bg-[#0B0F17] flex flex-col justify-between p-4 sm:p-6 lg:p-8 overflow-y-auto overflow-x-hidden">
+      <div className="flex-1 w-full min-h-screen bg-slate-50 dark:bg-[#070B14] flex flex-col justify-between p-4 sm:p-6 lg:p-8 xl:p-12 overflow-y-auto">
         
-        {/* Auth Content Wrapper */}
-        <div className="w-full max-w-[420px] mx-auto my-auto py-4">
+        {/* Auth Content Card */}
+        <div className="w-full max-w-[450px] mx-auto my-auto py-6">
           
-          {/* Top Section: Header, Title, Tabs, Notification Slot */}
-          <div className="shrink-0">
-            {/* Header Row: Brand Logo, Theme Switcher, Return Button */}
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <div className="md:hidden">
-                {brandLogo || <Logo size="sm" variant={isDark ? 'dark' : 'light'} />}
-              </div>
-
-              <div className="flex items-center gap-2 ml-auto">
-                <button
-                  type="button"
-                  onClick={toggleTheme}
-                  aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
-                  className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors cursor-pointer border border-transparent hover:border-slate-300 dark:hover:border-slate-700"
-                >
-                  {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                </button>
-
-                {onGoToLanding && (
-                  <button
-                    type="button"
-                    onClick={onGoToLanding}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors cursor-pointer border border-slate-200 dark:border-slate-800"
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5" />
-                    <span>Back to Home</span>
-                  </button>
-                )}
-              </div>
+          {/* Top Bar: Mobile Logo, Theme Switcher & Back Button */}
+          <div className="flex items-center justify-between gap-3 mb-6">
+            <div className="lg:hidden">
+              {brandLogo || <Logo size="sm" variant={isDark ? 'dark' : 'light'} />}
             </div>
 
-            {/* Form Header Title */}
-            <div className="mb-2.5">
-              <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                {activeTab === 'signin' && 'Sign In to Control Plane'}
-                {activeTab === 'register' && 'Create Workspace Account'}
-                {activeTab === 'mfa' && 'Two-Factor Authentication'}
+            <div className="flex items-center gap-2 ml-auto">
+              <button
+                type="button"
+                onClick={toggleTheme}
+                aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
+                className="p-2 rounded-xl text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-brandObsidian-800 transition-colors cursor-pointer border border-slate-300/80 dark:border-brandObsidian-800 shadow-xs"
+                title={`Switch to ${isDark ? 'light' : 'dark'} theme`}
+              >
+                {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-700" />}
+              </button>
+
+              {onGoToLanding && (
+                <button
+                  type="button"
+                  onClick={onGoToLanding}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-brandGold-600 dark:hover:text-brandGold-400 hover:bg-slate-200/70 dark:hover:bg-brandObsidian-800 transition-all cursor-pointer border border-slate-300/80 dark:border-brandObsidian-800 shadow-xs"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Home</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Form Header Title */}
+          <div className="mb-5 space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 rounded-lg bg-brandGold-500/15 text-brandGold-600 dark:text-brandGold-400 border border-brandGold-500/30">
+                <Shield className="w-4 h-4" />
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                {activeTab === 'signin' && 'Welcome to Aravanta'}
+                {activeTab === 'register' && 'Launch Sovereign Workspace'}
+                {activeTab === 'mfa' && 'Two-Factor Verification'}
                 {activeTab === 'forgot' && (resetStep === 'request' ? 'Account Recovery' : 'Set New Password')}
                 {activeTab === 'invite' && 'Accept Team Invitation'}
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-sans">
-                {activeTab === 'signin' && 'Enter your verified credentials to access multi-cloud telemetry.'}
-                {activeTab === 'register' && 'Deploy an isolated tenant workspace with native GitOps release controls.'}
-                {activeTab === 'mfa' && 'Enter the 6-digit verification code from your authenticator app.'}
-                {activeTab === 'forgot' && 'Reset your password securely via verified email verification.'}
-                {activeTab === 'invite' && 'Complete your identity setup to join this workspace.'}
-              </p>
             </div>
-
-            {/* Tab Switcher / Breadcrumb (Always strictly 40px high to eliminate layout shift) */}
-            {activeTab === 'signin' || activeTab === 'register' ? (
-              <div
-                role="tablist"
-                aria-label="Authentication selection"
-                className="p-1 bg-slate-200/80 dark:bg-[#111827] rounded-xl border border-slate-300 dark:border-slate-800 text-xs font-bold flex items-center mb-3 h-10"
-              >
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={activeTab === 'signin'}
-                  tabIndex={activeTab === 'signin' ? 0 : -1}
-                  onClick={() => {
-                    setActiveTab('signin');
-                    setError('');
-                    setErrorDismissed(false);
-                    setSuccess('');
-                    setOauthPromptProvider(null);
-                  }}
-                  className={`flex-1 h-8 rounded-lg transition-all cursor-pointer inline-flex items-center justify-center font-sans ${
-                    activeTab === 'signin'
-                      ? 'bg-white dark:bg-[#1E293B] text-slate-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/5 font-bold'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                >
-                  Sign In
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={activeTab === 'register'}
-                  tabIndex={activeTab === 'register' ? 0 : -1}
-                  onClick={() => {
-                    setActiveTab('register');
-                    setError('');
-                    setErrorDismissed(false);
-                    setSuccess('');
-                    setOauthPromptProvider(null);
-                  }}
-                  className={`flex-1 h-8 rounded-lg transition-all cursor-pointer inline-flex items-center justify-center font-sans ${
-                    activeTab === 'register'
-                      ? 'bg-white dark:bg-[#1E293B] text-slate-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/5 font-bold'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                >
-                  Create Workspace
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between px-3 h-10 mb-3 bg-slate-200/50 dark:bg-[#111827] rounded-xl border border-slate-300 dark:border-slate-800 text-xs">
-                <span className="font-bold text-slate-700 dark:text-slate-300">
-                  {activeTab === 'mfa' && 'MFA Verification'}
-                  {activeTab === 'forgot' && (resetStep === 'request' ? 'Account Recovery' : 'Confirm Password Reset')}
-                  {activeTab === 'invite' && 'Workspace Invitation'}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab('signin');
-                    setError('');
-                    setErrorDismissed(false);
-                    setSuccess('');
-                    setOauthPromptProvider(null);
-                  }}
-                  className="text-[#C6923B] dark:text-[#E5B04E] hover:underline font-bold cursor-pointer inline-flex items-center gap-1"
-                >
-                  <ArrowLeft className="w-3 h-3" />
-                  <span>Back to Sign In</span>
-                </button>
-              </div>
-            )}
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-medium">
+              {activeTab === 'signin' && 'Sign in with your verified credentials to access your cloud console.'}
+              {activeTab === 'register' && 'Create an isolated enterprise tenant with full multi-cloud primitives.'}
+              {activeTab === 'mfa' && 'Enter the 6-digit TOTP code from your authenticator application.'}
+              {activeTab === 'forgot' && 'Reset your password securely via instant email verification.'}
+              {activeTab === 'invite' && 'Complete your identity onboarding to join this workspace.'}
+            </p>
           </div>
 
-          {/* ──────────────────────────────────────────────────────────── */}
-          {/* COMPACT PERMANENT NOTIFICATION SLOT (Prevents vertical jump) */}
-          {/* ──────────────────────────────────────────────────────────── */}
-          <div className="min-h-[38px] mb-2.5 flex items-center">
+          {/* Main Segmented Mode Switcher Tabs */}
+          {(activeTab === 'signin' || activeTab === 'register') ? (
+            <div
+              role="tablist"
+              aria-label="Authentication selection"
+              className="p-1 bg-slate-200/80 dark:bg-[#0D1424] rounded-2xl border border-slate-300 dark:border-slate-800 text-xs font-bold flex items-center mb-4 h-11 shadow-inner"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'signin'}
+                tabIndex={activeTab === 'signin' ? 0 : -1}
+                onClick={() => {
+                  setActiveTab('signin');
+                  setError('');
+                  setErrorDismissed(false);
+                  setSuccess('');
+                  setOauthPromptProvider(null);
+                }}
+                className={`flex-1 h-9 rounded-xl transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 font-sans ${
+                  activeTab === 'signin'
+                    ? 'bg-white dark:bg-brandObsidian-800 text-slate-900 dark:text-white shadow-sm font-bold border border-slate-200 dark:border-brandObsidian-700'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <span>Sign In</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'register'}
+                tabIndex={activeTab === 'register' ? 0 : -1}
+                onClick={() => {
+                  setActiveTab('register');
+                  setError('');
+                  setErrorDismissed(false);
+                  setSuccess('');
+                  setOauthPromptProvider(null);
+                }}
+                className={`flex-1 h-9 rounded-xl transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 font-sans ${
+                  activeTab === 'register'
+                    ? 'bg-white dark:bg-brandObsidian-800 text-slate-900 dark:text-white shadow-sm font-bold border border-slate-200 dark:border-brandObsidian-700'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <span>Create Workspace</span>
+                <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-brandGold-500/20 text-brandGold-700 dark:text-brandGold-300 border border-brandGold-500/30">Free</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between px-3.5 h-11 mb-4 bg-slate-200/80 dark:bg-[#0D1424] rounded-2xl border border-slate-300 dark:border-slate-800 text-xs">
+              <span className="font-bold text-slate-800 dark:text-slate-200">
+                {activeTab === 'mfa' && 'MFA Verification'}
+                {activeTab === 'forgot' && (resetStep === 'request' ? 'Account Recovery' : 'Confirm Password Reset')}
+                {activeTab === 'invite' && 'Workspace Invitation'}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('signin');
+                  setError('');
+                  setErrorDismissed(false);
+                  setSuccess('');
+                  setOauthPromptProvider(null);
+                }}
+                className="text-brandGold-600 dark:text-brandGold-400 hover:underline font-bold cursor-pointer inline-flex items-center gap-1"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Return to Sign In</span>
+              </button>
+            </div>
+          )}
+
+          {/* Notification Alert Slot */}
+          <div className="min-h-[40px] mb-3 flex items-center">
             {lockoutRemaining > 0 ? (
               <div
                 role="alert"
                 aria-live="assertive"
-                className="w-full p-2.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800/60 rounded-xl text-xs text-rose-800 dark:text-rose-200 flex items-center gap-2 font-sans"
+                className="w-full p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800/60 rounded-xl text-xs text-rose-800 dark:text-rose-200 flex items-center gap-2 font-sans"
               >
-                <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-600 dark:text-rose-400" />
-                <span className="flex-1 font-medium text-[11px]">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                <span className="flex-1 font-medium text-xs">
                   Security Lockout Active: Too many failed attempts. Try again in {lockoutRemaining}s.
                 </span>
               </div>
@@ -927,45 +990,45 @@ export const Login: React.FC<LoginProps> = ({
               <div
                 role="alert"
                 aria-live="polite"
-                className="w-full p-2.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800/60 rounded-xl text-xs text-rose-800 dark:text-rose-200 flex items-center justify-between gap-2 font-sans"
+                className="w-full p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800/60 rounded-xl text-xs text-rose-800 dark:text-rose-200 flex items-center justify-between gap-2 font-sans"
               >
-                <div className="flex items-center gap-1.5 overflow-hidden">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600 dark:text-rose-400" />
-                  <span className="truncate text-[11px]">{error}</span>
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                  <span className="truncate text-xs">{error}</span>
                 </div>
                 <button
                   type="button"
                   aria-label="Dismiss message"
                   onClick={() => setErrorDismissed(true)}
-                  className="shrink-0 p-0.5 text-rose-600 hover:text-rose-800 dark:text-rose-400 dark:hover:text-rose-200 cursor-pointer"
+                  className="shrink-0 p-1 text-rose-600 hover:text-rose-800 dark:text-rose-400 dark:hover:text-rose-200 cursor-pointer"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-3.5 h-3.5" />
                 </button>
               </div>
             ) : success ? (
               <div
                 role="status"
                 aria-live="polite"
-                className="w-full p-2.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800/60 rounded-xl text-xs text-emerald-800 dark:text-emerald-200 flex items-center gap-2 font-sans"
+                className="w-full p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800/60 rounded-xl text-xs text-emerald-800 dark:text-emerald-200 flex items-center gap-2 font-sans"
               >
-                <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                <span className="flex-1 font-medium text-[11px]">{success}</span>
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                <span className="flex-1 font-medium text-xs">{success}</span>
               </div>
             ) : sessionInvalidatedReason ? (
               <div
                 role="alert"
-                className="w-full p-2.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 rounded-xl text-xs text-amber-800 dark:text-amber-200 flex items-center gap-2 font-sans"
+                className="w-full p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 rounded-xl text-xs text-amber-800 dark:text-amber-200 flex items-center gap-2 font-sans"
               >
-                <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
-                <span className="flex-1 font-medium text-[11px]">{sessionInvalidatedReason}</span>
+                <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <span className="flex-1 font-medium text-xs">{sessionInvalidatedReason}</span>
               </div>
             ) : (
-              <div className="w-full px-3 py-1.5 bg-slate-100/90 dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between font-sans">
-                <span className="flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                  Zero-Trust Gateway Enforcement
+              <div className="w-full px-3.5 py-2 bg-slate-100/90 dark:bg-[#0D1424] border border-slate-200 dark:border-slate-800 rounded-xl text-[11px] text-slate-600 dark:text-slate-400 flex items-center justify-between font-sans">
+                <span className="flex items-center gap-1.5 font-medium">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  Zero-Trust Gate Enforcement Active
                 </span>
-                <span className="font-mono text-[10px]">TLS 1.3 Strict</span>
+                <span className="font-mono text-[10px] text-slate-500">TLS 1.3 Strict</span>
               </div>
             )}
           </div>
@@ -974,52 +1037,50 @@ export const Login: React.FC<LoginProps> = ({
           {/* TAB 1: SIGN IN FORM                                          */}
           {/* ──────────────────────────────────────────────────────────── */}
           {activeTab === 'signin' && (
-            <form onSubmit={handleSignIn} noValidate className="space-y-2.5 pt-1">
-                {/* Field 1: Work Email or Account ID */}
-                <div>
-                  <label
-                    htmlFor="signin-email"
-                    className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5"
-                  >
+            <form onSubmit={handleSignIn} noValidate className="space-y-3.5">
+              {/* Field 1: Work Email or Account ID */}
+              <div>
+                <label
+                  htmlFor="signin-email"
+                  className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1"
+                >
                   Work Email or Account ID
                 </label>
-                <input
-                  id="signin-email"
-                  name="username"
-                  type="text"
-                  autoComplete="username"
-                  required
-                  disabled={loading || lockoutRemaining > 0}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  onBlur={() => setEmailTouched(true)}
-                  placeholder="name@company.com or ARV-ACC-100001"
-                  aria-label="Work Email or Account ID"
-                  aria-invalid={Boolean(signInEmailError)}
-                  aria-describedby="signin-email-feedback"
-                  className={`h-10 w-full px-3 bg-white dark:bg-[#111827] border rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/40 focus:border-[#C6923B] transition-colors ${
-                    signInEmailError
-                      ? 'border-rose-500 dark:border-rose-500/80'
-                      : 'border-slate-300 dark:border-slate-800'
-                  }`}
-                />
-                <div id="signin-email-feedback" className="min-h-[16px] pt-0.5 text-[10px] leading-tight flex items-center">
-                  {signInEmailError ? (
-                    <span role="alert" className="text-rose-600 dark:text-rose-400 font-medium">
-                      {signInEmailError}
-                    </span>
-                  ) : (
-                    <span className="invisible select-none" aria-hidden="true">&nbsp;</span>
-                  )}
+                <div className="relative">
+                  <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
+                  <input
+                    id="signin-email"
+                    name="username"
+                    type="text"
+                    autoComplete="username"
+                    required
+                    disabled={loading || lockoutRemaining > 0}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    onBlur={() => setEmailTouched(true)}
+                    placeholder="operator@company.com or ARV-ACC-100001"
+                    aria-label="Work Email or Account ID"
+                    aria-invalid={Boolean(signInEmailError)}
+                    className={`h-11 w-full pl-10 pr-3.5 bg-white dark:bg-[#0D1424] border rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brandGold-500/30 focus:border-brandGold-500 transition-colors shadow-xs ${
+                      signInEmailError
+                        ? 'border-rose-500 dark:border-rose-500/80'
+                        : 'border-slate-300 dark:border-slate-800'
+                    }`}
+                  />
                 </div>
+                {signInEmailError && (
+                  <p className="pt-1 text-[11px] text-rose-600 dark:text-rose-400 font-medium">
+                    {signInEmailError}
+                  </p>
+                )}
               </div>
 
               {/* Field 2: Password */}
               <div>
-                <div className="flex items-center justify-between mb-0.5">
+                <div className="flex items-center justify-between mb-1">
                   <label
                     htmlFor="signin-password"
-                    className="block text-[11px] font-bold text-slate-700 dark:text-slate-300"
+                    className="block text-xs font-bold text-slate-800 dark:text-slate-200"
                   >
                     Password
                   </label>
@@ -1033,12 +1094,13 @@ export const Login: React.FC<LoginProps> = ({
                       setResetEmail(email);
                       setOauthPromptProvider(null);
                     }}
-                    className="text-[11px] text-[#C6923B] dark:text-[#E5B04E] hover:underline font-bold cursor-pointer"
+                    className="text-xs text-brandGold-600 dark:text-brandGold-400 hover:underline font-bold cursor-pointer"
                   >
                     Forgot password?
                   </button>
                 </div>
                 <div className="relative">
+                  <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
                   <input
                     id="signin-password"
                     name="password"
@@ -1052,8 +1114,7 @@ export const Login: React.FC<LoginProps> = ({
                     placeholder="Enter your account password"
                     aria-label="Account Password"
                     aria-invalid={Boolean(signInPasswordError)}
-                    aria-describedby="signin-password-feedback"
-                    className={`h-10 w-full px-3 pr-9 bg-white dark:bg-[#111827] border rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/40 focus:border-[#C6923B] transition-colors ${
+                    className={`h-11 w-full pl-10 pr-10 bg-white dark:bg-[#0D1424] border rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brandGold-500/30 focus:border-brandGold-500 transition-colors shadow-xs ${
                       signInPasswordError
                         ? 'border-rose-500 dark:border-rose-500/80'
                         : 'border-slate-300 dark:border-slate-800'
@@ -1063,75 +1124,73 @@ export const Login: React.FC<LoginProps> = ({
                     type="button"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-0.5"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1"
                   >
-                    {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                <div id="signin-password-feedback" className="min-h-[16px] pt-0.5 text-[10px] leading-tight flex items-center">
-                  {signInPasswordError ? (
-                    <span role="alert" className="text-rose-600 dark:text-rose-400 font-medium">
-                      {signInPasswordError}
-                    </span>
-                  ) : (
-                    <span className="invisible select-none" aria-hidden="true">&nbsp;</span>
-                  )}
-                </div>
+                {signInPasswordError && (
+                  <p className="pt-1 text-[11px] text-rose-600 dark:text-rose-400 font-medium">
+                    {signInPasswordError}
+                  </p>
+                )}
               </div>
 
               {/* Stay Signed In Checkbox */}
-              <div className="pt-0.5 pb-1.5">
+              <div className="pt-1">
                 <label className="inline-flex items-center gap-2 cursor-pointer text-slate-600 dark:text-slate-400 select-none text-xs">
                   <input
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-3.5 h-3.5 rounded text-[#C6923B] accent-[#C6923B] focus:ring-[#C6923B] cursor-pointer"
+                    className="w-4 h-4 rounded text-brandGold-500 accent-brandGold-500 focus:ring-brandGold-500 cursor-pointer"
                   />
-                  <span>Stay signed in for 30 days on this device</span>
+                  <span>Stay authenticated for 30 days on this machine</span>
                 </label>
               </div>
 
-              {/* Primary Submit Action */}
+              {/* Primary Submit Button */}
               <button
                 type="submit"
                 disabled={loading || !isSignInFormValid || lockoutRemaining > 0}
-                aria-disabled={loading || !isSignInFormValid || lockoutRemaining > 0}
-                className="h-10 w-full bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-md shadow-[#C6923B]/25 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 text-xs sm:text-sm font-sans"
+                className="h-11 w-full bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold rounded-xl shadow-lg shadow-brandGold-500/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 text-sm font-sans btn-press"
               >
                 {loading ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Authenticating...</span>
+                    <Loader2 className="w-4 h-4 animate-spin text-brandObsidian-950" />
+                    <span>Authenticating with Control Plane...</span>
                   </>
                 ) : lockoutRemaining > 0 ? (
                   <span>Locked ({lockoutRemaining}s)</span>
                 ) : (
-                  <span>Sign In to Control Plane</span>
+                  <>
+                    <span>Sign In to Control Plane</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
                 )}
               </button>
 
-              {/* ── OAuth 2.0: Google & GitHub Only (Microsoft & SAML Removed) ── */}
-              <div className="pt-1.5 space-y-2">
+              {/* OAuth 2.0 Providers (Google & GitHub) */}
+              <div className="pt-3 space-y-2.5">
                 <div className="relative flex items-center justify-center">
                   <div className="w-full border-t border-slate-200 dark:border-slate-800" />
-                  <span className="absolute bg-slate-50 dark:bg-[#0B0F17] px-2.5 text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <span className="absolute bg-slate-50 dark:bg-[#070B14] px-3 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Or continue with
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 pt-0.5">
+                <div className="grid grid-cols-2 gap-2.5 pt-1">
                   {/* Google Login */}
                   <button
                     type="button"
                     onClick={() => handleOAuthClick('google')}
                     disabled={loading || ssoLoadingProvider !== null || lockoutRemaining > 0}
-                    className="h-10 px-3 bg-white dark:bg-[#111827] hover:bg-slate-100 dark:hover:bg-[#161F30] border border-slate-300 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 transition-colors inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-sm"
+                    className="h-10 px-3 bg-white dark:bg-[#0D1424] hover:bg-slate-100 dark:hover:bg-brandObsidian-800 border border-slate-300 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 transition-colors inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-xs"
                   >
                     {ssoLoadingProvider === 'google' ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />
                     ) : (
-                      <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
                         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                         <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
                         <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
@@ -1146,12 +1205,12 @@ export const Login: React.FC<LoginProps> = ({
                     type="button"
                     onClick={() => handleOAuthClick('github')}
                     disabled={loading || ssoLoadingProvider !== null || lockoutRemaining > 0}
-                    className="h-10 px-3 bg-white dark:bg-[#111827] hover:bg-slate-100 dark:hover:bg-[#161F30] border border-slate-300 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 transition-colors inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-sm"
+                    className="h-10 px-3 bg-white dark:bg-[#0D1424] hover:bg-slate-100 dark:hover:bg-brandObsidian-800 border border-slate-300 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 transition-colors inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-xs"
                   >
                     {ssoLoadingProvider === 'github' ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />
                     ) : (
-                      <svg className="w-3.5 h-3.5 shrink-0 fill-current text-slate-800 dark:text-white" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 shrink-0 fill-current text-slate-850 dark:text-white" viewBox="0 0 24 24">
                         <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
                       </svg>
                     )}
@@ -1161,7 +1220,7 @@ export const Login: React.FC<LoginProps> = ({
 
                 {/* Direct OAuth Identity Selection Prompt */}
                 {oauthPromptProvider && (
-                  <div className="p-3 mt-2 bg-slate-100 dark:bg-[#161F30] border border-slate-300 dark:border-slate-700 rounded-xl space-y-2">
+                  <div className="p-3.5 mt-2 bg-slate-100 dark:bg-[#0D1424] border border-slate-300 dark:border-slate-700 rounded-xl space-y-2">
                     <div className="flex items-center justify-between text-xs font-bold text-slate-800 dark:text-slate-200">
                       <span>Authenticate with {oauthPromptProvider === 'google' ? 'Google' : 'GitHub'}</span>
                       <button
@@ -1175,19 +1234,19 @@ export const Login: React.FC<LoginProps> = ({
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
                       Confirm the {oauthPromptProvider === 'google' ? 'Google' : 'GitHub'} email address to connect:
                     </p>
-                    <div className="flex gap-1.5">
+                    <div className="flex gap-2">
                       <input
                         type="email"
                         value={oauthPromptEmail}
                         onChange={(e) => setOauthPromptEmail(e.target.value)}
                         placeholder="user@gmail.com"
-                        className="h-8 flex-1 px-2.5 bg-white dark:bg-[#0B0F17] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#C6923B]"
+                        className="h-9 flex-1 px-3 bg-white dark:bg-[#070B14] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-brandGold-500"
                       />
                       <button
                         type="button"
                         onClick={() => executeOAuthLogin(oauthPromptProvider, oauthPromptEmail)}
                         disabled={!isValidEmail(oauthPromptEmail)}
-                        className="h-8 px-3 bg-[#C6923B] hover:bg-[#B07B28] text-white text-xs font-bold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                        className="h-9 px-3.5 bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 text-xs font-bold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
                       >
                         Continue
                       </button>
@@ -1202,12 +1261,14 @@ export const Login: React.FC<LoginProps> = ({
           {/* TAB 2: REGISTER WORKSPACE FORM                               */}
           {/* ──────────────────────────────────────────────────────────── */}
           {activeTab === 'register' && (
-            <form onSubmit={handleRegister} noValidate className="space-y-1.5 pt-1">
-                {/* Full Name */}
-                <div>
-                  <label htmlFor="reg-name" className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
-                    Full Name
-                  </label>
+            <form onSubmit={handleRegister} noValidate className="space-y-3">
+              {/* Full Name */}
+              <div>
+                <label htmlFor="reg-name" className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
+                  Full Name
+                </label>
+                <div className="relative">
+                  <User className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
                   <input
                     id="reg-name"
                     type="text"
@@ -1218,24 +1279,23 @@ export const Login: React.FC<LoginProps> = ({
                     onChange={(e) => setRegFullName(e.target.value)}
                     onBlur={() => setRegFullNameTouched(true)}
                     placeholder="e.g. Alex Kumar"
-                    className="h-10 w-full px-3 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/40 focus:border-[#C6923B] transition-colors"
+                    className="h-11 w-full pl-10 pr-3.5 bg-white dark:bg-[#0D1424] border border-slate-300 dark:border-slate-800 rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brandGold-500/30 focus:border-brandGold-500 transition-colors shadow-xs"
                   />
-                  <div className="min-h-[16px] pt-0.5 text-[10px] leading-tight flex items-center">
-                    {regFullNameTouched && regFullName.trim().length < 2 ? (
-                      <span role="alert" className="text-rose-600 dark:text-rose-400 font-medium">
-                        Enter your full name (at least 2 characters)
-                      </span>
-                    ) : (
-                      <span className="invisible select-none" aria-hidden="true">&nbsp;</span>
-                    )}
-                  </div>
                 </div>
+                {regFullNameTouched && regFullName.trim().length < 2 && (
+                  <p className="pt-1 text-[11px] text-rose-600 dark:text-rose-400 font-medium">
+                    Enter your full name (at least 2 characters)
+                  </p>
+                )}
+              </div>
 
-                {/* Work Email */}
-                <div>
-                  <label htmlFor="reg-email" className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
-                    Work Email Address
-                  </label>
+              {/* Work Email */}
+              <div>
+                <label htmlFor="reg-email" className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
+                  Corporate Work Email
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
                   <input
                     id="reg-email"
                     type="email"
@@ -1246,26 +1306,25 @@ export const Login: React.FC<LoginProps> = ({
                     onChange={(e) => setRegEmail(e.target.value)}
                     onBlur={() => setRegEmailTouched(true)}
                     placeholder="engineer@aravanta.com"
-                    className={`h-10 w-full px-3 bg-white dark:bg-[#111827] border rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/40 focus:border-[#C6923B] transition-colors ${
+                    className={`h-11 w-full pl-10 pr-3.5 bg-white dark:bg-[#0D1424] border rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brandGold-500/30 focus:border-brandGold-500 transition-colors shadow-xs ${
                       regEmailError ? 'border-rose-500' : 'border-slate-300 dark:border-slate-800'
                     }`}
                   />
-                  <div className="min-h-[16px] pt-0.5 text-[10px] leading-tight flex items-center">
-                    {regEmailError ? (
-                      <span role="alert" className="text-rose-600 dark:text-rose-400 font-medium">
-                        {regEmailError}
-                      </span>
-                    ) : (
-                      <span className="invisible select-none" aria-hidden="true">&nbsp;</span>
-                    )}
-                  </div>
                 </div>
+                {regEmailError && (
+                  <p className="pt-1 text-[11px] text-rose-600 dark:text-rose-400 font-medium">
+                    {regEmailError}
+                  </p>
+                )}
+              </div>
 
-                {/* Workspace Name */}
-                <div>
-                  <label htmlFor="reg-workspace" className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
-                    Workspace Organization
-                  </label>
+              {/* Workspace Organization Name */}
+              <div>
+                <label htmlFor="reg-workspace" className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
+                  Workspace Organization
+                </label>
+                <div className="relative">
+                  <Building2 className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
                   <input
                     id="reg-workspace"
                     type="text"
@@ -1273,58 +1332,53 @@ export const Login: React.FC<LoginProps> = ({
                     disabled={loading}
                     value={regWorkspaceName}
                     onChange={(e) => setRegWorkspaceName(e.target.value)}
-                    placeholder="Production SRE Cluster"
-                    className="h-10 w-full px-3 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/40 focus:border-[#C6923B] transition-colors"
+                    placeholder="e.g. Production Cluster A"
+                    className="h-11 w-full pl-10 pr-3.5 bg-white dark:bg-[#0D1424] border border-slate-300 dark:border-slate-800 rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brandGold-500/30 focus:border-brandGold-500 transition-colors shadow-xs"
                   />
-                  <div className="min-h-[16px] pt-0.5 text-[10px] leading-tight flex items-center">
-                    <span className="text-slate-400 dark:text-slate-500">
-                      Defines your multi-tenant isolation perimeter
-                    </span>
+                </div>
+              </div>
+
+              {/* Password & Confirm Inputs */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="reg-password" className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
+                    <input
+                      id="reg-password"
+                      type={showRegPassword ? 'text' : 'password'}
+                      autoComplete="new-password"
+                      required
+                      disabled={loading}
+                      value={regPassword}
+                      onChange={(e) => setRegPassword(e.target.value)}
+                      onBlur={() => setRegPasswordTouched(true)}
+                      placeholder="Min. 8 chars"
+                      className="h-11 w-full pl-10 pr-9 bg-white dark:bg-[#0D1424] border border-slate-300 dark:border-slate-800 rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brandGold-500/30 focus:border-brandGold-500 transition-colors shadow-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowRegPassword(!showRegPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1"
+                    >
+                      {showRegPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
                   </div>
+                  {regPasswordError && (
+                    <p className="pt-1 text-[11px] text-rose-600 dark:text-rose-400 font-medium">
+                      {regPasswordError}
+                    </p>
+                  )}
                 </div>
 
-                {/* Password & Confirm Inputs */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div>
-                    <label htmlFor="reg-password" className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
-                      Password
-                    </label>
-                    <div className="relative">
-                      <input
-                        id="reg-password"
-                        type={showRegPassword ? 'text' : 'password'}
-                        autoComplete="new-password"
-                        required
-                        disabled={loading}
-                        value={regPassword}
-                        onChange={(e) => setRegPassword(e.target.value)}
-                        onBlur={() => setRegPasswordTouched(true)}
-                        placeholder="Min. 8 characters"
-                        className="h-10 w-full px-3 pr-8 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/40 focus:border-[#C6923B] transition-colors"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowRegPassword(!showRegPassword)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                      >
-                        {showRegPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                    <div className="min-h-[16px] pt-0.5 text-[10px] leading-tight flex items-center">
-                      {regPasswordError ? (
-                        <span role="alert" className="text-rose-600 dark:text-rose-400 font-medium">
-                          {regPasswordError}
-                        </span>
-                      ) : (
-                        <span className="invisible select-none" aria-hidden="true">&nbsp;</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label htmlFor="reg-confirm" className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
-                      Confirm Password
-                    </label>
+                <div>
+                  <label htmlFor="reg-confirm" className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
+                    Confirm Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
                     <input
                       id="reg-confirm"
                       type="password"
@@ -1335,75 +1389,74 @@ export const Login: React.FC<LoginProps> = ({
                       onChange={(e) => setRegConfirmPassword(e.target.value)}
                       onBlur={() => setRegConfirmTouched(true)}
                       placeholder="Repeat password"
-                      className="h-10 w-full px-3 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/40 focus:border-[#C6923B] transition-colors"
+                      className="h-11 w-full pl-10 pr-3.5 bg-white dark:bg-[#0D1424] border border-slate-300 dark:border-slate-800 rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brandGold-500/30 focus:border-brandGold-500 transition-colors shadow-xs"
                     />
-                    <div className="min-h-[16px] pt-0.5 text-[10px] leading-tight flex items-center">
-                      {regConfirmError ? (
-                        <span role="alert" className="text-rose-600 dark:text-rose-400 font-medium">
-                          {regConfirmError}
-                        </span>
-                      ) : (
-                        <span className="invisible select-none" aria-hidden="true">&nbsp;</span>
-                      )}
-                    </div>
+                  </div>
+                  {regConfirmError && (
+                    <p className="pt-1 text-[11px] text-rose-600 dark:text-rose-400 font-medium">
+                      {regConfirmError}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Password Evaluation Checklist */}
+              {regPassword && (
+                <div className="p-3 bg-slate-100/90 dark:bg-[#0D1424] rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
+                    <span>Password Strength:</span>
+                    <span className={
+                      regStrengthScore <= 1 ? 'text-rose-500' :
+                      regStrengthScore <= 2 ? 'text-amber-500' :
+                      regStrengthScore === 3 ? 'text-blue-500' : 'text-emerald-500'
+                    }>
+                      {regStrengthScore <= 1 && 'Weak'}
+                      {regStrengthScore <= 2 && 'Fair'}
+                      {regStrengthScore === 3 && 'Good'}
+                      {regStrengthScore === 4 && 'Strong'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-1.5 h-1.5 w-full">
+                    <div className={`rounded-full ${regStrengthScore >= 1 ? (regStrengthScore === 1 ? 'bg-rose-500' : 'bg-brandGold-500') : 'bg-slate-300 dark:bg-slate-700'}`} />
+                    <div className={`rounded-full ${regStrengthScore >= 2 ? (regStrengthScore === 2 ? 'bg-amber-500' : 'bg-brandGold-500') : 'bg-slate-300 dark:bg-slate-700'}`} />
+                    <div className={`rounded-full ${regStrengthScore >= 3 ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-700'}`} />
+                    <div className={`rounded-full ${regStrengthScore >= 4 ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'}`} />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400 pt-0.5">
+                    <span className={`inline-flex items-center gap-1.5 ${regCriteria.hasMinLength ? 'text-emerald-600 dark:text-emerald-400 font-bold' : ''}`}>
+                      <Check className={`w-3.5 h-3.5 ${regCriteria.hasMinLength ? 'opacity-100' : 'opacity-30'}`} /> 8+ characters
+                    </span>
+                    <span className={`inline-flex items-center gap-1.5 ${(regCriteria.hasUpper && regCriteria.hasLower) ? 'text-emerald-600 dark:text-emerald-400 font-bold' : ''}`}>
+                      <Check className={`w-3.5 h-3.5 ${(regCriteria.hasUpper && regCriteria.hasLower) ? 'opacity-100' : 'opacity-30'}`} /> Upper &amp; lower
+                    </span>
+                    <span className={`inline-flex items-center gap-1.5 ${regCriteria.hasNumber ? 'text-emerald-600 dark:text-emerald-400 font-bold' : ''}`}>
+                      <Check className={`w-3.5 h-3.5 ${regCriteria.hasNumber ? 'opacity-100' : 'opacity-30'}`} /> At least 1 number
+                    </span>
+                    <span className={`inline-flex items-center gap-1.5 ${regCriteria.hasSpecial ? 'text-emerald-600 dark:text-emerald-400 font-bold' : ''}`}>
+                      <Check className={`w-3.5 h-3.5 ${regCriteria.hasSpecial ? 'opacity-100' : 'opacity-30'}`} /> Special character
+                    </span>
                   </div>
                 </div>
-
-                {/* Password Policy Evaluation Bar & Checklist */}
-                {regPassword && (
-                  <div className="p-2.5 bg-slate-100/90 dark:bg-[#111827] rounded-xl border border-slate-200 dark:border-slate-800 space-y-1.5 my-1">
-                    <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600 dark:text-slate-400">
-                      <span>Password Strength:</span>
-                      <span className={
-                        regStrengthScore <= 1 ? 'text-rose-500' :
-                        regStrengthScore <= 2 ? 'text-amber-500' :
-                        regStrengthScore === 3 ? 'text-blue-500' : 'text-emerald-500'
-                      }>
-                        {regStrengthScore <= 1 && 'Weak'}
-                        {regStrengthScore <= 2 && 'Fair'}
-                        {regStrengthScore === 3 && 'Good'}
-                        {regStrengthScore === 4 && 'Strong'}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-4 gap-1.5 h-1.5 w-full">
-                      <div className={`rounded-full ${regStrengthScore >= 1 ? (regStrengthScore === 1 ? 'bg-rose-500' : 'bg-[#C6923B]') : 'bg-slate-300 dark:bg-slate-700'}`} />
-                      <div className={`rounded-full ${regStrengthScore >= 2 ? (regStrengthScore === 2 ? 'bg-amber-500' : 'bg-[#C6923B]') : 'bg-slate-300 dark:bg-slate-700'}`} />
-                      <div className={`rounded-full ${regStrengthScore >= 3 ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-700'}`} />
-                      <div className={`rounded-full ${regStrengthScore >= 4 ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'}`} />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] text-slate-500 dark:text-slate-400 pt-0.5">
-                      <span className={`inline-flex items-center gap-1 ${regCriteria.hasMinLength ? 'text-emerald-600 dark:text-emerald-400' : ''}`}>
-                        <Check className={`w-3 h-3 ${regCriteria.hasMinLength ? 'opacity-100' : 'opacity-30'}`} /> 8+ characters
-                      </span>
-                      <span className={`inline-flex items-center gap-1 ${(regCriteria.hasUpper && regCriteria.hasLower) ? 'text-emerald-600 dark:text-emerald-400' : ''}`}>
-                        <Check className={`w-3 h-3 ${(regCriteria.hasUpper && regCriteria.hasLower) ? 'opacity-100' : 'opacity-30'}`} /> Upper & lowercase
-                      </span>
-                      <span className={`inline-flex items-center gap-1 ${regCriteria.hasNumber ? 'text-emerald-600 dark:text-emerald-400' : ''}`}>
-                        <Check className={`w-3 h-3 ${regCriteria.hasNumber ? 'opacity-100' : 'opacity-30'}`} /> At least 1 number
-                      </span>
-                      <span className={`inline-flex items-center gap-1 ${regCriteria.hasSpecial ? 'text-emerald-600 dark:text-emerald-400' : ''}`}>
-                        <Check className={`w-3 h-3 ${regCriteria.hasSpecial ? 'opacity-100' : 'opacity-30'}`} /> Special character
-                      </span>
-                    </div>
-                  </div>
-                )}
+              )}
 
               {/* Submit Button */}
               <button
                 type="submit"
                 disabled={loading || !isRegisterFormValid}
-                aria-disabled={loading || !isRegisterFormValid}
-                className="h-10 w-full bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-md shadow-[#C6923B]/25 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 text-xs sm:text-sm font-sans mt-2"
+                className="h-11 w-full bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold rounded-xl shadow-lg shadow-brandGold-500/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 text-sm font-sans mt-2 btn-press"
               >
                 {loading ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Provisioning Workspace...</span>
+                    <Loader2 className="w-4 h-4 animate-spin text-brandObsidian-950" />
+                    <span>Provisioning Sovereign Workspace...</span>
                   </>
                 ) : (
-                  <span>Create Operational Workspace</span>
+                  <>
+                    <span>Create Operational Workspace</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
                 )}
               </button>
             </form>
@@ -1415,16 +1468,16 @@ export const Login: React.FC<LoginProps> = ({
           {activeTab === 'mfa' && (
             <form onSubmit={handleMfaVerify} className="space-y-4 pt-1">
               <div className="space-y-3">
-                <div className="p-3.5 bg-slate-100 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 text-center space-y-1.5">
-                  <div className="w-9 h-9 rounded-xl bg-[#C6923B]/15 text-[#C6923B] dark:text-[#E5B04E] flex items-center justify-center mx-auto">
-                    <KeyRound className="w-4 h-4" />
+                <div className="p-4 bg-slate-100 dark:bg-[#0D1424] rounded-2xl border border-slate-200 dark:border-slate-800 text-center space-y-2">
+                  <div className="w-10 h-10 rounded-2xl bg-brandGold-500/15 text-brandGold-600 dark:text-brandGold-400 flex items-center justify-center mx-auto border border-brandGold-500/30">
+                    <KeyRound className="w-5 h-5" />
                   </div>
                   <h3 className="font-bold text-slate-900 dark:text-white text-sm">
                     Enter Authenticator Code
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                  <p className="text-xs text-slate-600 dark:text-slate-300">
                     Open your TOTP app (Google Authenticator, Microsoft Authenticator, or 1Password) and enter the 6-digit code for{' '}
-                    <strong className="text-[#C6923B] dark:text-[#E5B04E]">{mfaUserData?.email || email}</strong>.
+                    <strong className="text-brandGold-600 dark:text-brandGold-400">{mfaUserData?.email || email}</strong>.
                   </p>
                 </div>
 
@@ -1440,11 +1493,11 @@ export const Login: React.FC<LoginProps> = ({
                     onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                     placeholder="000000"
                     aria-label="6-digit authentication code"
-                    className="h-12 w-full px-4 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-center text-xl font-mono font-bold tracking-[0.3em] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#C6923B]/40 focus:border-[#C6923B]"
+                    className="h-12 w-full px-4 bg-white dark:bg-[#0D1424] border border-slate-300 dark:border-slate-800 rounded-xl text-center text-2xl font-mono font-bold tracking-[0.3em] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brandGold-500/40 focus:border-brandGold-500"
                   />
-                  <div className="min-h-[16px] pt-1 text-[11px] text-center text-slate-500 dark:text-slate-400">
+                  <div className="pt-2 text-xs text-center text-slate-500 dark:text-slate-400">
                     {mfaResendSeconds > 0 ? (
-                      <span>Code active. Resend backup code in {mfaResendSeconds}s</span>
+                      <span>Code active. Resend in {mfaResendSeconds}s</span>
                     ) : (
                       <button
                         type="button"
@@ -1452,16 +1505,16 @@ export const Login: React.FC<LoginProps> = ({
                           setMfaResendSeconds(30);
                           setSuccess('Backup authentication prompt dispatched.');
                         }}
-                        className="text-[#C6923B] dark:text-[#E5B04E] font-bold hover:underline cursor-pointer inline-flex items-center gap-1"
+                        className="text-brandGold-600 dark:text-brandGold-400 font-bold hover:underline cursor-pointer inline-flex items-center gap-1"
                       >
-                        <RefreshCw className="w-3 h-3" /> Resend verification code
+                        <RefreshCw className="w-3.5 h-3.5" /> Resend verification code
                       </button>
                     )}
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2.5">
                 <button
                   type="button"
                   onClick={() => {
@@ -1471,16 +1524,16 @@ export const Login: React.FC<LoginProps> = ({
                     setSuccess('');
                     setMfaCode('');
                   }}
-                  className="h-10 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl transition-colors cursor-pointer text-xs"
+                  className="h-11 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl transition-colors cursor-pointer text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={loading || mfaCode.length < 6}
-                  className="h-10 px-3 bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-md shadow-[#C6923B]/25 transition-all cursor-pointer disabled:opacity-50 text-xs inline-flex items-center justify-center gap-2"
+                  className="h-11 px-3 bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold rounded-xl shadow-lg shadow-brandGold-500/20 transition-all cursor-pointer disabled:opacity-50 text-xs inline-flex items-center justify-center gap-2"
                 >
-                  {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin text-brandObsidian-950" /> : null}
                   <span>{loading ? 'Verifying...' : 'Verify & Continue'}</span>
                 </button>
               </div>
@@ -1491,39 +1544,40 @@ export const Login: React.FC<LoginProps> = ({
           {/* TAB 4: PASSWORD RESET WORKFLOW                               */}
           {/* ──────────────────────────────────────────────────────────── */}
           {activeTab === 'forgot' && (
-            <div className="space-y-3 pt-1">
+            <div className="space-y-3.5 pt-1">
               {resetStep === 'request' ? (
                 <form onSubmit={handleRequestReset} noValidate className="space-y-4">
                   <div>
-                    <label htmlFor="reset-email" className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
+                    <label htmlFor="reset-email" className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
                       Account Email Address
                     </label>
-                    <input
-                      id="reset-email"
-                      type="email"
-                      autoComplete="email"
-                      required
-                      disabled={loading}
-                      value={resetEmail}
-                      onChange={(e) => setResetEmail(e.target.value)}
-                      onBlur={() => setResetEmailTouched(true)}
-                      placeholder="name@company.com"
-                      className="h-10 w-full px-3 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/40 focus:border-[#C6923B] transition-colors"
-                    />
-                    <div className="min-h-[16px] pt-0.5 text-[10px] leading-tight flex items-center">
-                      {resetEmailTouched && !isValidEmail(resetEmail) ? (
-                        <span role="alert" className="text-rose-600 dark:text-rose-400 font-medium">
-                          Enter a valid account email address
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 dark:text-slate-500">
-                          A 6-digit verification code will be sent to this email address
-                        </span>
-                      )}
+                    <div className="relative">
+                      <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
+                      <input
+                        id="reset-email"
+                        type="email"
+                        autoComplete="email"
+                        required
+                        disabled={loading}
+                        value={resetEmail}
+                        onChange={(e) => setResetEmail(e.target.value)}
+                        onBlur={() => setResetEmailTouched(true)}
+                        placeholder="operator@company.com"
+                        className="h-11 w-full pl-10 pr-3.5 bg-white dark:bg-[#0D1424] border border-slate-300 dark:border-slate-800 rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brandGold-500/30 focus:border-brandGold-500 transition-colors shadow-xs"
+                      />
                     </div>
+                    {resetEmailTouched && !isValidEmail(resetEmail) ? (
+                      <p className="pt-1 text-[11px] text-rose-600 dark:text-rose-400 font-medium">
+                        Enter a valid account email address
+                      </p>
+                    ) : (
+                      <p className="pt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                        A 6-digit verification code will be dispatched to this address.
+                      </p>
+                    )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-2.5">
                     <button
                       type="button"
                       onClick={() => {
@@ -1531,89 +1585,110 @@ export const Login: React.FC<LoginProps> = ({
                         setError('');
                         setErrorDismissed(false);
                       }}
-                      className="h-10 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl transition-colors cursor-pointer text-xs"
+                      className="h-11 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl transition-colors cursor-pointer text-xs"
                     >
                       Back to Sign In
                     </button>
                     <button
                       type="submit"
                       disabled={loading || !isValidEmail(resetEmail)}
-                      className="h-10 px-3 bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-md shadow-[#C6923B]/25 transition-all cursor-pointer disabled:opacity-50 text-xs inline-flex items-center justify-center gap-2"
+                      className="h-11 px-3 bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold rounded-xl shadow-lg shadow-brandGold-500/20 transition-all cursor-pointer disabled:opacity-50 text-xs inline-flex items-center justify-center gap-2"
                     >
-                      {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                      {loading ? <Loader2 className="w-4 h-4 animate-spin text-brandObsidian-950" /> : null}
                       <span>{loading ? 'Sending...' : 'Send Reset Code'}</span>
                     </button>
                   </div>
                 </form>
               ) : (
-                <form onSubmit={handleConfirmReset} noValidate className="space-y-2">
-                    <div className="p-2.5 bg-[#C6923B]/10 border border-[#C6923B]/30 rounded-xl text-xs text-slate-700 dark:text-slate-300">
-                      Resetting password for: <strong className="text-[#C6923B] dark:text-[#E5B04E]">{resetEmail || email}</strong>
-                    </div>
+                <form onSubmit={handleConfirmReset} noValidate className="space-y-3">
+                  <div className="p-3 bg-brandGold-500/10 border border-brandGold-500/30 rounded-xl text-xs text-slate-800 dark:text-slate-200">
+                    Resetting password for: <strong className="text-brandGold-600 dark:text-brandGold-400">{resetEmail || email}</strong>
+                  </div>
 
-                    {/* Verification code input */}
-                    <div>
-                      <label htmlFor="reset-code" className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
-                        Verification Code
-                      </label>
+                  {/* Verification Code */}
+                  <div>
+                    <label htmlFor="reset-code" className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
+                      Verification Code
+                    </label>
+                    <input
+                      id="reset-code"
+                      type="text"
+                      maxLength={8}
+                      required
+                      disabled={loading}
+                      value={resetCode}
+                      onChange={(e) => setResetCode(e.target.value.trim())}
+                      placeholder="Enter 6-digit code"
+                      className="h-11 w-full px-3.5 bg-white dark:bg-[#0D1424] border border-slate-300 dark:border-slate-800 rounded-xl text-sm font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brandGold-500/30 focus:border-brandGold-500"
+                    />
+                  </div>
+
+                  {/* New Password */}
+                  <div>
+                    <label htmlFor="reset-new-pwd" className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
+                      New Password
+                    </label>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
                       <input
-                        id="reset-code"
-                        type="text"
-                        maxLength={8}
+                        id="reset-new-pwd"
+                        type={showNewPassword ? 'text' : 'password'}
+                        autoComplete="new-password"
                         required
                         disabled={loading}
-                        value={resetCode}
-                        onChange={(e) => setResetCode(e.target.value.trim())}
-                        placeholder="Enter 6-digit code"
-                        className="h-10 w-full px-3 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-xs sm:text-sm font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#C6923B]/40 focus:border-[#C6923B]"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        onBlur={() => setNewPasswordTouched(true)}
+                        placeholder="Min. 8 characters"
+                        className="h-11 w-full pl-10 pr-9 bg-white dark:bg-[#0D1424] border border-slate-300 dark:border-slate-800 rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brandGold-500/30 focus:border-brandGold-500"
                       />
-                      <div className="min-h-[16px] pt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
-                        Check your email inbox or spam folder for the verification code
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1"
+                      >
+                        {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    {newPasswordTouched && newPassword.length < 8 && (
+                      <p className="pt-1 text-[11px] text-rose-600 dark:text-rose-400 font-medium">
+                        Password must be at least 8 characters
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Password Strength Indicator */}
+                  {newPassword && (
+                    <div className="p-2.5 bg-slate-100/90 dark:bg-[#0D1424] rounded-xl border border-slate-200 dark:border-slate-800 space-y-1.5">
+                      <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
+                        <span>Strength:</span>
+                        <span className={
+                          resetStrengthScore <= 1 ? 'text-rose-500' :
+                          resetStrengthScore <= 2 ? 'text-amber-500' :
+                          resetStrengthScore === 3 ? 'text-blue-500' : 'text-emerald-500'
+                        }>
+                          {resetStrengthScore <= 1 && 'Weak'}
+                          {resetStrengthScore <= 2 && 'Fair'}
+                          {resetStrengthScore === 3 && 'Good'}
+                          {resetStrengthScore === 4 && 'Strong'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-4 gap-1.5 h-1.5 w-full">
+                        <div className={`rounded-full ${resetStrengthScore >= 1 ? (resetStrengthScore === 1 ? 'bg-rose-500' : 'bg-brandGold-500') : 'bg-slate-300 dark:bg-slate-700'}`} />
+                        <div className={`rounded-full ${resetStrengthScore >= 2 ? (resetStrengthScore === 2 ? 'bg-amber-500' : 'bg-brandGold-500') : 'bg-slate-300 dark:bg-slate-700'}`} />
+                        <div className={`rounded-full ${resetStrengthScore >= 3 ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-700'}`} />
+                        <div className={`rounded-full ${resetStrengthScore >= 4 ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'}`} />
                       </div>
                     </div>
+                  )}
 
-                    {/* New Password */}
-                    <div>
-                      <label htmlFor="reset-new-pwd" className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
-                        New Password
-                      </label>
-                      <div className="relative">
-                        <input
-                          id="reset-new-pwd"
-                          type={showNewPassword ? 'text' : 'password'}
-                          autoComplete="new-password"
-                          required
-                          disabled={loading}
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          onBlur={() => setNewPasswordTouched(true)}
-                          placeholder="Min. 8 characters"
-                          className="h-10 w-full px-3 pr-8 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/40 focus:border-[#C6923B]"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowNewPassword(!showNewPassword)}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                        >
-                          {showNewPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
-                      <div className="min-h-[16px] pt-0.5 text-[10px] leading-tight flex items-center">
-                        {newPasswordTouched && newPassword.length < 8 ? (
-                          <span role="alert" className="text-rose-600 dark:text-rose-400 font-medium">
-                            Password must be at least 8 characters
-                          </span>
-                        ) : (
-                          <span className="invisible select-none" aria-hidden="true">&nbsp;</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Confirm New Password */}
-                    <div>
-                      <label htmlFor="reset-confirm-pwd" className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
-                        Confirm New Password
-                      </label>
+                  {/* Confirm New Password */}
+                  <div>
+                    <label htmlFor="reset-confirm-pwd" className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
+                      Confirm New Password
+                    </label>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
                       <input
                         id="reset-confirm-pwd"
                         type="password"
@@ -1624,175 +1699,141 @@ export const Login: React.FC<LoginProps> = ({
                         onChange={(e) => setConfirmNewPassword(e.target.value)}
                         onBlur={() => setConfirmNewPasswordTouched(true)}
                         placeholder="Repeat new password"
-                        className="h-10 w-full px-3 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#C6923B]/40 focus:border-[#C6923B]"
+                        className="h-11 w-full pl-10 pr-3.5 bg-white dark:bg-[#0D1424] border border-slate-300 dark:border-slate-800 rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brandGold-500/30 focus:border-brandGold-500"
                       />
-                      <div className="min-h-[16px] pt-0.5 text-[10px] leading-tight flex items-center">
-                        {confirmNewPasswordTouched && confirmNewPassword !== newPassword ? (
-                          <span role="alert" className="text-rose-600 dark:text-rose-400 font-medium">
-                            Passwords do not match
-                          </span>
-                        ) : (
-                          <span className="invisible select-none" aria-hidden="true">&nbsp;</span>
-                        )}
-                      </div>
                     </div>
-
-                    {/* Reset Password strength indicator */}
-                    {newPassword && (
-                      <div className="p-2 bg-slate-100/90 dark:bg-[#111827] rounded-xl border border-slate-200 dark:border-slate-800 space-y-1">
-                        <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600 dark:text-slate-400">
-                          <span>Password Strength:</span>
-                          <span className={
-                            resetStrengthScore <= 1 ? 'text-rose-500' :
-                            resetStrengthScore <= 2 ? 'text-amber-500' :
-                            resetStrengthScore === 3 ? 'text-blue-500' : 'text-emerald-500'
-                          }>
-                            {resetStrengthScore <= 1 && 'Weak'}
-                            {resetStrengthScore <= 2 && 'Fair'}
-                            {resetStrengthScore === 3 && 'Good'}
-                            {resetStrengthScore === 4 && 'Strong'}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-4 gap-1.5 h-1.5 w-full">
-                          <div className={`rounded-full ${resetStrengthScore >= 1 ? 'bg-[#C6923B]' : 'bg-slate-300 dark:bg-slate-700'}`} />
-                          <div className={`rounded-full ${resetStrengthScore >= 2 ? 'bg-[#C6923B]' : 'bg-slate-300 dark:bg-slate-700'}`} />
-                          <div className={`rounded-full ${resetStrengthScore >= 3 ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-700'}`} />
-                          <div className={`rounded-full ${resetStrengthScore >= 4 ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'}`} />
-                        </div>
-                      </div>
+                    {confirmNewPasswordTouched && confirmNewPassword !== newPassword && (
+                      <p className="pt-1 text-[11px] text-rose-600 dark:text-rose-400 font-medium">
+                        Passwords do not match
+                      </p>
                     )}
-
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setResetStep('request');
-                        setResetCode('');
-                        setError('');
-                      }}
-                      className="h-10 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl transition-colors cursor-pointer text-xs"
-                    >
-                      Change Email
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={loading || !resetCode || newPassword.length < 8 || newPassword !== confirmNewPassword}
-                      className="h-10 px-3 bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-md shadow-[#C6923B]/25 transition-all cursor-pointer disabled:opacity-50 text-xs inline-flex items-center justify-center gap-2"
-                    >
-                      {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                      <span>{loading ? 'Saving...' : 'Set New Password'}</span>
-                    </button>
                   </div>
+
+                  {/* Submit Reset Button */}
+                  <button
+                    type="submit"
+                    disabled={loading || newPassword.length < 8 || newPassword !== confirmNewPassword}
+                    className="h-11 w-full bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold rounded-xl shadow-lg shadow-brandGold-500/20 transition-all cursor-pointer disabled:opacity-50 text-sm font-sans mt-1 btn-press"
+                  >
+                    {loading ? 'Updating Password...' : 'Save Password & Continue'}
+                  </button>
                 </form>
               )}
             </div>
           )}
 
           {/* ──────────────────────────────────────────────────────────── */}
-          {/* TAB 5: WORKSPACE INVITATION ACCEPTANCE                       */}
+          {/* TAB 5: INVITATION ACCEPTANCE WORKFLOW                         */}
           {/* ──────────────────────────────────────────────────────────── */}
           {activeTab === 'invite' && (
-            <form onSubmit={handleAcceptInvite} className="space-y-2">
-              <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-xl border border-blue-200 dark:border-blue-800/40 text-center space-y-1">
-                <div className="w-8 h-8 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto">
-                  <Building2 className="w-4 h-4" />
-                </div>
+            <form onSubmit={handleAcceptInvite} className="space-y-3.5 pt-1">
+              <div className="p-4 bg-brandGold-500/10 border border-brandGold-500/30 rounded-2xl space-y-1.5">
                 <h3 className="font-bold text-slate-900 dark:text-white text-sm">
                   Join Workspace: {inviteDetails?.workspace_name || 'Production Workspace'}
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Invited by <strong className="text-blue-600 dark:text-blue-400">{inviteDetails?.invited_by || 'Workspace Admin'}</strong> to join as a <span className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-bold">{inviteDetails?.role || 'Engineer'}</span>.
+                <p className="text-xs text-slate-600 dark:text-slate-300">
+                  Invited by <strong className="text-brandGold-600 dark:text-brandGold-400">{inviteDetails?.invited_by || 'Workspace Admin'}</strong> to join as <span className="px-2 py-0.5 rounded bg-brandGold-500/20 text-brandGold-800 dark:text-brandGold-300 font-bold">{inviteDetails?.role || 'Engineer'}</span>.
                 </p>
               </div>
 
-              {/* Email (Disabled) */}
+              {/* Invited Email (Read-only) */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
                   Invited Email
                 </label>
-                <input
-                  type="email"
-                  value={inviteDetails?.email || ''}
-                  disabled
-                  className="h-10 w-full px-3 bg-slate-100 dark:bg-[#161F30] border border-slate-300 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-bold cursor-not-allowed"
-                />
+                <div className="relative">
+                  <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
+                  <input
+                    type="email"
+                    value={inviteDetails?.email || ''}
+                    disabled
+                    className="h-11 w-full pl-10 pr-3.5 bg-slate-100 dark:bg-slate-800/60 border border-slate-300 dark:border-slate-800 rounded-xl text-sm text-slate-600 dark:text-slate-400 font-bold cursor-not-allowed"
+                  />
+                </div>
               </div>
 
               {/* Full Name */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
                   Your Full Name
                 </label>
-                <input
-                  type="text"
-                  required
-                  value={inviteFullName}
-                  onChange={(e) => setInviteFullName(e.target.value)}
-                  placeholder="e.g. Alex Kumar"
-                  className="h-10 w-full px-3 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#C6923B]/40 focus:border-[#C6923B]"
-                />
+                <div className="relative">
+                  <User className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
+                  <input
+                    type="text"
+                    required
+                    value={inviteFullName}
+                    onChange={(e) => setInviteFullName(e.target.value)}
+                    placeholder="e.g. Alex Kumar"
+                    className="h-11 w-full pl-10 pr-3.5 bg-white dark:bg-[#0D1424] border border-slate-300 dark:border-slate-800 rounded-xl text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brandGold-500/30 focus:border-brandGold-500"
+                  />
+                </div>
               </div>
 
               {/* Password */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
                   Create Password
                 </label>
                 <div className="relative">
+                  <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
                   <input
                     type={showInvitePassword ? 'text' : 'password'}
                     required
                     value={invitePassword}
                     onChange={(e) => setInvitePassword(e.target.value)}
                     placeholder="Min. 8 characters"
-                    className="h-10 w-full px-3 pr-8 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#C6923B]/40 focus:border-[#C6923B]"
+                    className="h-11 w-full pl-10 pr-9 bg-white dark:bg-[#0D1424] border border-slate-300 dark:border-slate-800 rounded-xl text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brandGold-500/30 focus:border-brandGold-500"
                   />
                   <button
                     type="button"
                     onClick={() => setShowInvitePassword(!showInvitePassword)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1"
                   >
-                    {showInvitePassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    {showInvitePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
               {/* Confirm Password */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
                   Confirm Password
                 </label>
-                <input
-                  type="password"
-                  required
-                  value={inviteConfirmPassword}
-                  onChange={(e) => setInviteConfirmPassword(e.target.value)}
-                  placeholder="Repeat your password"
-                  className="h-10 w-full px-3 bg-white dark:bg-[#111827] border border-slate-300 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#C6923B]/40 focus:border-[#C6923B]"
-                />
+                <div className="relative">
+                  <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
+                  <input
+                    type="password"
+                    required
+                    value={inviteConfirmPassword}
+                    onChange={(e) => setInviteConfirmPassword(e.target.value)}
+                    placeholder="Repeat password"
+                    className="h-11 w-full pl-10 pr-3.5 bg-white dark:bg-[#0D1424] border border-slate-300 dark:border-slate-800 rounded-xl text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brandGold-500/30 focus:border-brandGold-500"
+                  />
+                </div>
               </div>
 
-              <div className="pt-1">
+              <div className="pt-2 space-y-2">
                 <button
                   type="submit"
                   disabled={loading || invitePassword.length < 8 || invitePassword !== inviteConfirmPassword}
-                  className="h-10 w-full bg-[#C6923B] hover:bg-[#B07B28] text-white font-bold rounded-xl shadow-md shadow-[#C6923B]/25 transition-all cursor-pointer disabled:opacity-50 text-xs sm:text-sm font-sans"
+                  className="h-11 w-full bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold rounded-xl shadow-lg shadow-brandGold-500/20 transition-all cursor-pointer disabled:opacity-50 text-sm font-sans btn-press"
                 >
                   {loading ? 'Joining Workspace...' : 'Accept Invitation & Launch Console'}
                 </button>
-              </div>
 
-              <div className="text-center pt-0.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTokenFromUrl(null);
-                    setActiveTab('signin');
-                  }}
-                  className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
-                >
-                  Switch to standard sign-in
-                </button>
+                <div className="text-center pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTokenFromUrl(null);
+                      setActiveTab('signin');
+                    }}
+                    className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
+                  >
+                    Switch to standard sign-in
+                  </button>
+                </div>
               </div>
             </form>
           )}
@@ -1802,8 +1843,14 @@ export const Login: React.FC<LoginProps> = ({
         {/* ──────────────────────────────────────────────────────────── */}
         {/* RIGHT PANEL FOOTER                                           */}
         {/* ──────────────────────────────────────────────────────────── */}
-        <div className="w-full max-w-[420px] mx-auto pt-3 text-center text-[11px] font-sans text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-800/80 shrink-0">
-          <span>{brandName} • Multi-Tenant Control Plane</span>
+        <div className="w-full max-w-[450px] mx-auto pt-4 text-center text-xs text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-800/80 shrink-0">
+          <div className="flex items-center justify-center gap-1.5 mb-1">
+            <Lock className="w-3.5 h-3.5 text-brandGold-500" />
+            <span>End-to-End Encrypted Session • DPDPA 2023 Compliant</span>
+          </div>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500">
+            &copy; {new Date().getFullYear()} {brandName} • Multi-Tenant Sovereign Cloud Infrastructure
+          </p>
         </div>
 
       </div>

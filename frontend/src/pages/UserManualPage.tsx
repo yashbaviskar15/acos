@@ -181,7 +181,7 @@ export const UserManualPage: React.FC<PageProps> = ({
         onGoToRegister={onGoToRegister}
         onOpenCommandPalette={onOpenCommandPalette}
         onNavigate={onNavigate}
-        currentView="documentation"
+        currentView="user-manual"
       />
 
       {/* Hero Header Strip */}
@@ -194,7 +194,7 @@ export const UserManualPage: React.FC<PageProps> = ({
                   ACOS v2.4 Enterprise Edition
                 </Badge>
                 <Badge variant="success" size="sm" className="font-mono">
-                  SOC 2 Type II Certified
+                  RFC 6238 TOTP Verified
                 </Badge>
               </div>
               <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 dark:text-white">

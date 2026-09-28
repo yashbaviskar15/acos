@@ -335,40 +335,36 @@
     outline: none;
   }
 
-  /* Slim operational scrollbars */
+  /* Hide all native scrollbars globally while preserving smooth momentum scrolling */
   * {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+    -ms-overflow-style: none !important;
+    scrollbar-width: none !important;
   }
+  *::-webkit-scrollbar,
   ::-webkit-scrollbar {
-    width: 7px;
-    height: 7px;
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    background: transparent !important;
   }
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
+  ::-webkit-scrollbar-track,
   ::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.35);
-    border-radius: 9999px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: rgba(100, 116, 139, 0.6);
-  }
-  .dark ::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.2);
-  }
-  .dark ::-webkit-scrollbar-thumb:hover {
-    background: rgba(201, 168, 76, 0.4);
+    display: none !important;
+    background: transparent !important;
   }
 }
 
-/* ── Smooth momentum scrolling & safe areas ── */
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+/* ── Smooth momentum scrolling & hidden scrollbar utility ── */
+.no-scrollbar,
+.scrollbar-none {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
 }
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
+.no-scrollbar::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 .overflow-x-auto, .overflow-y-auto {
