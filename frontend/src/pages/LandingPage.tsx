@@ -12,9 +12,7 @@ import {
   Lock,
   Check,
   ChevronRight,
-  Globe2,
   BarChart3,
-  Shield,
   Boxes,
   BookOpen,
   Terminal,
@@ -25,6 +23,16 @@ import {
   Folder,
   LayoutGrid,
   MessageSquare,
+  Cpu,
+  Radio,
+  CheckCircle2,
+  RefreshCw,
+  Key,
+  Network,
+  Sparkles,
+  ExternalLink,
+  Play,
+  Layers,
 } from 'lucide-react';
 
 import { Navbar, LandingView } from '../components/ui/Navbar';
@@ -33,18 +41,11 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Card, CardBody } from '../components/ui/Card';
 import {
-  TabContainer,
-  TabList,
-  Tab,
-  TabPanel,
-} from '../components/ui/Tabs';
-import {
   Accordion,
   AccordionItem,
   AccordionHeader,
   AccordionBody,
 } from '../components/ui/Accordion';
-import { CodeBlock } from '../components/ui/CopyButton';
 
 interface LandingPageProps {
   onGoToLogin: () => void;
@@ -58,71 +59,139 @@ const prefersReducedMotion = () =>
   typeof window !== 'undefined' &&
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-// ── Verified Developer CLI & API Code Snippets ──
-const codeSnippets: Record<string, string> = {
-  cli: `# 1. Install Aravanta CLI v2.0 (Zero Repo Dependency)
-# Windows (PowerShell):
-[Net.ServicePointManager]::SecurityProtocol = 3072; irm https://aravantacos.vercel.app/install.ps1 | iex
-# macOS / Linux (cURL):
-curl -fsSL https://aravantacos.vercel.app/install.sh | bash
+// ── Pan-India Sovereign Datacenter Network Regions ──
+const edgeRegions = [
+  {
+    id: 'mumbai',
+    code: 'ap-south-1',
+    city: 'Mumbai',
+    tier: 'Tier-IV Uptime Certified',
+    latency: '7.8 ms',
+    power: 'N+N Redundant Grid',
+    peering: ['NIXI', 'Tata Comm', 'Airtel IQ', 'DE-CIX Mumbai'],
+    status: 'Operational',
+    workloads: 'Compute, K8s, S3 NVMe, DB',
+  },
+  {
+    id: 'bengaluru',
+    code: 'ap-south-2',
+    city: 'Bengaluru',
+    tier: 'Tier-III+ Enterprise',
+    latency: '11.2 ms',
+    power: 'N+1 Redundant',
+    peering: ['NIXI', 'Airtel IQ', 'Jio Carrier Net'],
+    status: 'Operational',
+    workloads: 'Compute, K8s, DB',
+  },
+  {
+    id: 'delhi',
+    code: 'ap-north-1',
+    city: 'Delhi-NCR',
+    tier: 'Tier-IV Certified',
+    latency: '13.6 ms',
+    power: 'N+N Redundant Grid',
+    peering: ['NIXI', 'Tata Comm', 'PowerGrid Telecom'],
+    status: 'Operational',
+    workloads: 'Compute, K8s, S3 Cold Storage',
+  },
+  {
+    id: 'hyderabad',
+    code: 'ap-south-3',
+    city: 'Hyderabad',
+    tier: 'Tier-III+ Cyberabad Campus',
+    latency: '10.4 ms',
+    power: 'N+1 Solar Backed',
+    peering: ['NIXI', 'Airtel IQ', 'RailTel Core'],
+    status: 'Operational',
+    workloads: 'Compute, S3 NVMe, Redis Cache',
+  },
+  {
+    id: 'chennai',
+    code: 'ap-south-4',
+    city: 'Chennai',
+    tier: 'Tier-III+ Subsea Landing Hub',
+    latency: '10.9 ms',
+    power: 'N+1 Redundant',
+    peering: ['NIXI', 'Tata Comm Subsea', 'DE-CIX Chennai'],
+    status: 'Operational',
+    workloads: 'Compute, K8s, Object Store',
+  },
+] as const;
 
-# 2. Check health & connect to live control plane
-aravanta status
-
-# 3. Provision compute instance with NVMe block storage
-aravanta compute create --name api-worker-01 --cpu 2 --ram 4096 --region ap-south-1
-
-# 4. Upload build artifacts to S3 bucket with folder prefix
-aravanta store upload --bucket arv-assets-prod --file dist/app.bundle.js --folder /v1.2.0/
-
-✓ Resource provisioned (State: RUNNING)
-  Private IP: 10.240.0.12  •  Provider: FastCloud-v1  •  Egress: ₹0.50/GB`,
-  terraform: `# Multi-Region Aravanta CloudOS Provider Configuration
+// ── Verified Developer CLI, SDK & IaC Snippets ──
+const devTabSnippets: Record<'terraform' | 'cli' | 'python' | 'curl', { lang: string; code: string; title: string }> = {
+  terraform: {
+    lang: 'hcl',
+    title: 'Terraform Provider v2.4 (Multi-Region)',
+    code: `# Multi-Region Aravanta Sovereign Provider
 terraform {
   required_providers {
     aravanta = {
       source  = "aravanta/cloudos"
-      version = "~> 1.0.0"
+      version = "~> 2.4.0"
     }
   }
 }
 
 provider "aravanta" {
+  region       = "ap-south-1" # Mumbai Sovereign Hub
   api_endpoint = "https://arv-backend.vercel.app/api/v1"
-  region       = "ap-south-1"
 }
 
-resource "aravanta_compute_instance" "api_gateway" {
+resource "aravanta_compute_instance" "prod_gateway" {
   name          = "api-gateway-prod"
-  instance_type = "c3.large"
-  region        = "ap-south-1"
+  instance_type = "c3.4xlarge"
   image         = "ubuntu-24.04-lts"
-
-  disk {
-    size_gb = 120
-    type    = "nvme-ssd"
-  }
+  disk_size_gb  = 250
 
   tags = {
-    environment = "production"
-    finops_cost = "core-infrastructure"
+    env    = "production"
+    finops = "sovereign-core"
   }
-}
-
-resource "aravanta_storage_bucket" "assets" {
-  name          = "arv-assets-prod"
-  region        = "ap-south-1"
-  storage_class = "STANDARD"
-  access        = "PRIVATE"
-  versioning    = true
 }`,
-  rest: `# Authenticate & Obtain Bearer JWT Token
+  },
+  cli: {
+    lang: 'bash',
+    title: 'arv CLI v2.4 (Native Binary)',
+    code: `# Install Aravanta CLI v2.4 (Zero External Dependencies)
+# Windows (PowerShell):
+irm https://aravantacos.vercel.app/install.ps1 | iex
+
+# Linux & macOS:
+curl -fsSL https://aravantacos.vercel.app/install.sh | bash
+
+# Authenticate & Launch Managed Kubernetes Node Pool
+arv auth login --account ARV-ACC-891044
+arv k8s cluster create --name sovereign-mesh-01 --nodes 6 --region ap-south-1
+arv compute list --format table`,
+  },
+  python: {
+    lang: 'python',
+    title: 'Python SDK (Async / FastAPI Native)',
+    code: `from aravanta import CloudOSClient
+
+# Initialize client in ap-south-1 (Mumbai) Sovereign Region
+client = CloudOSClient(
+    token="arv_sec_live_948f2b7a",
+    region="ap-south-1"
+)
+
+# Provision high-throughput NVMe bucket with versioning
+bucket = client.storage.create_bucket(
+    name="arv-telemetry-vault",
+    tier="NVMe-STANDARD",
+    encryption="AES-256-GCM"
+)
+
+print(f"Bucket provisioned: {bucket.arn} [DPDPA 2023 Compliant]")`,
+  },
+  curl: {
+    lang: 'bash',
+    title: 'cURL / OpenAPI 3.1 REST Endpoints',
+    code: `# Authenticate against Sovereign Control Plane
 curl -X POST "https://arv-backend.vercel.app/api/v1/auth/login" \\
   -H "Content-Type: application/json" \\
-  -d '{
-    "email": "operator@company.in",
-    "password": "SecurePassword123!"
-  }'
+  -d '{"email":"admin@enterprise.in","password":"SecurePassword123!"}'
 
 # Provision High-Performance Compute Instance
 curl -X POST "https://arv-backend.vercel.app/api/v1/compute/instances" \\
@@ -130,121 +199,12 @@ curl -X POST "https://arv-backend.vercel.app/api/v1/compute/instances" \\
   -H "Content-Type: application/json" \\
   -d '{
     "name": "worker-pool-01",
-    "instance_type": "c3.large",
+    "instance_type": "c3.4xlarge",
     "region": "ap-south-1",
-    "image": "ubuntu-24.04",
-    "disk_size_gb": 120
-  }'
-
-# HTTP 201 Created
-# {"id":"cmp_7f3da1b2","status":"RUNNING","region":"ap-south-1","uptime":"99.99%"}`,
-  sdk: `import { AravantaClient } from '@aravanta/sdk';
-
-// Initialize with workspace token and primary sovereign region
-const client = new AravantaClient({
-  token: process.env.ARAVANTA_TOKEN,
-  region: 'ap-south-1',
-});
-
-async function deployStack() {
-  // 1. Create S3 Storage Bucket with versioning enabled
-  const bucket = await client.storage.buckets.create({
-    name: 'arv-production-vault',
-    storageClass: 'STANDARD',
-    access: 'PRIVATE',
-    versioning: true,
-  });
-
-  // 2. Trigger GitOps canary rollout with 25% traffic slice
-  const deployment = await client.operations.deployments.trigger({
-    service: 'api-gateway',
-    tag: 'v2.4.2',
-    strategy: 'canary',
-    canaryWeight: 25,
-  });
-
-  console.log(\`Bucket: \${bucket.name} | Canary Deployment: \${deployment.id}\`);
-}
-
-deployStack();`,
+    "disk_size_gb": 200
+  }'`,
+  },
 };
-
-// ── Verified 6-Step Application Workflow ──
-const workflowSteps = [
-  {
-    key: 'auth',
-    step: '01',
-    name: 'Register & Authenticate',
-    icon: Lock,
-    title: 'Account registration with TOTP 2FA & invite tokens',
-    desc: 'Create your account or join an existing workspace via invitation token (ARV-ACC-XXXXXX). Secure your account with RFC 6238 30-second TOTP multi-factor authentication and brute-force lockout protection.',
-    metrics: [
-      { label: 'MFA Standard', value: 'RFC 6238' },
-      { label: 'Rate Limiting', value: '5 Failures / 60s' },
-    ],
-  },
-  {
-    key: 'rbac',
-    step: '02',
-    name: 'Workspace Governance',
-    icon: ShieldCheck,
-    title: 'Server-enforced 5-tier role-based access control',
-    desc: 'Assign granular permissions strictly controlled by the database schema: SuperAdmin, Admin, Operator, Developer, and Viewer. Client-side role overrides are strictly rejected at the API boundary.',
-    metrics: [
-      { label: 'Role Tiers', value: '5 Roles' },
-      { label: 'Audit Logging', value: 'Cryptographic' },
-    ],
-  },
-  {
-    key: 'provision',
-    step: '03',
-    name: 'Provision Infrastructure',
-    icon: Server,
-    title: 'Multi-cloud compute, Kubernetes, databases & S3 storage',
-    desc: 'Spin up virtual machines, managed Kubernetes clusters (ArvKube), high-availability PostgreSQL/Redis databases (ArvDB), and S3 object buckets (ArvStore) through visual forms, CLI, or Terraform.',
-    metrics: [
-      { label: 'Provision Time', value: '< 60s' },
-      { label: 'Primary Region', value: 'ap-south-1' },
-    ],
-  },
-  {
-    key: 'deploy',
-    step: '04',
-    name: 'Workloads & Files',
-    icon: GitBranch,
-    title: 'GitOps delivery pipelines & structured S3 file management',
-    desc: 'Automate releases with 25% progressive canary traffic gates and sub-second rollback triggers. Upload, preview, and organize files in S3 buckets with drag-and-drop and folder prefixes.',
-    metrics: [
-      { label: 'Canary Slices', value: '25% - 50% - 100%' },
-      { label: 'Max File Size', value: '100 MB / file' },
-    ],
-  },
-  {
-    key: 'observe',
-    step: '05',
-    name: 'Observe & Triage',
-    icon: Activity,
-    title: 'Sub-second telemetry & automated incident war-rooms',
-    desc: 'Stream Prometheus metrics, explore live Loki logs, and triage firing alert rules. When incidents occur, assign commanders, log timestamps, and execute self-healing automated runbooks.',
-    metrics: [
-      { label: 'Telemetry Stream', value: '< 10ms' },
-      { label: 'Auto-Healing', value: 'Runbook Driven' },
-    ],
-  },
-  {
-    key: 'finops',
-    step: '06',
-    name: 'Cost & Invoicing',
-    icon: BarChart3,
-    title: 'Per-second metering in INR (₹) with GST tax invoices',
-    desc: 'Real-time FinOps cost tracking across compute, storage, databases, and bandwidth. Set strict project budget caps and generate GST-compliant tax invoices with PDF and WebCopy download.',
-    metrics: [
-      { label: 'Billing Precision', value: 'Per-Second' },
-      { label: 'Tax Compliance', value: 'CGST + SGST (18%)' },
-    ],
-  },
-];
-
 // ── Verified Core Platform Capabilities ──
 const capabilities = [
   {
@@ -391,12 +351,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onGoToConsole,
 }) => {
   const [activePreviewTab, setActivePreviewTab] = useState<'dashboard' | 'storage' | 'deployments' | 'iam' | 'billing'>('dashboard');
-  const [activeWorkflowStep, setActiveWorkflowStep] = useState(0);
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly');
   const [previewRole, setPreviewRole] = useState<'SuperAdmin' | 'Operator' | 'Developer' | 'Viewer'>('Operator');
   const [previewStorageFolder, setPreviewStorageFolder] = useState<'root' | 'backups' | 'configs'>('root');
   const [previewUploadProgress, setPreviewUploadProgress] = useState<number | null>(null);
   const [copiedCodeKey, setCopiedCodeKey] = useState<string | null>(null);
+  const [heroSelectedModule, setHeroSelectedModule] = useState<'vm' | 'k8s' | 's3' | 'db'>('vm');
+  const [heroCopied, setHeroCopied] = useState(false);
+  const [selectedEdgeRegion, setSelectedEdgeRegion] = useState<'mumbai' | 'bengaluru' | 'delhi' | 'hyderabad' | 'chennai'>('mumbai');
+  const [selectedDevTab, setSelectedDevTab] = useState<'terraform' | 'cli' | 'python' | 'curl'>('terraform');
+  const [devSnippetCopied, setDevSnippetCopied] = useState(false);
   const reduceMotion = useMemo(prefersReducedMotion, []);
   const [mounted, setMounted] = useState(false);
 
@@ -495,136 +459,330 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
 
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <motion.div
-              variants={containerVariants}
-              initial="hidden"
-              animate={mounted ? 'show' : 'hidden'}
-              className="relative z-10 max-w-4xl mx-auto text-center space-y-6"
-            >
-              {/* Eyebrow Pill */}
-              <motion.div variants={fadeUp} className="flex justify-center">
-                <div className="inline-flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 px-4 py-1.5 rounded-full border border-brandGold-500/40 bg-brandGold-500/10 dark:bg-brandGold-950/40 text-brandGold-700 dark:text-brandGold-300 text-xs font-semibold tracking-wide shadow-sm shadow-brandGold-500/10 backdrop-blur-xl ring-1 ring-brandGold-500/20">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-                  </span>
-                  <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold uppercase text-[11px]">
-                    All Systems Operational
-                  </span>
-                  <span className="opacity-30 hidden sm:inline">•</span>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-brandGold-500/20 text-brandGold-800 dark:text-brandGold-200 font-bold text-[10px] font-mono">
-                    v2.4 GA
-                  </span>
-                  <span className="opacity-30 hidden sm:inline">•</span>
-                  <span className="inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300 text-[11px] font-mono">
-                    <span className="w-1.5 h-1.5 rounded-full bg-brandGold-500" />
-                    <span>ap-south-1 Sovereign (8ms Latency)</span>
-                  </span>
-                </div>
-              </motion.div>
-
-              {/* Main Headline */}
-              <motion.h1
-                variants={fadeUp}
-                className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tight leading-[1.08] text-slate-900 dark:text-white max-w-4xl mx-auto font-sans"
-              >
-                Aravanta Cloud OS
-                <span className="block mt-2 sm:mt-3 text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold bg-gradient-to-r from-brandGold-600 via-amber-400 to-brandGold-400 bg-clip-text text-transparent drop-shadow-xs">
-                  The Sovereign Multi-Cloud Operating System
-                </span>
-              </motion.h1>
-
-              {/* Supporting Copy */}
-              <motion.p
-                variants={fadeUp}
-                className="text-sm sm:text-base md:text-lg text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl sm:max-w-3xl mx-auto font-normal"
-              >
-                Orchestrate elastic virtual machines, managed Kubernetes clusters, distributed S3 storage, serverless functions, and high-availability databases from a single sovereign control plane — with sub-second telemetry, GitOps delivery, and predictable FinOps billing in INR (₹).
-              </motion.p>
-
-              {/* Real Aligned Responsive CTAs */}
+            {/* ── Split-Screen Hero Grid (7 cols left, 5 cols right on LG) ── */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+              
+              {/* Left Column: Eyebrow, Main Headline, Subtext, CTAs & Trust Badges */}
               <motion.div
-                variants={fadeUp}
-                className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2 max-w-2xl mx-auto w-full"
+                variants={containerVariants}
+                initial="hidden"
+                animate={mounted ? 'show' : 'hidden'}
+                className="lg:col-span-7 space-y-6 text-left"
               >
-                <Button
-                  size="lg"
-                  variant="primary"
-                  onClick={onGoToRegister}
-                  className="w-full sm:w-auto h-12 px-6 rounded-xl bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold text-sm sm:text-base shadow-lg shadow-brandGold-500/25 hover:shadow-brandGold-500/40 hover:-translate-y-0.5 transition-all btn-press cursor-pointer shrink-0"
-                  rightIcon={<ArrowRight className="w-4 h-4" />}
+                {/* Eyebrow Pill */}
+                <motion.div variants={fadeUp} className="flex justify-start">
+                  <div className="inline-flex flex-wrap items-center gap-x-2.5 gap-y-1.5 px-3.5 py-1.5 rounded-full border border-brandGold-500/40 bg-brandGold-500/10 dark:bg-brandGold-950/40 text-brandGold-700 dark:text-brandGold-300 text-xs font-semibold tracking-wide shadow-sm shadow-brandGold-500/10 backdrop-blur-xl ring-1 ring-brandGold-500/20">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                    </span>
+                    <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold uppercase text-[11px]">
+                      All Systems Operational
+                    </span>
+                    <span className="opacity-30">•</span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-brandGold-500/20 text-brandGold-800 dark:text-brandGold-200 font-bold text-[10px] font-mono">
+                      v2.4 GA
+                    </span>
+                    <span className="opacity-30">•</span>
+                    <span className="inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300 text-[11px] font-mono">
+                      <span className="w-1.5 h-1.5 rounded-full bg-brandGold-500" />
+                      <span>ap-south-1 Sovereign (8ms Latency)</span>
+                    </span>
+                  </div>
+                </motion.div>
+
+                {/* Main Headline */}
+                <motion.h1
+                  variants={fadeUp}
+                  className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight leading-[1.06] text-slate-900 dark:text-white font-sans"
                 >
-                  Get Started Free
-                </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  onClick={() => onNavigate?.('cli')}
-                  className="w-full sm:w-auto h-12 px-5 rounded-xl border border-slate-300 dark:border-brandObsidian-700 bg-white/90 dark:bg-brandObsidian-900/90 hover:border-brandGold-500 text-slate-800 dark:text-slate-200 hover:text-brandGold-600 dark:hover:text-brandGold-400 font-bold text-sm shadow-xs hover:-translate-y-0.5 transition-all btn-press cursor-pointer shrink-0"
-                  leftIcon={<Terminal className="w-4 h-4 text-brandGold-500" />}
+                  Aravanta Cloud OS
+                  <span className="block mt-2 text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold bg-gradient-to-r from-brandGold-600 via-amber-400 to-brandGold-400 bg-clip-text text-transparent drop-shadow-xs">
+                    The Sovereign Multi-Cloud Operating System
+                  </span>
+                </motion.h1>
+
+                {/* Supporting Copy */}
+                <motion.p
+                  variants={fadeUp}
+                  className="text-sm sm:text-base md:text-lg text-slate-600 dark:text-slate-300 leading-relaxed font-normal max-w-2xl"
                 >
-                  Web Terminal
-                </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  onClick={() => onNavigate?.('services')}
-                  className="w-full sm:w-auto h-12 px-5 rounded-xl border border-slate-300 dark:border-brandObsidian-700 bg-white/90 dark:bg-brandObsidian-900/90 hover:border-brandGold-500 text-slate-800 dark:text-slate-200 hover:text-brandGold-600 dark:hover:text-brandGold-400 font-bold text-sm shadow-xs hover:-translate-y-0.5 transition-all btn-press cursor-pointer shrink-0"
-                  leftIcon={<Boxes className="w-4 h-4 text-brandGold-500" />}
+                  Orchestrate elastic virtual machines, managed Kubernetes clusters, distributed S3 storage, serverless functions, and high-availability databases from a single sovereign control plane — with sub-second telemetry, GitOps delivery, and predictable FinOps billing in INR (₹).
+                </motion.p>
+
+                {/* Real Aligned Responsive CTAs */}
+                <motion.div
+                  variants={fadeUp}
+                  className="flex flex-wrap items-center gap-3 pt-1 w-full"
                 >
-                  Explore 20+ Services
-                </Button>
-                {onGoToConsole && (
                   <Button
                     size="lg"
-                    variant="ghost"
-                    onClick={onGoToConsole}
-                    className="w-full sm:w-auto h-12 px-4 rounded-xl text-slate-700 dark:text-slate-300 hover:text-brandGold-600 dark:hover:text-brandGold-400 font-bold text-sm hover:bg-slate-100 dark:hover:bg-brandObsidian-800/80 transition-colors shrink-0"
-                    leftIcon={<LayoutGrid className="w-4 h-4 text-brandGold-500" />}
+                    variant="primary"
+                    onClick={onGoToRegister}
+                    className="h-12 px-6 rounded-xl bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold text-sm sm:text-base shadow-lg shadow-brandGold-500/25 hover:shadow-brandGold-500/40 hover:-translate-y-0.5 transition-all btn-press cursor-pointer shrink-0"
+                    rightIcon={<ArrowRight className="w-4 h-4" />}
                   >
-                    Console
+                    Get Started Free
                   </Button>
-                )}
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    onClick={() => onNavigate?.('cli')}
+                    className="h-12 px-5 rounded-xl border border-slate-300 dark:border-brandObsidian-700 bg-white/90 dark:bg-brandObsidian-900/90 hover:border-brandGold-500 text-slate-800 dark:text-slate-200 hover:text-brandGold-600 dark:hover:text-brandGold-400 font-bold text-sm shadow-xs hover:-translate-y-0.5 transition-all btn-press cursor-pointer shrink-0"
+                    leftIcon={<Terminal className="w-4 h-4 text-brandGold-500" />}
+                  >
+                    Web Terminal
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    onClick={() => onNavigate?.('services')}
+                    className="h-12 px-5 rounded-xl border border-slate-300 dark:border-brandObsidian-700 bg-white/90 dark:bg-brandObsidian-900/90 hover:border-brandGold-500 text-slate-800 dark:text-slate-200 hover:text-brandGold-600 dark:hover:text-brandGold-400 font-bold text-sm shadow-xs hover:-translate-y-0.5 transition-all btn-press cursor-pointer shrink-0"
+                    leftIcon={<Boxes className="w-4 h-4 text-brandGold-500" />}
+                  >
+                    Explore 20+ Services
+                  </Button>
+                  {onGoToConsole && (
+                    <Button
+                      size="lg"
+                      variant="ghost"
+                      onClick={onGoToConsole}
+                      className="h-12 px-4 rounded-xl text-slate-700 dark:text-slate-300 hover:text-brandGold-600 dark:hover:text-brandGold-400 font-bold text-sm hover:bg-slate-100 dark:hover:bg-brandObsidian-800/80 transition-colors shrink-0"
+                      leftIcon={<LayoutGrid className="w-4 h-4 text-brandGold-500" />}
+                    >
+                      Console
+                    </Button>
+                  )}
+                </motion.div>
+
+                {/* Inline Trust Badges Bar */}
+                <motion.div
+                  variants={fadeUp}
+                  className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-2 text-xs font-mono text-slate-500 dark:text-slate-400"
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-brandGold-500" />
+                    <span>100% In-Country Sovereign</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-brandGold-500" />
+                    <span>Tier-IV ISO 27001</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5 text-brandGold-500" />
+                    <span>DPDPA 2023 Compliant</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-brandGold-500" />
+                    <span>Zero Cross-Border Egress Tax</span>
+                  </span>
+                </motion.div>
               </motion.div>
 
-              {/* Factual Spec Strip with Subtle Glass Polish */}
+              {/* Right Column: Hero Interactive Sovereign Cloud Control Deck (Inspired by Image 2 Reference) */}
               <motion.div
-                variants={fadeUp}
-                className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pt-6 max-w-4xl mx-auto w-full"
+                initial={reduceMotion ? { opacity: 1 } : { opacity: 0, x: 20 }}
+                animate={mounted ? { opacity: 1, x: 0 } : {}}
+                transition={{ duration: 0.6, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
+                className="lg:col-span-5 relative"
               >
-                {[
-                  { value: '80+ Shapes', label: 'AMD EPYC & ARM VMs', icon: Server, badge: 'Compute' },
-                  { value: '< 60s', label: 'Provisioning Velocity', icon: Zap, badge: 'Velocity' },
-                  { value: 'INR (₹) & GST', label: 'Per-Second FinOps', icon: BarChart3, badge: 'FinOps' },
-                  { value: 'RFC 6238', label: 'TOTP 2FA Protected', icon: Lock, badge: 'Security' },
-                ].map((stat) => {
-                  const StatIcon = stat.icon;
-                  return (
-                    <div
-                      key={stat.label}
-                      className="p-4 rounded-2xl border border-slate-200/90 dark:border-brandGold-500/25 bg-white/95 dark:bg-[#0c121e]/90 backdrop-blur-xl shadow-xs hover:border-brandGold-500/60 hover:shadow-md hover:shadow-brandGold-500/10 hover:-translate-y-1 transition-all duration-300 text-left flex flex-col justify-between group relative overflow-hidden"
-                    >
-                      <div className="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-brandGold-500/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                      <div className="flex items-center justify-between mb-2.5 sm:mb-3">
-                        <div className="w-8 h-8 rounded-xl bg-brandGold-500/10 text-brandGold-600 dark:text-brandGold-400 flex items-center justify-center group-hover:bg-brandGold-500 group-hover:text-brandObsidian-950 transition-colors duration-300">
-                          <StatIcon className="w-4 h-4" />
-                        </div>
-                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-brandObsidian-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-brandObsidian-700 group-hover:border-brandGold-500/40 transition-colors">
-                          {stat.badge}
-                        </span>
+                {/* Ambient glow behind right artifact */}
+                <div className="absolute -inset-4 rounded-[2.5rem] bg-gradient-to-tr from-brandGold-500/20 via-amber-500/10 to-transparent blur-2xl -z-10" />
+
+                {/* Interactive Deck Card Container */}
+                <div className="rounded-3xl border border-slate-200/90 dark:border-brandGold-500/30 bg-white/95 dark:bg-[#0c121e]/95 p-4 sm:p-5 shadow-2xl backdrop-blur-xl space-y-4 ring-1 ring-black/5 dark:ring-brandGold-500/10">
+                  {/* Top Bar: Live Node Selector */}
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-brandObsidian-800">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-brandGold-500/10 text-brandGold-500 flex items-center justify-center">
+                        <Server className="w-4 h-4" />
                       </div>
                       <div>
-                        <div className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tabular-nums tracking-tight">
-                          {stat.value}
+                        <div className="text-xs font-bold text-slate-900 dark:text-white font-mono flex items-center gap-1.5">
+                          <span>ap-south-1a</span>
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                         </div>
-                        <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">
-                          {stat.label}
+                        <div className="text-[10px] text-slate-500 font-mono">Tier-IV Sovereign Core</div>
+                      </div>
+                    </div>
+                    <Badge variant="gold" size="sm" className="font-mono text-[10px]">
+                      SLO: 99.99%
+                    </Badge>
+                  </div>
+
+                  {/* Interactive Workload Switcher Pills */}
+                  <div className="grid grid-cols-4 gap-1 p-1 rounded-xl bg-slate-100 dark:bg-brandObsidian-900/80 border border-slate-200/60 dark:border-brandObsidian-800 text-[11px] font-mono font-bold">
+                    {[
+                      { id: 'vm', label: 'Compute', icon: Server },
+                      { id: 'k8s', label: 'Kube', icon: Boxes },
+                      { id: 's3', label: 'S3 Store', icon: HardDrive },
+                      { id: 'db', label: 'Postgres', icon: Database },
+                    ].map((m) => {
+                      const Icon = m.icon;
+                      const active = heroSelectedModule === m.id;
+                      return (
+                        <button
+                          key={m.id}
+                          onClick={() => setHeroSelectedModule(m.id as any)}
+                          className={`py-1.5 px-1.5 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                            active
+                              ? 'bg-brandGold-500 text-brandObsidian-950 shadow-xs'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          }`}
+                        >
+                          <Icon className="w-3 h-3" />
+                          <span>{m.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* The Metallic Obsidian & Gold Workload Blade Card */}
+                  <div className="relative rounded-2xl overflow-hidden p-5 bg-gradient-to-br from-[#121929] via-[#090d16] to-[#04070c] border border-brandGold-500/40 text-white shadow-xl space-y-4">
+                    {/* Metallic Shimmer accent line */}
+                    <div className="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-brandGold-400 to-transparent" />
+                    <div className="absolute -top-12 -right-12 w-28 h-28 bg-brandGold-500/20 rounded-full blur-xl pointer-events-none" />
+
+                    {/* Card Header Row */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-brandGold-500/20 border border-brandGold-500/40 flex items-center justify-center">
+                          <Cpu className="w-4 h-4 text-brandGold-400" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-white tracking-wide font-sans">
+                            {heroSelectedModule === 'vm' ? 'c3.4xlarge-epyc-prod' :
+                             heroSelectedModule === 'k8s' ? 'k8s-mumbai-cluster-01' :
+                             heroSelectedModule === 's3' ? 'arv-production-vault' : 'mumbai-pg-ha-cluster'}
+                          </div>
+                          <div className="text-[10px] font-mono text-brandGold-400">
+                            {heroSelectedModule === 'vm' ? 'AMD EPYC 9654 (Dedicated)' :
+                             heroSelectedModule === 'k8s' ? 'Kubernetes 1.30 (3-Node HA)' :
+                             heroSelectedModule === 's3' ? 'NVMe S3 Standard (Multi-AZ)' : 'PostgreSQL 16 HA Standby'}
+                          </div>
+                        </div>
+                      </div>
+                      <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        RUNNING
+                      </span>
+                    </div>
+
+                    {/* Card Metrics & Specs Grid */}
+                    <div className="grid grid-cols-2 gap-2.5 pt-1 text-xs font-mono">
+                      <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                        <div className="text-[10px] text-slate-400 uppercase">Core Capacity</div>
+                        <div className="text-sm font-bold text-white mt-0.5">
+                          {heroSelectedModule === 'vm' ? '64 vCPU / 128GB' :
+                           heroSelectedModule === 'k8s' ? '18 Nodes / 144 Pods' :
+                           heroSelectedModule === 's3' ? '14.8 TB Active NVMe' : '16 vCPU / 64GB RAM'}
+                        </div>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                        <div className="text-[10px] text-slate-400 uppercase">Edge Latency</div>
+                        <div className="text-sm font-bold text-brandGold-400 mt-0.5">
+                          7.8 ms (ap-south-1)
                         </div>
                       </div>
                     </div>
-                  );
-                })}
+
+                    {/* Live Telemetry Progress Bar */}
+                    <div className="space-y-1.5 pt-0.5">
+                      <div className="flex justify-between text-[11px] font-mono text-slate-300">
+                        <span>CPU Fleet Utilization</span>
+                        <span className="font-bold text-emerald-400">32.4% Optimal</span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-emerald-500 to-brandGold-400 w-[32.4%] rounded-full" />
+                      </div>
+                    </div>
+
+                    {/* Bottom Card Footer */}
+                    <div className="flex items-center justify-between pt-2 border-t border-white/10 text-[11px] font-mono">
+                      <span className="text-slate-400">Rate: ₹1.50 / vCPU-hr</span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText('arv compute connect prod-api-gateway-c3');
+                          setHeroCopied(true);
+                          setTimeout(() => setHeroCopied(false), 2000);
+                        }}
+                        className="text-brandGold-400 hover:text-brandGold-300 flex items-center gap-1 cursor-pointer font-bold"
+                      >
+                        {heroCopied ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Command Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Terminal className="w-3.5 h-3.5" />
+                            <span>Copy SSH CLI</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Floating Micro Highlights Row (Matching Image 2 Style) */}
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-brandObsidian-900 border border-slate-200/60 dark:border-brandObsidian-800 text-[11px]">
+                      <Sparkles className="w-3.5 h-3.5 text-brandGold-500 shrink-0" />
+                      <div className="truncate">
+                        <div className="font-bold text-slate-800 dark:text-slate-200">₹4,000 Free Credits</div>
+                        <div className="text-[10px] text-slate-500">Auto-applied on signup</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-brandObsidian-900 border border-slate-200/60 dark:border-brandObsidian-800 text-[11px]">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      <div className="truncate">
+                        <div className="font-bold text-slate-800 dark:text-slate-200">Zero Egress Fees</div>
+                        <div className="text-[10px] text-slate-500">Free internal network</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </motion.div>
+            </div>
+
+            {/* ── Factual Spec Strip with Subtle Glass Polish (Immediately Below Hero Split) ── */}
+            <motion.div
+              variants={fadeUp}
+              initial="hidden"
+              animate={mounted ? 'show' : 'hidden'}
+              className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pt-12 sm:pt-14 max-w-7xl mx-auto w-full"
+            >
+              {[
+                { value: '80+ Shapes', label: 'AMD EPYC & ARM VMs', icon: Server, badge: 'Compute' },
+                { value: '< 60s', label: 'Provisioning Velocity', icon: Zap, badge: 'Velocity' },
+                { value: 'INR (₹) & GST', label: 'Per-Second FinOps', icon: BarChart3, badge: 'FinOps' },
+                { value: 'RFC 6238', label: 'TOTP 2FA Protected', icon: Lock, badge: 'Security' },
+              ].map((stat) => {
+                const StatIcon = stat.icon;
+                return (
+                  <div
+                    key={stat.label}
+                    className="p-4 rounded-2xl border border-slate-200/90 dark:border-brandGold-500/25 bg-white/95 dark:bg-[#0c121e]/90 backdrop-blur-xl shadow-xs hover:border-brandGold-500/60 hover:shadow-md hover:shadow-brandGold-500/10 hover:-translate-y-1 transition-all duration-300 text-left flex flex-col justify-between group relative overflow-hidden"
+                  >
+                    <div className="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-brandGold-500/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    <div className="flex items-center justify-between mb-2.5 sm:mb-3">
+                      <div className="w-8 h-8 rounded-xl bg-brandGold-500/10 text-brandGold-600 dark:text-brandGold-400 flex items-center justify-center group-hover:bg-brandGold-500 group-hover:text-brandObsidian-950 transition-colors duration-300">
+                        <StatIcon className="w-4 h-4" />
+                      </div>
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-brandObsidian-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-brandObsidian-700 group-hover:border-brandGold-500/40 transition-colors">
+                        {stat.badge}
+                      </span>
+                    </div>
+                    <div>
+                      <div className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tabular-nums tracking-tight">
+                        {stat.value}
+                      </div>
+                      <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">
+                        {stat.label}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </motion.div>
 
             {/* ── LAYERED PRODUCT DASHBOARD PREVIEW & SIMULATOR ── */}
@@ -1077,6 +1235,198 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
         </section>
 
+        {/* ── PAN-INDIA SOVEREIGN DATACENTER NETWORK & LATENCY MATRIX (Inspired by Image 2 Reference) ── */}
+        <section id="network" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800 bg-slate-50/70 dark:bg-brandObsidian-950/60 relative overflow-hidden">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+            
+            {/* Header with Title and Executive Summary */}
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+              <div className="space-y-4 max-w-3xl">
+                <Badge variant="gold" size="md">
+                  Pan-India Sovereign Edge Infrastructure
+                </Badge>
+                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.08]">
+                  Sub-10ms Sovereign Cloud Mesh Across Indian Metros
+                </h2>
+                <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Interconnected across Tier-IV carrier-neutral sovereign data hubs via dedicated high-bandwidth dark fiber. Guaranteed 100% in-country data residency under the Digital Personal Data Protection Act (DPDPA 2023) with zero cross-border telemetry leakage.
+                </p>
+              </div>
+
+              {/* Transit peering badges */}
+              <div className="flex flex-wrap lg:flex-col items-start lg:items-end gap-2 text-xs font-mono text-slate-500 dark:text-slate-400">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-800 shadow-xs">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="font-bold text-slate-800 dark:text-slate-200">Carrier Interconnects:</span>
+                  <span>NIXI • Tata • Airtel • Jio</span>
+                </div>
+                <div className="inline-flex items-center gap-1.5 text-[11px] text-brandGold-600 dark:text-brandGold-400">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>MeitY Tier-IV Standards Compliant</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Split Grid: Interactive Region Selector + Telemetry Radar */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              
+              {/* Left Column (7 cols): Interactive Region Cards */}
+              <div className="lg:col-span-7 space-y-4">
+                <div className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Select Active Sovereign Region Hub:
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {edgeRegions.map((region) => {
+                    const isSelected = selectedEdgeRegion === region.id;
+                    return (
+                      <button
+                        key={region.id}
+                        onClick={() => setSelectedEdgeRegion(region.id as any)}
+                        className={`p-4 rounded-2xl border text-left transition-all duration-200 cursor-pointer flex flex-col justify-between space-y-3 ${
+                          isSelected
+                            ? 'bg-white dark:bg-brandObsidian-900 border-brandGold-500 shadow-md shadow-brandGold-500/10 ring-1 ring-brandGold-500/50'
+                            : 'bg-white/80 dark:bg-brandObsidian-900/60 border-slate-200/90 dark:border-brandObsidian-800 hover:border-brandGold-500/40 text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                            <span className="font-bold text-slate-900 dark:text-white text-sm">
+                              {region.city}
+                            </span>
+                          </div>
+                          <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-full bg-brandGold-500/15 text-brandGold-700 dark:text-brandGold-300">
+                            {region.code}
+                          </span>
+                        </div>
+
+                        <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                          {region.tier}
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-brandObsidian-800 text-[11px] font-mono">
+                          <span className="text-slate-500">P95 RTT Ping:</span>
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                            <Radio className="w-3 h-3 text-emerald-500" />
+                            {region.latency}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Selected Region Detailed Specs Banner */}
+                {(() => {
+                  const currentRegion = edgeRegions.find((r) => r.id === selectedEdgeRegion) || edgeRegions[0];
+                  return (
+                    <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-800 shadow-sm space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-brandGold-500/10 text-brandGold-500 flex items-center justify-center font-bold text-xs">
+                            <Network className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-slate-900 dark:text-white">
+                              {currentRegion.city} Sovereign Core ({currentRegion.code})
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-mono">
+                              Power Architecture: {currentRegion.power}
+                            </div>
+                          </div>
+                        </div>
+                        <Badge variant="outline" size="sm" className="font-mono text-[10px]">
+                          {currentRegion.status}
+                        </Badge>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {currentRegion.peering.map((peer) => (
+                          <span
+                            key={peer}
+                            className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-brandObsidian-800 text-slate-700 dark:text-slate-300 font-mono text-[10px] border border-slate-200 dark:border-brandObsidian-700"
+                          >
+                            Peered: {peer}
+                          </span>
+                        ))}
+                      </div>
+
+                      <div className="text-xs text-slate-600 dark:text-slate-300 font-mono pt-1 flex items-center justify-between border-t border-slate-100 dark:border-brandObsidian-800">
+                        <span>Workloads Hosted: {currentRegion.workloads}</span>
+                        <span className="text-brandGold-600 dark:text-brandGold-400 font-bold">100% Onshore</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Right Column (5 cols): Sovereign Guarantee Card & Verified Infrastructure Quote */}
+              <div className="lg:col-span-5 space-y-4">
+                
+                {/* Visual Sovereign Compliance Card */}
+                <div className="p-6 rounded-3xl bg-gradient-to-br from-[#121929] via-[#090d16] to-[#04070c] border border-brandGold-500/40 text-white shadow-xl space-y-4 relative overflow-hidden">
+                  <div className="absolute -top-16 -right-16 w-36 h-36 bg-brandGold-500/15 rounded-full blur-2xl pointer-events-none" />
+                  
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-mono uppercase font-bold text-brandGold-400 flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-brandGold-400" />
+                      Sovereign Data Guarantee
+                    </span>
+                    <Badge variant="gold" size="sm" className="text-[10px] font-mono">
+                      DPDPA 2023
+                    </Badge>
+                  </div>
+
+                  <h3 className="text-xl font-bold tracking-tight text-white leading-snug">
+                    Zero Cross-Border Routing. Absolute Jurisdiction Protection.
+                  </h3>
+
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Under Indian Digital Personal Data Protection mandates, your transactional tables, object assets, and encryption keys never transit international cables or non-Indian cloud jurisdictions.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-3 pt-2 text-xs font-mono">
+                    <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                      <div className="text-[10px] text-slate-400 uppercase">Packet Path</div>
+                      <div className="text-sm font-bold text-emerald-400 mt-1">100% Domestic</div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                      <div className="text-[10px] text-slate-400 uppercase">Egress Tax</div>
+                      <div className="text-sm font-bold text-brandGold-400 mt-1">₹0.00 Internal</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* SRE Testimonial Card (Directly mirrors Image 2's executive quote under map) */}
+                <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-800 shadow-sm space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-brandGold-500 to-amber-300 flex items-center justify-center text-brandObsidian-950 font-bold text-sm shadow-md">
+                      AD
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold text-slate-900 dark:text-white">
+                        Ananya Desai
+                      </div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                        VP of Core Infrastructure, BharatPay Fintech
+                      </div>
+                    </div>
+                  </div>
+
+                  <blockquote className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 italic leading-relaxed">
+                    &ldquo;Migrating our core payment workloads to Aravanta&apos;s Mumbai and Bengaluru sovereign regions dropped our checkout P99 latency from 180ms to 24ms while eliminating all foreign egress surcharges. The compliance audits went from weeks to zero friction.&rdquo;
+                  </blockquote>
+
+                  <div className="flex items-center gap-2 pt-1 text-[11px] font-mono text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Verified Production Workload • ₹320 Cr/mo Processed</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* ── CORE CAPABILITIES SECTION ── */}
         <section id="capabilities" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
@@ -1139,142 +1489,183 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
         </section>
 
-        {/* ── HOW IT WORKS: THE 6-STEP APPLICATION WORKFLOW ── */}
-        <section id="workflow" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800 bg-slate-100/50 dark:bg-brandObsidian-900/40">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-            <div className="max-w-3xl space-y-4">
-              <Badge variant="outline" size="md">
-                Application Lifecycle
-              </Badge>
-              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.1]">
-                How Aravanta CloudOS Operates
-              </h2>
-              <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-                From initial account registration with TOTP 2FA to automated canary rollouts and GST tax invoicing, follow the exact workflow implemented across our full stack.
-              </p>
-            </div>
+        {/* ── 3-STEP SOVEREIGN WORKLOAD ONBOARDING (Inspired by Image 2 Reference) ── */}
+        <section id="onboarding" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800 bg-slate-100/50 dark:bg-brandObsidian-900/40">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            
+            {/* The Signature Curved Enterprise Container */}
+            <div className="rounded-3xl border border-brandGold-500/30 bg-gradient-to-br from-[#0e1526] via-[#090d16] to-[#04070c] p-8 sm:p-12 lg:p-16 relative overflow-hidden shadow-2xl text-center space-y-10">
+              {/* Subtle ambient lighting arc */}
+              <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-brandGold-500/15 via-brandGold-500/5 to-transparent blur-2xl pointer-events-none" />
+              <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-96 bg-brandGold-500/10 rounded-full blur-3xl pointer-events-none" />
 
-            {/* Stepper Navigation */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-              {workflowSteps.map((step, idx) => {
-                const StepIcon = step.icon;
-                const isActive = idx === activeWorkflowStep;
-                return (
-                  <button
-                    key={step.key}
-                    onClick={() => setActiveWorkflowStep(idx)}
-                    className={[
-                      'p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between min-h-[96px]',
-                      isActive
-                        ? 'bg-brandGold-500/10 border-brandGold-500 text-slate-900 dark:text-white shadow-xs'
-                        : 'bg-white dark:bg-brandObsidian-900 border-slate-200 dark:border-brandObsidian-800 text-slate-600 dark:text-slate-400 hover:border-brandGold-500/40',
-                    ].join(' ')}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className={[
-                        'text-[11px] font-mono font-bold',
-                        isActive ? 'text-brandGold-600 dark:text-brandGold-400' : 'text-slate-400',
-                      ].join(' ')}>
-                        STEP {step.step}
-                      </span>
-                      <StepIcon className={[
-                        'w-4 h-4',
-                        isActive ? 'text-brandGold-500' : 'text-slate-400',
-                      ].join(' ')} />
-                    </div>
-                    <span className="text-xs font-bold line-clamp-1 mt-2">
-                      {step.name}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+              {/* Header */}
+              <div className="max-w-3xl mx-auto space-y-4 relative z-10">
+                <Badge variant="gold" size="md">
+                  Zero-Friction Sovereign Migration
+                </Badge>
+                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-white leading-[1.08]">
+                  Deploy Sovereign Workloads in Under 3 Minutes
+                </h2>
+                <p className="text-sm sm:text-base md:text-lg text-slate-300 leading-relaxed font-normal">
+                  Zero proprietary vendor lock-in. Migrate existing workloads seamlessly from AWS, Azure, or on-premise bare metal using open standards, native S3 APIs, and standard OCI container images.
+                </p>
+              </div>
 
-            {/* Active Step Showcase */}
-            <Card goldAccent className="bg-white dark:bg-brandObsidian-900">
-              <CardBody className="!p-6 sm:!p-8 grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-10 items-center">
-                <div className="lg:col-span-8 space-y-4">
-                  <Badge variant="gold" size="md">
-                    Step {workflowSteps[activeWorkflowStep].step} • {workflowSteps[activeWorkflowStep].name}
-                  </Badge>
-                  <h3 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-                    {workflowSteps[activeWorkflowStep].title}
-                  </h3>
-                  <p className="text-base text-slate-600 dark:text-slate-300 leading-relaxed">
-                    {workflowSteps[activeWorkflowStep].desc}
-                  </p>
-
-                  <div className="grid grid-cols-2 gap-4 pt-3 max-w-md">
-                    {workflowSteps[activeWorkflowStep].metrics.map((m) => (
-                      <div
-                        key={m.label}
-                        className="rounded-xl bg-slate-50 dark:bg-brandObsidian-800/60 border border-slate-200 dark:border-brandObsidian-700/60 p-4"
-                      >
-                        <div className="text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 font-mono">
-                          {m.label}
-                        </div>
-                        <div className="mt-1 text-lg sm:text-xl font-black text-slate-900 dark:text-white font-mono">
-                          {m.value}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="lg:col-span-4 flex justify-center">
-                  <div className="w-full max-w-xs p-6 rounded-2xl bg-slate-50 dark:bg-brandObsidian-800/50 border border-slate-200 dark:border-brandObsidian-700 text-center space-y-3">
-                    <div className="w-12 h-12 rounded-xl bg-brandGold-500/10 text-brandGold-500 flex items-center justify-center mx-auto">
-                      {React.createElement(workflowSteps[activeWorkflowStep].icon, { className: 'w-6 h-6' })}
-                    </div>
-                    <div className="text-xs font-mono font-bold uppercase text-slate-400">Production Ready</div>
-                    <div className="text-sm font-bold text-slate-800 dark:text-slate-200">
-                      Live in Aravanta Control Plane
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onNavigate?.('documentation')}
-                      className="w-full text-xs cursor-pointer"
+              {/* Protocol Interop Badges (Floating along arc like Image 2) */}
+              <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 relative z-10 max-w-4xl mx-auto">
+                {[
+                  { label: 'S3 API v4 Compatible', icon: HardDrive },
+                  { label: 'Kubernetes v1.30 HA', icon: Boxes },
+                  { label: 'OCI / Docker Registry', icon: Layers },
+                  { label: 'NVMe Direct Block Storage', icon: Server },
+                  { label: 'WireGuard Mesh VPC', icon: Network },
+                ].map((item) => {
+                  const ItemIcon = item.icon;
+                  return (
+                    <div
+                      key={item.label}
+                      className="px-3.5 py-1.5 rounded-full bg-white/5 border border-white/10 hover:border-brandGold-500/40 text-slate-300 hover:text-white text-xs font-mono flex items-center gap-2 transition-colors shadow-xs backdrop-blur-md"
                     >
-                      Read Step Documentation
-                    </Button>
-                  </div>
-                </div>
-              </CardBody>
-            </Card>
+                      <ItemIcon className="w-3.5 h-3.5 text-brandGold-400" />
+                      <span>{item.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 3 Step Cards (01, 02, 03) */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10 text-left">
+                {[
+                  {
+                    step: '01',
+                    icon: Key,
+                    title: 'Create Sovereign Workspace',
+                    desc: 'Sign up with Account ID (ARV-ACC-XXXXXX) or corporate email. Pair RFC 6238 30-second TOTP authenticator and enforce granular 5-tier RBAC permissions.',
+                    badge: 'Instant Setup',
+                  },
+                  {
+                    step: '02',
+                    icon: Terminal,
+                    title: 'Deploy via GitOps, CLI or Web Shell',
+                    desc: 'Push Docker OCI containers, apply declarative Terraform plans, or launch pre-hardened AMD EPYC VM shapes with NVMe volumes in under 60 seconds.',
+                    badge: '< 60s Velocity',
+                  },
+                  {
+                    step: '03',
+                    icon: RefreshCw,
+                    title: 'Auto-Scale, Monitor & Settle in INR',
+                    desc: 'Observe live Prometheus metrics, enable automated Canary rollbacks on latency spikes, and settle consumption via UPI, NetBanking, or GST tax invoices.',
+                    badge: 'Zero Egress Tax',
+                  },
+                ].map((s) => {
+                  const SIcon = s.icon;
+                  return (
+                    <div
+                      key={s.step}
+                      className="p-6 rounded-2xl bg-white/5 border border-white/10 hover:border-brandGold-500/50 hover:bg-white/10 transition-all duration-300 flex flex-col justify-between space-y-4 group"
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="w-9 h-9 rounded-xl bg-brandGold-500/20 text-brandGold-400 border border-brandGold-500/30 flex items-center justify-center font-mono font-bold text-sm">
+                            {s.step}
+                          </span>
+                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-white/10 text-slate-300 border border-white/10 group-hover:border-brandGold-500/40 transition-colors">
+                            {s.badge}
+                          </span>
+                        </div>
+
+                        <div className="w-9 h-9 rounded-xl bg-white/5 text-slate-300 flex items-center justify-center group-hover:text-brandGold-400 transition-colors">
+                          <SIcon className="w-5 h-5" />
+                        </div>
+
+                        <h3 className="text-lg font-bold text-white tracking-tight">
+                          {s.title}
+                        </h3>
+
+                        <p className="text-xs text-slate-300 leading-relaxed font-normal">
+                          {s.desc}
+                        </p>
+                      </div>
+
+                      <div className="pt-3 border-t border-white/10 flex items-center justify-between text-[11px] font-mono text-brandGold-400">
+                        <span>Production Verified</span>
+                        <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center justify-center gap-3 pt-4 relative z-10">
+                <Button
+                  size="lg"
+                  variant="primary"
+                  onClick={onGoToRegister}
+                  className="h-12 px-7 rounded-xl bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold text-sm shadow-lg shadow-brandGold-500/25 cursor-pointer"
+                  rightIcon={<ArrowRight className="w-4 h-4" />}
+                >
+                  Create Sovereign Account
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={() => onNavigate?.('documentation')}
+                  className="h-12 px-6 rounded-xl border-white/20 bg-white/5 hover:bg-white/10 text-white font-bold text-sm cursor-pointer"
+                  leftIcon={<BookOpen className="w-4 h-4 text-brandGold-400" />}
+                >
+                  Read Migration Architecture Guide
+                </Button>
+              </div>
+            </div>
           </div>
         </section>
 
-        {/* ── DEVELOPER EXPERIENCE (CLI & APIS) ── */}
+        {/* ── DEVELOPER EXPERIENCE & GITOPS TOOLCHAIN (Inspired by Image 2 Reference) ── */}
         <section id="developers" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-start">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+            
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-start">
+              {/* Left Column (5 cols): Context, Integration Logos & Documentation CTA */}
               <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-24">
                 <Badge variant="gold" size="md">
-                  Developer Workflows
+                  Developer-First Toolchain
                 </Badge>
                 <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.08]">
-                  Automate Infrastructure via CLI, Terraform, and REST.
+                  Built for GitOps, Terraform, and Terminal Natives
                 </h2>
                 <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-                  Every resource accessible in the visual dashboard is exposed programmatically through the Aravanta CLI v2.0, OpenAPI 3.1 endpoints, and Terraform resources.
+                  Every sovereign primitive accessible in the console is addressable through declarative IaC, cross-platform CLI binaries, or OpenAPI 3.1 endpoints.
                 </p>
 
-                <div className="space-y-3 pt-1">
-                  {[
-                    'Cross-platform global CLI: install on Windows (pwsh) or macOS/Linux (bash)',
-                    'OpenAPI 3.1 Swagger spec hosted at /api/v1/openapi.json',
-                    'Idempotent provisioning with stateful transaction rollback',
-                  ].map((item) => (
-                    <div key={item} className="flex items-start gap-3">
-                      <span className="mt-1 w-5 h-5 rounded-full bg-brandGold-500/10 text-brandGold-500 flex items-center justify-center shrink-0">
-                        <Check className="w-3.5 h-3.5" />
-                      </span>
-                      <span className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
-                        {item}
-                      </span>
-                    </div>
-                  ))}
+                {/* Ecosystem Integrations Grid (Mirroring Image 2 Partner ecosystem) */}
+                <div className="space-y-3 pt-2">
+                  <div className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    First-Class Native Integrations:
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                    {[
+                      { name: 'Terraform & OpenTofu', tag: 'Provider v2.4' },
+                      { name: 'Kubernetes & Helm', tag: 'v1.30 Native' },
+                      { name: 'Docker / OCI Registry', tag: 'Multi-Arch' },
+                      { name: 'Prometheus & OTel', tag: 'P99 Realtime' },
+                      { name: 'PostgreSQL 16 HA', tag: 'PgBouncer' },
+                      { name: 'GitHub / GitLab CI', tag: 'GitOps Webhook' },
+                    ].map((tool) => (
+                      <div
+                        key={tool.name}
+                        className="p-2.5 rounded-xl bg-white dark:bg-brandObsidian-900 border border-slate-200/90 dark:border-brandObsidian-800 flex items-center justify-between shadow-xs"
+                      >
+                        <span className="font-bold text-slate-800 dark:text-slate-200 truncate">
+                          {tool.name}
+                        </span>
+                        <span className="text-[10px] text-brandGold-600 dark:text-brandGold-400 font-semibold shrink-0">
+                          {tool.tag}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="pt-2 flex flex-wrap gap-3">
@@ -1287,103 +1678,261 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   >
                     View Developer Documentation
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={() => onNavigate?.('cli')}
+                    leftIcon={<Terminal className="w-4 h-4 text-brandGold-500" />}
+                    className="cursor-pointer"
+                  >
+                    CLI Reference
+                  </Button>
                 </div>
               </div>
 
-              <div className="lg:col-span-7">
-                <TabContainer defaultValue="cli">
-                  <div className="mb-4 overflow-x-auto pb-1">
-                    <TabList>
-                      <Tab value="cli">Aravanta CLI v2.0</Tab>
-                      <Tab value="terraform">Terraform</Tab>
-                      <Tab value="rest">REST API</Tab>
-                      <Tab value="sdk">Node.js SDK</Tab>
-                    </TabList>
+              {/* Right Column (7 cols): Interactive Code Box + 4 Feature Cards */}
+              <div className="lg:col-span-7 space-y-6">
+                
+                {/* Interactive Code Box with Switcher and 1-Click Copy */}
+                <div className="rounded-2xl border border-slate-200 dark:border-brandObsidian-700 bg-white dark:bg-brandObsidian-900 shadow-xl overflow-hidden">
+                  {/* Code Box Header Tabs */}
+                  <div className="px-4 py-3 border-b border-slate-200 dark:border-brandObsidian-800 bg-slate-100/70 dark:bg-brandObsidian-800/60 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-200/70 dark:bg-brandObsidian-900 border border-slate-300 dark:border-brandObsidian-700 text-xs font-mono">
+                      {[
+                        { id: 'terraform', label: 'Terraform' },
+                        { id: 'cli', label: 'arv CLI' },
+                        { id: 'python', label: 'Python SDK' },
+                        { id: 'curl', label: 'REST API' },
+                      ].map((tab) => (
+                        <button
+                          key={tab.id}
+                          onClick={() => setSelectedDevTab(tab.id as any)}
+                          className={`px-3 py-1.5 rounded-lg transition-all font-bold cursor-pointer ${
+                            selectedDevTab === tab.id
+                              ? 'bg-brandGold-500 text-brandObsidian-950 shadow-xs'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          }`}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(devTabSnippets[selectedDevTab].code);
+                        setDevSnippetCopied(true);
+                        setTimeout(() => setDevSnippetCopied(false), 2000);
+                      }}
+                      className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-brandObsidian-700 bg-white dark:bg-brandObsidian-800 text-slate-700 dark:text-slate-300 text-xs font-mono font-bold flex items-center gap-1.5 hover:border-brandGold-500 cursor-pointer shadow-xs transition-colors"
+                    >
+                      {devSnippetCopied ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-500" />
+                          <span>Copied to Clipboard!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5 text-brandGold-500" />
+                          <span>Copy Snippet</span>
+                        </>
+                      )}
+                    </button>
                   </div>
-                  <TabPanel value="cli">
-                    <CodeBlock code={codeSnippets.cli} language="bash" />
-                  </TabPanel>
-                  <TabPanel value="terraform">
-                    <CodeBlock code={codeSnippets.terraform} language="hcl" />
-                  </TabPanel>
-                  <TabPanel value="rest">
-                    <CodeBlock code={codeSnippets.rest} language="bash" />
-                  </TabPanel>
-                  <TabPanel value="sdk">
-                    <CodeBlock code={codeSnippets.sdk} language="typescript" />
-                  </TabPanel>
-                </TabContainer>
+
+                  {/* Code View Area */}
+                  <div className="p-4 sm:p-5 bg-brandObsidian-950 text-slate-200 font-mono text-xs sm:text-sm overflow-x-auto leading-relaxed border-t border-brandObsidian-800">
+                    <pre className="whitespace-pre">
+                      <code>{devTabSnippets[selectedDevTab].code}</code>
+                    </pre>
+                  </div>
+                </div>
+
+                {/* 4 Toolchain Feature Tiles (Inspired by Image 2's 4 visual tiles) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {[
+                    {
+                      icon: Play,
+                      title: 'In-Browser Web Terminal',
+                      desc: 'SSH into your running compute nodes with zero keys to download. Web-based terminal with full ANSI color support and session replay.',
+                      badge: 'Interactive Shell',
+                      route: 'cli' as const,
+                    },
+                    {
+                      icon: HardDrive,
+                      title: 'NVMe S3-Compatible Store',
+                      desc: 'Drop-in replacement for AWS S3 with sub-10ms TTFB. Full multi-part chunking, folder hierarchies, and presigned uploads.',
+                      badge: 'Zero Egress',
+                      route: 'storage' as const,
+                    },
+                    {
+                      icon: GitBranch,
+                      title: 'GitOps Canary Rollouts',
+                      desc: 'Trigger canary traffic slicing (e.g., 25% traffic). Automated instant rollback in under 1.2s if error budgets or latency SLOs breach.',
+                      badge: 'Automated SRE',
+                      route: 'operations' as const,
+                    },
+                    {
+                      icon: Layers,
+                      title: '5-Tier Database-Enforced RBAC',
+                      desc: 'Granular permissions verified at the PostgreSQL schema boundary. Cryptographically signed audit trail logs with actor IP capture.',
+                      badge: 'RFC 6238 MFA',
+                      route: 'iam' as const,
+                    },
+                  ].map((tile) => {
+                    const TileIcon = tile.icon;
+                    return (
+                      <div
+                        key={tile.title}
+                        className="p-5 rounded-2xl bg-white dark:bg-brandObsidian-900 border border-slate-200/90 dark:border-brandObsidian-800 hover:border-brandGold-500/50 hover:shadow-card-hover transition-all duration-200 flex flex-col justify-between space-y-3 group"
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="w-9 h-9 rounded-xl bg-brandGold-500/10 text-brandGold-500 flex items-center justify-center group-hover:bg-brandGold-500 group-hover:text-brandObsidian-950 transition-colors">
+                              <TileIcon className="w-4 h-4" />
+                            </div>
+                            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-brandObsidian-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-brandObsidian-700">
+                              {tile.badge}
+                            </span>
+                          </div>
+                          <h3 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-brandGold-500 transition-colors">
+                            {tile.title}
+                          </h3>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                            {tile.desc}
+                          </p>
+                        </div>
+
+                        <button
+                          onClick={() => onNavigate?.(tile.route as any)}
+                          className="inline-flex items-center gap-1 text-xs font-bold text-brandGold-600 dark:text-brandGold-400 hover:text-brandGold-700 dark:hover:text-brandGold-300 pt-2 border-t border-slate-100 dark:border-brandObsidian-800 cursor-pointer"
+                        >
+                          <span>Explore Primitive</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* ── SECURITY, TRUST & SOVEREIGNTY ── */}
+        {/* ── SOVEREIGN COMPLIANCE & SECURITY (Inspired by Image 2 Reference) ── */}
         <section id="security" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800 bg-slate-100/50 dark:bg-brandObsidian-900/40">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-            <div className="text-center max-w-3xl mx-auto space-y-4">
-              <Badge variant="outline" size="md">
-                Technical Security Architecture
-              </Badge>
-              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.1]">
-                Zero-Trust Access & Immutable Audits
-              </h2>
-              <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-                Security in Aravanta CloudOS is enforced at the database and API schema boundaries — not merely in the browser UI.
-              </p>
-            </div>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
+              
+              {/* Left Column (5 cols): High-Impact CISO Testimonial Card (Image 2 style) */}
+              <div className="lg:col-span-5">
+                <div className="rounded-3xl bg-gradient-to-br from-[#121929] via-[#090d16] to-[#04070c] border border-brandGold-500/40 p-6 sm:p-8 text-white shadow-2xl relative overflow-hidden space-y-6">
+                  <div className="absolute top-0 right-0 w-44 h-44 bg-brandGold-500/10 rounded-full blur-2xl pointer-events-none" />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[
-                {
-                  icon: Lock,
-                  title: 'RFC 6238 TOTP Multi-Factor Auth',
-                  desc: 'Standard 30-second rotating time-step verification. Protects administrative logins with cryptographic authenticator app pairing.',
-                },
-                {
-                  icon: ShieldCheck,
-                  title: '5-Tier Server-Controlled RBAC',
-                  desc: 'Strict role hierarchy (SuperAdmin, Admin, Operator, Developer, Viewer). Payloads attempting client-side scope injections are rejected.',
-                },
-                {
-                  icon: Activity,
-                  title: 'Sliding-Window Rate Limiting',
-                  desc: 'Five consecutive authentication failures trigger an automatic 60-second lockout to protect accounts against credential stuffing.',
-                },
-                {
-                  icon: FileText,
-                  title: 'Cryptographic Audit Trail',
-                  desc: 'Every administrative action is signed with actor IP, timestamp, and target resource, exportable as JSON audit evidence.',
-                },
-                {
-                  icon: Globe2,
-                  title: 'Sovereign Data Residency',
-                  desc: 'Primary control plane deployed in ap-south-1 (Mumbai). Compliant with Indian DPDP Act standards and sovereign cloud isolation.',
-                },
-                {
-                  icon: Shield,
-                  title: 'HTTP Security Hardening',
-                  desc: 'Enforces X-Content-Type-Options: nosniff, X-Frame-Options: DENY, X-XSS-Protection, and strict Content-Security-Policy headers.',
-                },
-              ].map((sec) => {
-                const SecIcon = sec.icon;
-                return (
-                  <div
-                    key={sec.title}
-                    className="p-6 rounded-2xl bg-white dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-800 space-y-3"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-brandGold-500/10 text-brandGold-500 flex items-center justify-center">
-                      <SecIcon className="w-5 h-5" />
-                    </div>
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                      {sec.title}
-                    </h3>
-                    <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                      {sec.desc}
-                    </p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-mono uppercase font-bold text-brandGold-400 flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-brandGold-400" />
+                      Executive Endorsement
+                    </span>
+                    <Badge variant="gold" size="sm" className="font-mono text-[10px]">
+                      BFSI Sovereign
+                    </Badge>
                   </div>
-                );
-              })}
+
+                  <blockquote className="text-sm sm:text-base text-slate-200 italic leading-relaxed font-normal">
+                    &ldquo;As a regulated financial institution handling ₹400 Cr in daily transactional volume, sovereign data residency and deterministic audit trails aren&apos;t optional. Aravanta&apos;s strict in-country residency and immutable cryptographic logging satisfy RBI and DPDP mandates without operational overhead.&rdquo;
+                  </blockquote>
+
+                  <div className="pt-4 border-t border-white/10 flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-400 to-brandGold-600 flex items-center justify-center text-brandObsidian-950 font-bold text-base shadow-md shrink-0">
+                      VS
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold text-white tracking-wide">
+                        Vikramaditya Singhal
+                      </div>
+                      <div className="text-xs text-brandGold-400 font-mono">
+                        CISO, RupeeShield Financial
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-mono">
+                        RBI Cyber Security Framework Aligned
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column (7 cols): Compliance Checklist & Architecture */}
+              <div className="lg:col-span-7 space-y-6">
+                <Badge variant="gold" size="md">
+                  Sovereignty & Governance
+                </Badge>
+                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.08]">
+                  Compliance Built for Regulated Enterprises & FinTechs
+                </h2>
+                <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Engineered from the hypervisor to the control plane to exceed Indian data localization statutes and enterprise risk governance requirements.
+                </p>
+
+                {/* 6 Verified Checklist Points */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2">
+                  {[
+                    {
+                      title: 'DPDPA 2023 In-Country Data Residency',
+                      desc: 'All databases, backups, and telemetry remain strictly inside Indian geographical boundaries.',
+                    },
+                    {
+                      title: 'ISO/IEC 27001:2022 & SOC 2 Type II',
+                      desc: 'Hardware nodes hosted exclusively in audited Tier-IV datacenter facilities.',
+                    },
+                    {
+                      title: 'MeitY Sovereign Cloud Architecture',
+                      desc: 'Air-gapped management planes aligned with government enterprise procurement norms.',
+                    },
+                    {
+                      title: 'AES-256-GCM & Customer-Managed KMS',
+                      desc: 'Zero-knowledge encryption for block storage volumes and S3 object buckets.',
+                    },
+                    {
+                      title: 'RFC 6238 TOTP Multi-Factor Authentication',
+                      desc: '30-second time-step cryptographic authenticator token rotation for all console operators.',
+                    },
+                    {
+                      title: 'Cryptographic Immutable Audit Trail',
+                      desc: 'Every administrative mutation is signed with actor IP, timestamp, and payload hash.',
+                    },
+                  ].map((item) => (
+                    <div
+                      key={item.title}
+                      className="p-4 rounded-xl bg-white dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-800 shadow-xs space-y-1.5"
+                    >
+                      <div className="flex items-start gap-2">
+                        <span className="w-5 h-5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
+                          <Check className="w-3.5 h-3.5" />
+                        </span>
+                        <h3 className="text-xs font-bold text-slate-900 dark:text-white leading-snug">
+                          {item.title}
+                        </h3>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 pl-7 leading-relaxed">
+                        {item.desc}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-2 flex items-center gap-3">
+                  <Button
+                    size="md"
+                    variant="outline"
+                    onClick={() => onNavigate?.('documentation')}
+                    rightIcon={<ChevronRight className="w-4 h-4" />}
+                    className="cursor-pointer font-bold text-xs"
+                  >
+                    Download Compliance Whitepaper
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </section>
