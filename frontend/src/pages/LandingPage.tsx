@@ -499,20 +499,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             >
               {/* Eyebrow Pill */}
               <motion.div variants={fadeUp} className="flex justify-center">
-                <div className="inline-flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 px-4 py-1.5 rounded-full border border-brandGold-500/40 bg-brandGold-500/10 text-brandGold-700 dark:text-brandGold-300 text-xs font-semibold tracking-wide uppercase shadow-xs backdrop-blur-md">
+                <div className="inline-flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 px-4 py-1.5 rounded-full border border-brandGold-500/30 bg-brandGold-500/10 text-brandGold-700 dark:text-brandGold-300 text-xs font-semibold tracking-wide shadow-xs backdrop-blur-md">
                   <span className="relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                   </span>
-                  <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">ALL SYSTEMS OPERATIONAL</span>
-                  <span className="opacity-40 hidden sm:inline">•</span>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-brandGold-500/20 text-brandGold-800 dark:text-brandGold-200 font-bold whitespace-nowrap text-[11px]">
+                  <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold uppercase text-[11px]">
+                    All Systems Operational
+                  </span>
+                  <span className="opacity-30 hidden sm:inline">•</span>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-brandGold-500/20 text-brandGold-800 dark:text-brandGold-200 font-bold text-[10px] font-mono">
                     v2.4 GA
                   </span>
-                  <span className="opacity-40 hidden sm:inline">•</span>
-                  <span className="inline-flex items-center gap-1.5 opacity-95 whitespace-nowrap text-slate-700 dark:text-slate-300">
-                    <span className="w-1.5 h-1.5 rounded-full bg-brandGold-500 inline-block" />
-                    <span>ap-south-1 (8ms Latency)</span>
+                  <span className="opacity-30 hidden sm:inline">•</span>
+                  <span className="inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300 text-[11px] font-mono">
+                    <span className="w-1.5 h-1.5 rounded-full bg-brandGold-500" />
+                    <span>ap-south-1 Sovereign (8ms Latency)</span>
                   </span>
                 </div>
               </motion.div>
@@ -520,13 +522,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {/* Main Headline */}
               <motion.h1
                 variants={fadeUp}
-                className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tight leading-[1.05] text-slate-900 dark:text-white"
+                className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tight leading-[1.08] text-slate-900 dark:text-white max-w-4xl mx-auto font-sans"
               >
-                Aravanta{' '}
-                <span className="bg-gradient-to-br from-brandGold-500 via-amber-500 to-brandGold-600 bg-clip-text text-transparent filter drop-shadow-xs">
-                  Cloud OS
-                </span>
-                <span className="block text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold text-slate-800 dark:text-slate-200 mt-2.5 tracking-tight">
+                Aravanta Cloud OS
+                <span className="block mt-2 sm:mt-3 text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold bg-gradient-to-r from-brandGold-600 via-amber-500 to-brandGold-400 bg-clip-text text-transparent">
                   The Sovereign Multi-Cloud Operating System
                 </span>
               </motion.h1>
@@ -534,52 +533,52 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {/* Supporting Copy */}
               <motion.p
                 variants={fadeUp}
-                className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed max-w-3xl mx-auto"
+                className="text-sm sm:text-base md:text-lg text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl sm:max-w-3xl mx-auto font-normal"
               >
                 Orchestrate elastic virtual machines, managed Kubernetes clusters, distributed S3 storage, serverless functions, and high-availability databases from a single sovereign control plane — with sub-second telemetry, GitOps delivery, and predictable FinOps billing in INR (₹).
               </motion.p>
 
-              {/* Real CTAs */}
+              {/* Real Aligned Responsive CTAs */}
               <motion.div
                 variants={fadeUp}
-                className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 pt-2"
+                className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2 max-w-2xl mx-auto w-full"
               >
                 <Button
-                  size="xl"
+                  size="lg"
                   variant="primary"
                   onClick={onGoToRegister}
-                  className="w-full sm:w-auto bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold shadow-lg shadow-brandGold-500/25 hover:shadow-brandGold-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all min-h-[48px] btn-press cursor-pointer"
-                  rightIcon={<ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />}
+                  className="w-full sm:w-auto h-12 px-6 rounded-xl bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold text-sm sm:text-base shadow-lg shadow-brandGold-500/25 hover:shadow-brandGold-500/40 hover:-translate-y-0.5 transition-all btn-press cursor-pointer shrink-0"
+                  rightIcon={<ArrowRight className="w-4 h-4" />}
                 >
                   Get Started Free
                 </Button>
                 <Button
-                  size="xl"
+                  size="lg"
                   variant="outline"
                   onClick={() => onNavigate?.('cli')}
-                  className="w-full sm:w-auto min-h-[48px] border-slate-300 dark:border-brandObsidian-700 hover:border-brandGold-500 hover:bg-brandGold-500/10 hover:text-brandGold-600 dark:hover:text-brandGold-400 hover:scale-[1.02] active:scale-[0.98] transition-all btn-press cursor-pointer"
+                  className="w-full sm:w-auto h-12 px-5 rounded-xl border border-slate-300 dark:border-brandObsidian-700 bg-white/90 dark:bg-brandObsidian-900/90 hover:border-brandGold-500 text-slate-800 dark:text-slate-200 hover:text-brandGold-600 dark:hover:text-brandGold-400 font-bold text-sm shadow-xs hover:-translate-y-0.5 transition-all btn-press cursor-pointer shrink-0"
                   leftIcon={<Terminal className="w-4 h-4 text-brandGold-500" />}
                 >
-                  Interactive Web Terminal
+                  Web Terminal
                 </Button>
                 <Button
-                  size="xl"
+                  size="lg"
                   variant="outline"
                   onClick={() => onNavigate?.('services')}
-                  className="w-full sm:w-auto min-h-[48px] border-slate-300 dark:border-brandObsidian-700 hover:border-brandGold-500 hover:bg-brandGold-500/10 hover:text-brandGold-600 dark:hover:text-brandGold-400 hover:scale-[1.02] active:scale-[0.98] transition-all btn-press cursor-pointer"
+                  className="w-full sm:w-auto h-12 px-5 rounded-xl border border-slate-300 dark:border-brandObsidian-700 bg-white/90 dark:bg-brandObsidian-900/90 hover:border-brandGold-500 text-slate-800 dark:text-slate-200 hover:text-brandGold-600 dark:hover:text-brandGold-400 font-bold text-sm shadow-xs hover:-translate-y-0.5 transition-all btn-press cursor-pointer shrink-0"
                   leftIcon={<Boxes className="w-4 h-4 text-brandGold-500" />}
                 >
                   Explore 20+ Services
                 </Button>
                 {onGoToConsole && (
                   <Button
-                    size="xl"
+                    size="lg"
                     variant="ghost"
                     onClick={onGoToConsole}
-                    className="w-full sm:w-auto min-h-[48px] text-slate-700 dark:text-slate-300 hover:text-brandGold-600 dark:hover:text-brandGold-400"
+                    className="w-full sm:w-auto h-12 px-4 rounded-xl text-slate-700 dark:text-slate-300 hover:text-brandGold-600 dark:hover:text-brandGold-400 font-bold text-sm hover:bg-slate-100 dark:hover:bg-brandObsidian-800/80 transition-colors shrink-0"
                     leftIcon={<LayoutGrid className="w-4 h-4 text-brandGold-500" />}
                   >
-                    Launch Console
+                    Console
                   </Button>
                 )}
               </motion.div>
@@ -587,28 +586,35 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {/* Factual Spec Strip (No Fake Claims) */}
               <motion.div
                 variants={fadeUp}
-                className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-6 max-w-3xl mx-auto"
+                className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pt-6 max-w-4xl mx-auto w-full"
               >
                 {[
-                  { value: '80+ Shapes', label: 'AMD EPYC & ARM VMs', icon: Server },
-                  { value: '< 60s', label: 'Provisioning Velocity', icon: Zap },
-                  { value: 'INR (₹) & GST', label: 'Per-Second FinOps', icon: BarChart3 },
-                  { value: 'RFC 6238', label: 'TOTP 2FA Protected', icon: Lock },
+                  { value: '80+ Shapes', label: 'AMD EPYC & ARM VMs', icon: Server, badge: 'Compute' },
+                  { value: '< 60s', label: 'Provisioning Velocity', icon: Zap, badge: 'Velocity' },
+                  { value: 'INR (₹) & GST', label: 'Per-Second FinOps', icon: BarChart3, badge: 'FinOps' },
+                  { value: 'RFC 6238', label: 'TOTP 2FA Protected', icon: Lock, badge: 'Security' },
                 ].map((stat) => {
                   const StatIcon = stat.icon;
                   return (
                     <div
                       key={stat.label}
-                      className="p-3.5 rounded-2xl border border-slate-200 dark:border-brandObsidian-700 bg-white/80 dark:bg-brandObsidian-900/80 backdrop-blur-sm text-center shadow-xs transition-all duration-300"
+                      className="p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 dark:border-brandObsidian-700/80 bg-white/90 dark:bg-brandObsidian-900/90 backdrop-blur-md shadow-xs hover:border-brandGold-500/50 hover:shadow-md hover:-translate-y-0.5 transition-all text-left flex flex-col justify-between group"
                     >
-                      <div className="flex items-center justify-center gap-1.5 text-brandGold-500 dark:text-brandGold-400 mb-1">
-                        <StatIcon className="w-4 h-4" />
-                        <span className="text-lg font-black text-slate-900 dark:text-white tabular-nums">
-                          {stat.value}
+                      <div className="flex items-center justify-between mb-2 sm:mb-3">
+                        <div className="w-8 h-8 rounded-xl bg-brandGold-500/10 text-brandGold-600 dark:text-brandGold-400 flex items-center justify-center group-hover:bg-brandGold-500 group-hover:text-brandObsidian-950 transition-colors">
+                          <StatIcon className="w-4 h-4" />
+                        </div>
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-brandObsidian-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-brandObsidian-700">
+                          {stat.badge}
                         </span>
                       </div>
-                      <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider font-mono">
-                        {stat.label}
+                      <div>
+                        <div className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tabular-nums tracking-tight">
+                          {stat.value}
+                        </div>
+                        <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">
+                          {stat.label}
+                        </div>
                       </div>
                     </div>
                   );

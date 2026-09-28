@@ -703,7 +703,9 @@ def get_community_stats(db: Session = Depends(get_db)):
     """Summary statistics for the community hub."""
     total_posts = db.query(func.count(CommunityPost.id)).scalar() or 0
     total_comments = db.query(func.count(CommunityComment.id)).scalar() or 0
-    total_likes = db.query(func.count(CommunityLike.id)).scalar() or 0
+    post_likes_sum = db.query(func.sum(CommunityPost.likes_count)).scalar() or 0
+    table_likes = db.query(func.count(CommunityLike.id)).scalar() or 0
+    total_likes = max(post_likes_sum, table_likes)
     
     categories = [
         {"id": "all", "label": "All Discussions", "count": total_posts},
