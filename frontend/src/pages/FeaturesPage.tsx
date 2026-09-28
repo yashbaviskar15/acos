@@ -906,7 +906,7 @@ export const FeaturesPage: React.FC<PageProps> = ({
         </section>
 
         {/* Interactive Controls & Category Tabs */}
-        <section className="sticky top-16 sm:top-20 z-30 bg-white/95 dark:bg-brandObsidian-950/95 backdrop-blur-md border-y border-slate-200 dark:border-brandObsidian-800 py-3 shadow-xs">
+        <section className="sticky top-16 z-30 bg-white/95 dark:bg-brandObsidian-950/95 backdrop-blur-md border-y border-slate-200 dark:border-brandObsidian-800 py-3 shadow-xs">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col xl:flex-row xl:items-center justify-between gap-3">
             {/* Category Filter Pills (no scrollbar visible) */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 xl:pb-0 scrollbar-none no-scrollbar">

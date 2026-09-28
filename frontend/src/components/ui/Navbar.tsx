@@ -187,7 +187,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 8);
+    const handleScroll = () => {
+      const scrollY = window.scrollY ?? document.documentElement?.scrollTop ?? document.body?.scrollTop ?? 0;
+      setScrolled(scrollY > 10);
+    };
     handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
@@ -216,7 +219,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, []);
 
   const navLinkBase =
-    'text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-brandGold-600 dark:hover:text-brandGold-400 transition-colors relative py-2 min-h-[44px] flex items-center';
+    'text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-brandGold-600 dark:hover:text-brandGold-400 transition-colors relative py-2 min-h-[40px] flex items-center';
 
   const activeLink = (isActive: boolean) =>
     isActive
@@ -238,14 +241,14 @@ export const Navbar: React.FC<NavbarProps> = ({
     <>
       <header
         className={[
-          'sticky top-0 z-50 w-full transition-all duration-300',
+          'sticky top-0 z-50 w-full transition-all duration-300 will-change-transform',
           scrolled
-            ? 'bg-white/90 dark:bg-brandObsidian-950/90 backdrop-blur-xl border-b border-slate-200/80 dark:border-brandObsidian-800/80 shadow-[0_1px_3px_rgba(0,0,0,0.05),0_10px_25px_-15px_rgba(185,139,59,0.15)]'
-            : 'bg-transparent border-b border-transparent',
+            ? 'bg-white/95 dark:bg-[#070B14]/95 backdrop-blur-xl border-b border-slate-200/90 dark:border-brandObsidian-800 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.08),0_1px_2px_0_rgba(198,146,59,0.08)] dark:shadow-[0_4px_25px_-4px_rgba(0,0,0,0.8),0_1px_0_0_rgba(198,146,59,0.15)]'
+            : 'bg-white/80 dark:bg-[#070B14]/80 backdrop-blur-md border-b border-slate-200/50 dark:border-brandObsidian-800/40 shadow-none',
         ].join(' ')}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="h-16 sm:h-20 flex items-center justify-between gap-2 lg:gap-3">
+          <div className="h-16 flex items-center justify-between gap-2 lg:gap-3">
             <div className="flex items-center gap-2 lg:gap-3 shrink-0">
               <button
                 onClick={() => handleNavClick('home')}

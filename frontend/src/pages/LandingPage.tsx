@@ -441,7 +441,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-brandObsidian-950 text-slate-900 dark:text-slate-100 font-sans antialiased selection:bg-brandGold-500/30 selection:text-brandGold-900 dark:selection:text-brandGold-100 overflow-x-hidden">
+    <div className="min-h-screen bg-slate-50 dark:bg-brandObsidian-950 text-slate-900 dark:text-slate-100 font-sans antialiased selection:bg-brandGold-500/30 selection:text-brandGold-900 dark:selection:text-brandGold-100 overflow-x-clip">
       {/* ── PERSISTENT HEADER NAVIGATION ── */}
       <Navbar
         onGoToLogin={onGoToLogin}
