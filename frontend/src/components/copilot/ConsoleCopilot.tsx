@@ -652,7 +652,7 @@ export const ConsoleCopilot: React.FC<ConsoleCopilotProps> = ({
         </div>
 
         {/* Chat Feed */}
-        <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-4 font-sans text-xs">
+        <div className="flex-1 min-h-0 overflow-y-auto p-3.5 sm:p-4 space-y-4 font-sans text-xs">
           {messages.map((msg) => (
             <div
               key={msg.id}

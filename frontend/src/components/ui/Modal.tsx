@@ -204,7 +204,7 @@ export const ModalContent: React.FC<ModalContentProps> = ({
             <div
               className={[
                 'relative w-full rounded-2xl border border-slate-200 dark:border-brandObsidian-700',
-                'bg-white dark:bg-brandObsidian-800 shadow-2xl overflow-hidden',
+                'bg-white dark:bg-brandObsidian-800 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col',
                 sizeClasses[size],
                 className,
               ].join(' ')}
@@ -338,7 +338,7 @@ export const ModalBody: React.FC<ModalBodyProps> = ({
   children,
 }) => {
   return (
-    <div className={['px-6 py-5', className].join(' ')}>
+    <div className={['px-6 py-5 min-h-0 flex-1 overflow-y-auto', className].join(' ')}>
       {children}
     </div>
   );

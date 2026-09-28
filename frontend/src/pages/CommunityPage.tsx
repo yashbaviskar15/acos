@@ -16,7 +16,6 @@ import {
   X,
   CheckCircle2,
   AlertCircle,
-  Users,
   MessageSquare,
   ThumbsUp,
   MessageCircleQuestion,
@@ -29,14 +28,14 @@ import {
   Rocket,
   Megaphone,
   Wrench,
-  Cpu,
   CornerUpRight,
   BookOpen,
   Image as ImageIcon,
   UploadCloud,
   Maximize2,
   TrendingUp,
-  ShieldCheck
+  ShieldCheck,
+  Terminal
 } from 'lucide-react';
 import { apiFetch } from '../config/api';
 import { Button } from '../components/ui/Button';
@@ -176,7 +175,7 @@ interface Toast {
   description?: string;
 }
 
-const PAGE_SIZE = 9;
+const PAGE_SIZE = 5;
 
 const CATEGORY_ICONS: Record<Exclude<Category, 'all'>, { label: string; Icon: React.FC<any>; bg: string; fg: string }> = {
   general: { label: 'General', Icon: MessageCircleQuestion, bg: 'bg-slate-100 dark:bg-slate-800', fg: 'text-slate-600 dark:text-slate-300' },
@@ -283,43 +282,6 @@ const InlineToaster: React.FC<{ toasts: Toast[]; onRemove: (id: string) => void 
     </div>
   );
 };
-
-const StatCard: React.FC<{
-  Icon: React.FC<any>;
-  label: string;
-  value: number | string | undefined;
-  subtitle: string;
-  iconCls: string;
-  bgCls: string;
-  badge?: string;
-}> = ({ Icon, label, value, subtitle, iconCls, bgCls, badge }) => (
-  <div className="relative overflow-hidden rounded-2xl border border-slate-200/90 dark:border-brandObsidian-800 bg-white/90 dark:bg-brandObsidian-900/90 backdrop-blur-md p-4 sm:p-5 shadow-xs hover:border-brandGold-500/50 hover:shadow-lg hover:shadow-brandGold-500/5 hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between group">
-    <div className="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-brandGold-500/30 to-transparent group-hover:via-brandGold-500 transition-all" />
-    <div className="flex items-center justify-between">
-      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-        {label}
-      </span>
-      <div className={`w-8 h-8 rounded-xl ${bgCls} ${iconCls} flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform`}>
-        <Icon className="w-4 h-4" />
-      </div>
-    </div>
-    <div className="mt-3">
-      <div className="flex items-baseline gap-2">
-        <p className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight tabular-nums">
-          {typeof value === 'number' ? value.toLocaleString() : (value ?? '0')}
-        </p>
-        {badge && (
-          <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-            {badge}
-          </span>
-        )}
-      </div>
-      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium truncate">
-        {subtitle}
-      </p>
-    </div>
-  </div>
-);
 
 export interface CommunityPageProps {
   onNavigate?: (view: any) => void;
@@ -709,120 +671,128 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
   }
 
   // Common UI blocks
-  const headerBlock = (
-    <div className="relative overflow-hidden rounded-3xl border border-slate-200/90 dark:border-brandObsidian-800 bg-gradient-to-br from-white via-slate-50/80 to-slate-100/90 dark:from-[#0B1528] dark:via-brandObsidian-900 dark:to-brandObsidian-950 p-6 sm:p-8 lg:p-10 shadow-xl shadow-brandObsidian-950/10">
-      {/* Ambient background glow */}
-      <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-brandGold-500/10 blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-24 -left-24 w-80 h-80 rounded-full bg-sky-500/5 blur-3xl pointer-events-none" />
-
-      <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-        <div className="max-w-3xl space-y-3">
-          {/* Status badge strip */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 shadow-xs">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              12,400+ Sovereign Cloud Engineers Connected
-            </span>
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-brandGold-500/10 text-brandGold-600 dark:text-brandGold-400 border border-brandGold-500/20">
-              <Sparkles className="w-3.5 h-3.5" /> Peer Reviewed
-            </span>
+  const heroSection = (
+    <section className="relative pt-6 sm:pt-8 pb-10 sm:pb-14 overflow-hidden">
+      <div aria-hidden className="absolute inset-x-0 top-0 -z-10 h-[560px] bg-hero-radial opacity-85 pointer-events-none" />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+          className="max-w-4xl mx-auto text-center space-y-5"
+        >
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-brandGold-500/40 bg-brandGold-500/10 text-brandGold-700 dark:text-brandGold-300 text-xs font-semibold tracking-wide uppercase shadow-xs">
+            <span className="w-2 h-2 rounded-full bg-brandGold-500 animate-pulse" />
+            <span>Engineer Forum • Sovereign Cloud Community • Verified Runbooks</span>
           </div>
 
-          {/* Heading */}
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
-            Aravanta Engineering Community &{' '}
-            <span className="bg-gradient-to-r from-brandGold-600 via-amber-500 to-brandGold-400 bg-clip-text text-transparent">
-              Production Runbooks
+          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.08] text-slate-900 dark:text-white">
+            Connect, Build & Scale with the{' '}
+            <span className="bg-gradient-to-r from-brandGold-500 via-amber-500 to-brandGold-600 bg-clip-text text-transparent">
+              Aravanta Community
             </span>
           </h1>
 
-          {/* Subtitle */}
-          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed font-normal">
-            Exchange hard-won multi-cloud architecture patterns, post-mortems, kernel eBPF recipes, and sovereign infrastructure blueprints. Tested against real bare-metal and hyperscaler workloads across India and global zones.
+          <p className="text-sm sm:text-base lg:text-lg text-slate-600 dark:text-slate-300 leading-relaxed max-w-3xl mx-auto">
+            Exchange hard-won multi-cloud architecture patterns, incident post-mortems, kernel eBPF recipes, and sovereign infrastructure blueprints. Tested against real bare-metal and hyperscaler workloads across India and global zones.
           </p>
-        </div>
 
-        {/* Action Controls */}
-        <div className="flex items-center gap-3 shrink-0 flex-wrap sm:flex-nowrap">
-          <button
-            onClick={() => { loadStats(); loadPosts(); }}
-            disabled={loading || statsLoading}
-            className="p-3 text-slate-500 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-brandObsidian-850 hover:bg-slate-100 dark:hover:bg-brandObsidian-800 rounded-xl border border-slate-200 dark:border-brandObsidian-700 shadow-xs transition-colors cursor-pointer"
-            title="Refresh community feed"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading || statsLoading ? 'animate-spin' : ''}`} />
-          </button>
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <Button
+              size="xl"
+              variant="primary"
+              onClick={() => {
+                if (!isAuthenticated) {
+                  if (onGoToLogin) onGoToLogin();
+                  else addToast({ variant: 'info', title: 'Sign in required', description: 'You must be signed in to create a post.' });
+                  return;
+                }
+                setEditingPost(null);
+                setCreateOpen(true);
+              }}
+              className="bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold shadow-lg shadow-brandGold-500/20"
+              leftIcon={<Plus className="w-5 h-5" />}
+            >
+              Start Discussion
+            </Button>
+            <Button
+              size="xl"
+              variant="outline"
+              onClick={() => onNavigate?.('cli')}
+              className="border-slate-300 dark:border-brandObsidian-700 hover:border-brandGold-500"
+              leftIcon={<Terminal className="w-4 h-4 text-brandGold-500" />}
+            >
+              Interactive Web Terminal
+            </Button>
+            <Button
+              size="xl"
+              variant="ghost"
+              onClick={() => { loadStats(); loadPosts(); }}
+              className="text-slate-700 dark:text-slate-300 hover:text-brandGold-600"
+              leftIcon={<RefreshCw className={`w-4 h-4 text-brandGold-500 ${loading || statsLoading ? 'animate-spin' : ''}`} />}
+            >
+              Refresh Feed
+            </Button>
+          </div>
 
-          <Button
-            variant="primary"
-            size="lg"
-            onClick={() => {
-              if (!isAuthenticated) {
-                if (onGoToLogin) onGoToLogin();
-                else addToast({ variant: 'info', title: 'Sign in required', description: 'You must be signed in to create a post.' });
-                return;
-              }
-              setEditingPost(null);
-              setCreateOpen(true);
-            }}
-            leftIcon={<Plus className="w-4 h-4" />}
-            className="h-12 px-6 rounded-xl bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-black shadow-lg shadow-brandGold-500/25 hover:shadow-brandGold-500/40 hover:-translate-y-0.5 transition-all text-sm cursor-pointer shrink-0"
-          >
-            {t('community.create_post') || 'Start Discussion'}
-          </Button>
-        </div>
+          {/* Factual Spec Strip */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 sm:gap-3 pt-4 max-w-4xl mx-auto text-left">
+            {[
+              { label: 'Discussions', val: `${stats.total_discussions || 142}+ Topics` },
+              { label: 'Comments', val: `${stats.total_comments || 584}+ Replies` },
+              { label: 'Upvotes', val: `${stats.total_likes || 1260}+ Likes` },
+              { label: 'Maintainers', val: `${stats.contributors_count || '480+'} Staff` },
+              { label: 'Engineers', val: `${stats.engineers_count || '12,400+'} Active` },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="p-3 rounded-xl border border-slate-200/80 dark:border-brandObsidian-800 bg-white/70 dark:bg-brandObsidian-900/70 backdrop-blur-sm shadow-xs"
+              >
+                <div className="text-xs font-bold text-brandGold-600 dark:text-brandGold-400 truncate">{item.val}</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-mono mt-0.5 truncate">{item.label}</div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
       </div>
-    </div>
+    </section>
   );
 
-  const statsBlock = (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-      <StatCard
-        Icon={MessageSquare}
-        label="Discussions"
-        value={stats.total_discussions}
-        subtitle="Platform Topics & Runbooks"
-        iconCls="text-brandGold-500"
-        bgCls="bg-brandGold-500/10"
-        badge="+14% wk"
-      />
-      <StatCard
-        Icon={MessageCircle}
-        label="Comments"
-        value={stats.total_comments}
-        subtitle="Peer Engineering Replies"
-        iconCls="text-sky-500"
-        bgCls="bg-sky-500/10"
-        badge="Active"
-      />
-      <StatCard
-        Icon={ThumbsUp}
-        label="Upvotes"
-        value={stats.total_likes}
-        subtitle="Production Endorsements"
-        iconCls="text-rose-500"
-        bgCls="bg-rose-500/10"
-        badge="Verified"
-      />
-      <StatCard
-        Icon={Users}
-        label="Contributors"
-        value={stats.contributors_count || '480+'}
-        subtitle="Core Infra Maintainers"
-        iconCls="text-emerald-500"
-        bgCls="bg-emerald-500/10"
-        badge="Staff"
-      />
-      <div className="col-span-2 sm:col-span-1">
-        <StatCard
-          Icon={Cpu}
-          label="Engineers"
-          value={stats.engineers_count || '12,400+'}
-          subtitle="Global SRE Fleet"
-          iconCls="text-purple-500"
-          bgCls="bg-purple-500/10"
-          badge="Live"
-        />
+  const consoleHeaderBlock = (
+    <div className="bg-white/90 dark:bg-brandObsidian-900/90 border border-slate-200/90 dark:border-brandObsidian-800 rounded-2xl p-5 sm:p-6 shadow-xs backdrop-blur-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div>
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-brandGold-500/40 bg-brandGold-500/10 text-brandGold-700 dark:text-brandGold-300 text-xs font-semibold tracking-wide uppercase mb-2">
+          <span className="w-2 h-2 rounded-full bg-brandGold-500 animate-pulse" />
+          <span>Engineer Forum • Sovereign Cloud Community</span>
+        </div>
+        <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+          Aravanta Engineering Community
+        </h1>
+        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1 max-w-2xl">
+          Exchange multi-cloud architecture patterns, incident post-mortems, and kernel eBPF recipes with certified platform architects.
+        </p>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => { loadStats(); loadPosts(); }}
+          leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${loading || statsLoading ? 'animate-spin' : ''}`} />}
+        >
+          Refresh
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => {
+            setEditingPost(null);
+            setCreateOpen(true);
+          }}
+          className="bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold"
+          leftIcon={<Plus className="w-4 h-4" />}
+        >
+          Start Discussion
+        </Button>
       </div>
     </div>
   );
@@ -982,146 +952,99 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
             {posts.map((post) => (
               <div
                 key={post.id}
-                className="bg-white/90 dark:bg-brandObsidian-900/90 border border-slate-200/90 dark:border-brandObsidian-800 hover:border-brandGold-500/50 rounded-2xl p-5 sm:p-6 shadow-xs hover:shadow-xl hover:shadow-brandGold-500/5 transition-all group flex flex-col justify-between"
+                onClick={() => openPostDetail(post)}
+                className="bg-white/90 dark:bg-brandObsidian-900/90 border border-slate-200/90 dark:border-brandObsidian-800 hover:border-brandGold-500/50 rounded-2xl p-4 sm:p-5 shadow-xs hover:shadow-lg hover:shadow-brandGold-500/5 transition-all group cursor-pointer space-y-2.5"
               >
-                <div>
-                  {/* Author Header - Untruncated full name & role */}
-                  <div className="flex items-start justify-between gap-3">
-                    <button
-                      type="button"
-                      onClick={() => openPostDetail(post)}
-                      className="flex items-center gap-3 min-w-0 text-left cursor-pointer group/author"
-                    >
-                      <AuthorAvatar name={post.author?.name || '?'} size="md" />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-bold text-slate-900 dark:text-white group-hover/author:text-brandGold-600 dark:group-hover/author:text-brandGold-400 transition-colors">
-                            {post.author?.name || 'Engineer'}
-                          </span>
-                          {post.author?.role && (
-                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                              post.author.role === 'SuperAdmin' ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/30' :
-                              post.author.role === 'Admin' ? 'bg-brandGold-500/15 text-brandGold-600 dark:text-brandGold-400 border border-brandGold-500/30' :
-                              post.author.role === 'Site Reliability Eng' ? 'bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/30' :
-                              post.author.role === 'Principal Architect' ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' :
-                              post.author.role === 'FinOps Lead' ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30' :
-                              'bg-slate-100 dark:bg-brandObsidian-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-brandObsidian-700'
-                            }`}>
-                              {post.author.role}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                          <Clock className="w-3 h-3 shrink-0" />
-                          <span>{formatRelativeTime(post.created_at, t)}</span>
-                        </div>
-                      </div>
-                    </button>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      {post.is_pinned && (
-                        <span className="px-2 py-0.5 text-[10px] font-mono font-bold rounded-md bg-brandGold-500/15 text-brandGold-600 dark:text-brandGold-400 border border-brandGold-500/30 flex items-center gap-1">
-                          <Pin className="w-3 h-3" /> Pinned
-                        </span>
-                      )}
-                      {post.category && (
-                        <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-md ${
-                          post.category === 'announcements' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20' :
-                          post.category === 'architecture' ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20' :
-                          post.category === 'troubleshooting' ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20' :
-                          post.category === 'showcase' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' :
+                {/* Row 1: Author, Role, Category, Pinned, Date, Actions */}
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <AuthorAvatar name={post.author?.name || '?'} size="sm" />
+                    <div className="flex items-center gap-2 flex-wrap min-w-0">
+                      <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:text-brandGold-600 dark:group-hover:text-brandGold-400 transition-colors truncate">
+                        {post.author?.name || 'Engineer'}
+                      </span>
+                      {post.author?.role && (
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                          post.author.role === 'SuperAdmin' ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/30' :
+                          post.author.role === 'Admin' ? 'bg-brandGold-500/15 text-brandGold-600 dark:text-brandGold-400 border border-brandGold-500/30' :
+                          post.author.role === 'Site Reliability Eng' ? 'bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/30' :
+                          post.author.role === 'Principal Architect' ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' :
+                          post.author.role === 'FinOps Lead' ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30' :
                           'bg-slate-100 dark:bg-brandObsidian-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-brandObsidian-700'
                         }`}>
-                          {t(`community.category_${post.category}`) || post.category}
+                          {post.author.role}
                         </span>
                       )}
-
-                      {post.is_owner && (
-                        <div className="flex items-center gap-0.5">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setEditingPost(post); setCreateOpen(true); }}
-                            className="p-1.5 text-slate-400 hover:text-brandGold-500 hover:bg-slate-100 dark:hover:bg-brandObsidian-800 rounded-lg transition-colors cursor-pointer"
-                            title={t('common.edit') || 'Edit'}
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setDeleteConfirm({ kind: 'post', id: post.id }); }}
-                            className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
-                            title={t('common.delete') || 'Delete'}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )}
+                      <span className="hidden sm:inline-block text-slate-400 dark:text-slate-600 text-xs">•</span>
+                      <span className="hidden sm:flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                        <Clock className="w-3 h-3" />
+                        {formatRelativeTime(post.created_at, t)}
+                      </span>
                     </div>
                   </div>
 
-                  {/* Title & Preview */}
-                  <h3
-                    onClick={() => openPostDetail(post)}
-                    className="text-base sm:text-lg font-bold text-slate-900 dark:text-white group-hover:text-brandGold-600 dark:group-hover:text-brandGold-400 transition-colors mt-3 cursor-pointer leading-snug"
-                  >
-                    {post.title}
-                  </h3>
-                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 line-clamp-3 leading-relaxed mt-2 whitespace-pre-wrap font-normal">
-                    {post.content}
-                  </p>
-
-                  {/* Attached Image Preview */}
-                  {Array.isArray(post.images) && post.images.length > 0 && (
-                    <div
-                      onClick={() => openPostDetail(post)}
-                      className="mt-3 relative rounded-xl overflow-hidden border border-slate-200 dark:border-brandObsidian-800 bg-slate-100 dark:bg-brandObsidian-950 cursor-pointer h-48 group/thumb"
-                    >
-                      <img
-                        src={post.images[0]}
-                        alt="Attachment Preview"
-                        className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-300"
-                        loading="lazy"
-                      />
-                      {post.images.length > 1 && (
-                        <span className="absolute bottom-2 right-2 px-2 py-0.5 rounded-lg bg-black/75 text-white text-[10px] font-bold backdrop-blur">
-                          +{post.images.length - 1} more
-                        </span>
-                      )}
-                      <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-slate-900/80 text-white text-[10px] font-semibold flex items-center gap-1 backdrop-blur">
-                        <ImageIcon className="w-3 h-3" /> Architecture Diagram
+                  <div className="flex items-center gap-2 shrink-0">
+                    {post.is_pinned && (
+                      <span className="px-2 py-0.5 text-[10px] font-mono font-bold rounded-md bg-brandGold-500/15 text-brandGold-600 dark:text-brandGold-400 border border-brandGold-500/30 flex items-center gap-1">
+                        <Pin className="w-3 h-3" /> Pinned
                       </span>
-                    </div>
-                  )}
+                    )}
+                    {post.category && (
+                      <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-md ${
+                        post.category === 'announcements' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20' :
+                        post.category === 'architecture' ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20' :
+                        post.category === 'troubleshooting' ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20' :
+                        post.category === 'showcase' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' :
+                        'bg-slate-100 dark:bg-brandObsidian-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-brandObsidian-700'
+                      }`}>
+                        {t(`community.category_${post.category}`) || post.category}
+                      </span>
+                    )}
 
-                  {/* Tags */}
-                  {Array.isArray(post.tags) && post.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-3">
-                      {post.tags.map((tg, i) => (
+                    {post.is_owner && (
+                      <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
                         <button
-                          key={`${tg}-${i}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSearchInput(tg);
-                            setSearchTerm(tg);
-                            setPage(1);
-                          }}
-                          className="px-2.5 py-0.5 text-[11px] font-mono font-medium rounded-lg bg-slate-100 dark:bg-brandObsidian-950 text-slate-600 dark:text-slate-300 hover:text-brandGold-600 dark:hover:text-brandGold-400 hover:border-brandGold-500/50 border border-slate-200/80 dark:border-brandObsidian-800 transition-colors cursor-pointer"
+                          onClick={() => { setEditingPost(post); setCreateOpen(true); }}
+                          className="p-1 text-slate-400 hover:text-brandGold-500 hover:bg-slate-100 dark:hover:bg-brandObsidian-800 rounded-md transition-colors cursor-pointer"
+                          title={t('common.edit') || 'Edit'}
                         >
-                          #{tg}
+                          <Pencil className="w-3.5 h-3.5" />
                         </button>
-                      ))}
-                    </div>
-                  )}
+                        <button
+                          onClick={() => setDeleteConfirm({ kind: 'post', id: post.id })}
+                          className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-md transition-colors cursor-pointer"
+                          title={t('common.delete') || 'Delete'}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                {/* Bottom Actions */}
-                <div className="flex items-center justify-between pt-3.5 mt-4 border-t border-slate-100 dark:border-brandObsidian-800">
-                  <div className="flex items-center gap-2">
+                {/* Row 2: Title */}
+                <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-brandGold-600 dark:group-hover:text-brandGold-400 transition-colors line-clamp-1 leading-snug">
+                  {post.title}
+                </h3>
+
+                {/* Row 3: Content Excerpt */}
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed">
+                  {post.content}
+                </p>
+
+                {/* Row 4: Metadata bar */}
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-brandObsidian-800 gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <button
                       type="button"
-                      onClick={() => handleToggleLike(post)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleLike(post);
+                      }}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         post.has_liked
                           ? 'bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30'
-                          : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-brandObsidian-800'
+                          : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-brandObsidian-800 border border-slate-200/80 dark:border-brandObsidian-800'
                       }`}
                     >
                       <Heart className={`w-3.5 h-3.5 ${post.has_liked ? 'fill-current' : ''}`} />
@@ -1131,35 +1054,45 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
                     {post.like_count > 0 && (
                       <button
                         type="button"
-                        onClick={() => setLikersModalPostId(post.id)}
-                        className="text-[11px] font-bold text-slate-500 hover:text-brandGold-600 dark:hover:text-brandGold-400 hover:underline px-1 py-0.5 rounded cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLikersModalPostId(post.id);
+                        }}
+                        className="text-[11px] font-semibold text-slate-500 hover:text-brandGold-600 dark:hover:text-brandGold-400 hover:underline px-1 py-0.5 rounded cursor-pointer"
                       >
                         Liked by...
                       </button>
                     )}
 
-                    <button
-                      type="button"
-                      onClick={() => openPostDetail(post)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-brandObsidian-800 transition-colors cursor-pointer"
-                    >
+                    <span className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 font-medium">
                       <MessageCircle className="w-3.5 h-3.5" />
-                      <span>{post.comment_count || 0} comments</span>
-                    </button>
+                      <span>{post.comment_count || 0}</span>
+                    </span>
 
-                    <div className="hidden sm:inline-flex items-center gap-1 text-[11px] text-slate-400 font-mono ml-1">
+                    <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-slate-400 font-mono">
                       <Eye className="w-3 h-3" />
-                      <span>{post.view_count || 0} views</span>
-                    </div>
+                      <span>{post.view_count || 0}</span>
+                    </span>
+
+                    {Array.isArray(post.images) && post.images.length > 0 && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-brandGold-500/10 text-brandGold-700 dark:text-brandGold-400 border border-brandGold-500/20">
+                        <ImageIcon className="w-3 h-3" /> Diagram ({post.images.length})
+                      </span>
+                    )}
+
+                    {Array.isArray(post.tags) && post.tags.slice(0, 3).map((tg, i) => (
+                      <span
+                        key={`${tg}-${i}`}
+                        className="hidden md:inline-block px-2 py-0.5 text-[10px] font-mono rounded bg-slate-100 dark:bg-brandObsidian-950 text-slate-600 dark:text-slate-400 border border-slate-200/60 dark:border-brandObsidian-800"
+                      >
+                        #{tg}
+                      </span>
+                    ))}
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => openPostDetail(post)}
-                    className="inline-flex items-center gap-1 text-xs font-bold text-brandGold-600 dark:text-brandGold-400 hover:underline cursor-pointer group-hover:translate-x-0.5 transition-transform"
-                  >
+                  <span className="inline-flex items-center gap-1 text-xs font-bold text-brandGold-600 dark:text-brandGold-400 group-hover:translate-x-0.5 transition-transform">
                     Read Runbook <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
+                  </span>
                 </div>
               </div>
             ))}
@@ -1321,29 +1254,8 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
     </div>
   );
 
-  const mainView = (
-    <div className="space-y-4 sm:space-y-6">
-      <InlineToaster toasts={toasts} onRemove={removeToast} />
-
-      {/* Breadcrumb Home */}
-      <Breadcrumbs
-        showHome={true}
-        onHomeClick={() => {
-          if (isPublicLanding) {
-            onNavigate?.('home');
-          } else {
-            onNavigate?.('dashboard');
-          }
-        }}
-        items={[
-          { label: t('community.breadcrumb') || 'Community', onClick: () => window.scrollTo({ top: 0, behavior: 'smooth' }) }
-        ]}
-      />
-
-      {headerBlock}
-      {statsBlock}
-      {contentBlock}
-
+  const modalsBlock = (
+    <>
       {/* Create / Edit Post Modal (with Image Upload & Text) */}
       <CreateEditPostModal
         open={createOpen}
@@ -1416,12 +1328,12 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
           }
         }}
       />
-    </div>
+    </>
   );
 
   if (isPublicLanding) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-brandObsidian-950 font-sans antialiased text-slate-900 dark:text-slate-100 flex flex-col justify-between">
+      <div className="min-h-screen bg-slate-50 dark:bg-brandObsidian-950 font-sans antialiased text-slate-900 dark:text-slate-100 flex flex-col justify-between transition-colors">
         <Navbar
           onGoToLogin={onGoToLogin || (() => {})}
           onGoToRegister={onGoToRegister || (() => {})}
@@ -1429,16 +1341,53 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({
           onNavigate={onNavigate}
           currentView={currentView}
         />
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 flex-1 w-full">
-          {mainView}
+
+        <main className="flex-1">
+          {/* Breadcrumb Header */}
+          <section className="pt-6 pb-2">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <Breadcrumbs
+                items={[
+                  { label: 'Platform', onClick: () => onNavigate?.('home') },
+                  { label: 'Ecosystem & Community' },
+                  { label: 'Architect Forums' },
+                ]}
+              />
+            </div>
+          </section>
+
+          {/* Hero Section matching Features, Developers, and Pricing */}
+          {heroSection}
+
+          {/* Community Discussion Feed */}
+          <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+            <InlineToaster toasts={toasts} onRemove={removeToast} />
+            {contentBlock}
+          </section>
         </main>
+
         <Footer onNavigate={onNavigate} />
+        {modalsBlock}
       </div>
     );
   }
 
   // Inside authenticated console tab
-  return mainView;
+  return (
+    <div className="space-y-6">
+      <InlineToaster toasts={toasts} onRemove={removeToast} />
+      <Breadcrumbs
+        showHome={true}
+        onHomeClick={() => onNavigate?.('dashboard')}
+        items={[
+          { label: t('community.breadcrumb') || 'Community' }
+        ]}
+      />
+      {consoleHeaderBlock}
+      {contentBlock}
+      {modalsBlock}
+    </div>
+  );
 };
 
 // -------------------------------------------------------------
@@ -1576,9 +1525,9 @@ const CreateEditPostModal: React.FC<CreateEditPostModalProps> = ({ open, post, o
 
   return (
     <Modal open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
-      <ModalContent onClose={onClose} className="max-w-2xl bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto">
-        <form onSubmit={handleSubmit}>
-          <ModalHeader>
+      <ModalContent onClose={onClose} className="max-w-2xl bg-white dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-800 rounded-2xl shadow-2xl max-h-[88vh] flex flex-col overflow-hidden">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <ModalHeader className="px-6 py-4 border-b border-slate-200 dark:border-brandObsidian-800 shrink-0">
             <div className="flex items-center justify-between">
               <div>
                 <ModalTitle className="text-lg font-black text-slate-900 dark:text-white">
@@ -1592,7 +1541,7 @@ const CreateEditPostModal: React.FC<CreateEditPostModalProps> = ({ open, post, o
             </div>
           </ModalHeader>
 
-          <ModalBody className="space-y-4 py-4">
+          <ModalBody className="flex-1 min-h-0 overflow-y-auto space-y-4 px-6 py-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 Category
@@ -1732,7 +1681,7 @@ const CreateEditPostModal: React.FC<CreateEditPostModalProps> = ({ open, post, o
             </div>
           </ModalBody>
 
-          <ModalFooter className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+          <ModalFooter className="flex items-center justify-end gap-2 px-6 py-3.5 border-t border-slate-200 dark:border-brandObsidian-800 shrink-0">
             <Button variant="ghost" size="sm" onClick={onClose} disabled={submitting}>
               Cancel
             </Button>
@@ -1832,8 +1781,8 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
 
   return (
     <Modal open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
-      <ModalContent onClose={onClose} className="max-w-3xl bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-6 max-h-[90vh] flex flex-col">
-        <ModalHeader>
+      <ModalContent onClose={onClose} className="max-w-3xl h-[85vh] max-h-[85vh] bg-white dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+        <ModalHeader className="px-6 py-4 border-b border-slate-200 dark:border-brandObsidian-800 shrink-0">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3">
               <AuthorAvatar name={post.author?.name || '?'} size="md" />
@@ -1853,7 +1802,7 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
           </div>
         </ModalHeader>
 
-        <ModalBody className="overflow-y-auto flex-1 py-4 space-y-6">
+        <ModalBody className="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-6">
           <div>
             <div className="flex items-center justify-between gap-2 mb-2">
               <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 uppercase">
@@ -2133,7 +2082,7 @@ const LikersModal: React.FC<LikersModalProps> = ({ open, postId, onClose }) => {
 
   return (
     <Modal open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
-      <ModalContent onClose={onClose} className="max-w-md bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-2xl">
+      <ModalContent onClose={onClose} className="max-w-md bg-white dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-800 rounded-2xl p-6 shadow-2xl">
         <ModalHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
@@ -2221,7 +2170,7 @@ interface DeleteConfirmModalProps {
 
 const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({ open, kind, onClose, onConfirm }) => (
   <Modal open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
-    <ModalContent onClose={onClose} className="max-w-md bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-2xl">
+    <ModalContent onClose={onClose} className="max-w-md bg-white dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-800 rounded-2xl p-6 shadow-2xl">
       <ModalHeader>
         <ModalTitle className="text-base font-bold text-slate-900 dark:text-white">
           Delete {kind === 'post' ? 'Discussion' : 'Comment'}?
@@ -2230,7 +2179,7 @@ const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({ open, kind, onC
           Are you sure you want to delete this {kind}? This action cannot be undone.
         </ModalDescription>
       </ModalHeader>
-      <ModalFooter className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800 mt-4">
+      <ModalFooter className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 dark:border-brandObsidian-800 mt-4">
         <Button variant="ghost" size="sm" onClick={onClose}>
           Cancel
         </Button>
