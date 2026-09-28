@@ -137,8 +137,45 @@ def list_invoices(
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     org_id = _resolve_tenant_org(db, current_user, organization_id)
-    invs = InvoiceService.list_invoices(db, org_id)
-    return [inv.to_dict() for inv in invs]
+    user_id = current_user.id if current_user else "usr-admin"
+    
+    # 1. Fetch from BillingInvoice table
+    b_invs = db.query(Invoice).all()
+    
+    # 2. Fetch from InvoiceRecord table
+    l_invs = db.query(InvoiceRecord).all()
+    
+    seen_ids = set()
+    combined = []
+    
+    for inv in b_invs:
+        seen_ids.add(inv.id)
+        combined.append(inv.to_dict())
+        
+    for linv in l_invs:
+        if linv.id not in seen_ids:
+            seen_ids.add(linv.id)
+            sub = round((linv.amount_inr or 0.0) / 1.18, 2)
+            cgst = round((linv.amount_inr or 0.0) * 0.09 / 1.18, 2)
+            sgst = round((linv.amount_inr or 0.0) * 0.09 / 1.18, 2)
+            combined.append({
+                "id": linv.id,
+                "organization_id": linv.workspace_id or org_id,
+                "period": linv.period or "Cloud Operations",
+                "amount_inr": linv.amount_inr or 0.0,
+                "total": linv.amount_inr or 0.0,
+                "subtotal": sub,
+                "tax_cgst": cgst,
+                "tax_sgst": sgst,
+                "currency": "INR",
+                "status": linv.status or "PAID",
+                "payment_method": linv.payment_method or "Verified Mandate",
+                "download_url": linv.download_url or f"/api/v1/billing/invoices/{linv.id}/pdf",
+                "created_at": linv.created_at.isoformat() if linv.created_at else None
+            })
+            
+    combined.sort(key=lambda x: x.get("created_at") or "", reverse=True)
+    return combined
 
 
 @router.get("/invoices/{invoice_id}", summary="Get invoice details with line items")

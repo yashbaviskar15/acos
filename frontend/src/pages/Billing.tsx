@@ -331,18 +331,36 @@ export const Billing: React.FC = () => {
         }
       }
 
-      // Merge local top-up invoices so they are never lost
+      // Merge local top-up invoices and ensure paid statuses are preserved across refreshes
       try {
+        const paidIdsRaw = localStorage.getItem('aravanta_paid_invoice_ids');
+        const paidIds = new Set<string>(paidIdsRaw ? JSON.parse(paidIdsRaw) : []);
+
         const localInvsRaw = localStorage.getItem('aravanta_invoices');
         if (localInvsRaw) {
           const localInvs: InvoiceItem[] = JSON.parse(localInvsRaw);
           const existingIds = new Set(effectiveInvoices.map(i => i.id));
           for (const inv of localInvs) {
+            if (inv.status === 'PAID') {
+              paidIds.add(inv.id);
+            }
             if (!existingIds.has(inv.id)) {
               effectiveInvoices.unshift(inv);
+              existingIds.add(inv.id);
             }
           }
         }
+
+        // Synchronize PAID status for any settled invoices
+        effectiveInvoices = effectiveInvoices.map(inv => {
+          if (paidIds.has(inv.id)) {
+            return { ...inv, status: 'PAID' };
+          }
+          return inv;
+        });
+
+        localStorage.setItem('aravanta_invoices', JSON.stringify(effectiveInvoices));
+        localStorage.setItem('aravanta_paid_invoice_ids', JSON.stringify(Array.from(paidIds)));
       } catch {}
 
       // Build unified auditable ledger combining backend records and local itemized debits
@@ -810,7 +828,19 @@ export const Billing: React.FC = () => {
       const invId = selectedInvoiceToPay.id;
       const invTotal = selectedInvoiceToPay.total || selectedInvoiceToPay.amount_inr || 0;
 
-      setInvoices(prev => prev.map(inv => inv.id === invId ? { ...inv, status: 'PAID' } : inv));
+      setInvoices(prev => {
+        const updated = prev.map(inv => inv.id === invId ? { ...inv, status: 'PAID' } : inv);
+        try {
+          localStorage.setItem('aravanta_invoices', JSON.stringify(updated));
+          const paidIdsRaw = localStorage.getItem('aravanta_paid_invoice_ids');
+          const paidIds: string[] = paidIdsRaw ? JSON.parse(paidIdsRaw) : [];
+          if (!paidIds.includes(invId)) {
+            paidIds.push(invId);
+            localStorage.setItem('aravanta_paid_invoice_ids', JSON.stringify(paidIds));
+          }
+        } catch {}
+        return updated;
+      });
 
       const payLedger: LedgerEntry = {
         id: `led-${Date.now().toString(36).toUpperCase()}`,
@@ -823,7 +853,13 @@ export const Billing: React.FC = () => {
         description: `Settlement for Invoice ${invId} via Sandbox Checkout`,
         created_at: new Date().toISOString()
       };
-      setLedger(prev => [payLedger, ...prev]);
+      setLedger(prev => {
+        const updated = [payLedger, ...prev];
+        try {
+          localStorage.setItem('aravanta_ledger', JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
 
       if (account) {
         setAccount(prev => prev ? { ...prev, balance: Math.max(0, prev.balance - invTotal) } : null);
@@ -975,6 +1011,12 @@ export const Billing: React.FC = () => {
         const localInvsRaw = localStorage.getItem('aravanta_invoices');
         const localInvs = localInvsRaw ? JSON.parse(localInvsRaw) : [];
         localStorage.setItem('aravanta_invoices', JSON.stringify([newInvoice, ...localInvs.filter((i: any) => i.id !== invoiceId)]));
+        const paidIdsRaw = localStorage.getItem('aravanta_paid_invoice_ids');
+        const paidIds: string[] = paidIdsRaw ? JSON.parse(paidIdsRaw) : [];
+        if (!paidIds.includes(invoiceId)) {
+          paidIds.push(invoiceId);
+          localStorage.setItem('aravanta_paid_invoice_ids', JSON.stringify(paidIds));
+        }
       } catch {}
 
       // Add to Ledger as DEBIT from bank / payment method

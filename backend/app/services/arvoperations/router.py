@@ -1654,7 +1654,34 @@ def list_invoices(
         (InvoiceRecord.user_id == current_user.id) | (InvoiceRecord.workspace_id == ws_id)
     ).order_by(InvoiceRecord.created_at.desc()).all()
 
-    if not invs:
+    inv_records = [i.to_dict() for i in invs]
+    seen_ids = set(i["id"] for i in inv_records)
+
+    try:
+        from app.billing.models import Invoice as BillingInvoice
+        billing_invs = db.query(BillingInvoice).filter(
+            (BillingInvoice.organization_id == ws_id) | (BillingInvoice.organization_id == "default")
+        ).order_by(BillingInvoice.created_at.desc()).all()
+        for bi in billing_invs:
+            if bi.id not in seen_ids:
+                seen_ids.add(bi.id)
+                inv_records.append({
+                    "id": bi.id,
+                    "user_id": current_user.id,
+                    "workspace_id": ws_id,
+                    "period": f"{bi.period_start.strftime('%b %Y')} Infrastructure Usage",
+                    "amount_inr": float(bi.total),
+                    "amount_usd": round(float(bi.total) / 83.0, 2),
+                    "status": bi.status or "PAID",
+                    "payment_method": bi.payment_method or "Sandbox Payment",
+                    "date": bi.created_at.strftime("%Y-%m-%d"),
+                    "download_url": f"/api/v1/billing/invoices/{bi.id}/pdf",
+                    "created_at": bi.created_at.isoformat()
+                })
+    except Exception:
+        pass
+
+    if not inv_records:
         # Seed initial paid invoice for workspace in PostgreSQL
         now = datetime.utcnow()
         init_inv = InvoiceRecord(
@@ -1674,12 +1701,12 @@ def list_invoices(
             db.add(init_inv)
             db.commit()
             db.refresh(init_inv)
-            invs = [init_inv]
+            inv_records = [init_inv.to_dict()]
         except Exception:
             db.rollback()
-            invs = []
+            inv_records = []
 
-    return [i.to_dict() for i in invs]
+    return inv_records
 
 def _number_to_words_inr(n: float) -> str:
     ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
@@ -3024,6 +3051,39 @@ def change_subscription_plan(
         created_at=now
     )
     db.add(new_inv)
+
+    try:
+        from app.billing.models import Invoice as BillingInvoice
+        billing_inv = BillingInvoice(
+            id=inv_id,
+            organization_id=ws_id,
+            billing_account_id=f"ba_{ws_id}",
+            period_start=now,
+            period_end=now + timedelta(days=365 if cycle == "annual" else 30),
+            subtotal=round(float(price) / 1.18, 2),
+            tax_cgst=round((float(price) - (float(price) / 1.18)) / 2.0, 2),
+            tax_sgst=round((float(price) - (float(price) / 1.18)) / 2.0, 2),
+            credits_applied=0.0,
+            total=float(price),
+            currency="INR",
+            status="PAID",
+            payment_method="Sandbox Verified Mandate",
+            paid_at=now,
+            created_at=now
+        )
+        db.add(billing_inv)
+    except Exception as e:
+        pass
+
+    try:
+        prefs = json.loads(current_user.preferences or "{}")
+        prefs["subscription_plan"] = code
+        prefs["subscription_name"] = name
+        prefs["billing_cycle"] = cycle
+        current_user.preferences = json.dumps(prefs)
+    except Exception:
+        pass
+
     db.commit()
 
     emit_notification(

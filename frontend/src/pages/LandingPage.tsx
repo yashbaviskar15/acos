@@ -454,23 +454,27 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
       <main id="main-content">
         {/* ── HERO SECTION ── */}
-        <section className="relative overflow-hidden pt-10 sm:pt-14 lg:pt-18 pb-16 sm:pb-24 lg:pb-28">
+        <section className="relative overflow-hidden pt-10 sm:pt-14 lg:pt-20 pb-16 sm:pb-24 lg:pb-28">
           {/* Subtle Grid and Radial Lighting */}
           <div
             aria-hidden
-            className="absolute inset-x-0 top-0 -z-10 h-[640px] bg-hero-radial opacity-90 pointer-events-none"
+            className="absolute inset-x-0 top-0 -z-10 h-[680px] bg-hero-radial opacity-90 pointer-events-none"
           />
           <div
             aria-hidden
-            className="absolute inset-0 -z-10 opacity-[0.035] dark:opacity-[0.06] pointer-events-none"
+            className="absolute -top-28 left-1/2 -translate-x-1/2 -z-10 w-[720px] sm:w-[1000px] h-[480px] bg-gradient-to-b from-brandGold-500/25 via-amber-500/10 to-transparent blur-[110px] pointer-events-none rounded-full"
+          />
+          <div
+            aria-hidden
+            className="absolute inset-0 -z-10 opacity-[0.035] dark:opacity-[0.07] pointer-events-none"
             style={{
               backgroundImage:
                 'linear-gradient(to right, currentColor 1px, transparent 1px), linear-gradient(to bottom, currentColor 1px, transparent 1px)',
               backgroundSize: '48px 48px',
               WebkitMaskImage:
-                'radial-gradient(ellipse 80% 55% at 50% 0%, black 40%, transparent 75%)',
+                'radial-gradient(ellipse 85% 60% at 50% 0%, black 40%, transparent 80%)',
               maskImage:
-                'radial-gradient(ellipse 80% 55% at 50% 0%, black 40%, transparent 75%)',
+                'radial-gradient(ellipse 85% 60% at 50% 0%, black 40%, transparent 80%)',
               color: '#0B0F17',
             }}
           />
@@ -481,11 +485,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -z-10 pointer-events-none flex items-center justify-center select-none overflow-hidden"
           >
             <div className="relative w-[340px] h-[340px] sm:w-[500px] sm:h-[500px] md:w-[680px] md:h-[680px] flex items-center justify-center opacity-10 dark:opacity-15">
-              <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-brandGold-500/20 via-amber-500/10 to-transparent blur-3xl" />
+              <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-brandGold-500/25 via-amber-500/10 to-transparent blur-3xl" />
               <img
                 src="/assets/aravanta-glyph-glow.png"
                 alt=""
-                className="w-full h-full object-contain filter drop-shadow-[0_0_50px_rgba(185,139,59,0.3)]"
+                className="w-full h-full object-contain filter drop-shadow-[0_0_50px_rgba(185,139,59,0.35)]"
               />
             </div>
           </div>
@@ -499,7 +503,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             >
               {/* Eyebrow Pill */}
               <motion.div variants={fadeUp} className="flex justify-center">
-                <div className="inline-flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 px-4 py-1.5 rounded-full border border-brandGold-500/30 bg-brandGold-500/10 text-brandGold-700 dark:text-brandGold-300 text-xs font-semibold tracking-wide shadow-xs backdrop-blur-md">
+                <div className="inline-flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 px-4 py-1.5 rounded-full border border-brandGold-500/40 bg-brandGold-500/10 dark:bg-brandGold-950/40 text-brandGold-700 dark:text-brandGold-300 text-xs font-semibold tracking-wide shadow-sm shadow-brandGold-500/10 backdrop-blur-xl ring-1 ring-brandGold-500/20">
                   <span className="relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
@@ -525,7 +529,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tight leading-[1.08] text-slate-900 dark:text-white max-w-4xl mx-auto font-sans"
               >
                 Aravanta Cloud OS
-                <span className="block mt-2 sm:mt-3 text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold bg-gradient-to-r from-brandGold-600 via-amber-500 to-brandGold-400 bg-clip-text text-transparent">
+                <span className="block mt-2 sm:mt-3 text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold bg-gradient-to-r from-brandGold-600 via-amber-400 to-brandGold-400 bg-clip-text text-transparent drop-shadow-xs">
                   The Sovereign Multi-Cloud Operating System
                 </span>
               </motion.h1>
@@ -583,7 +587,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 )}
               </motion.div>
 
-              {/* Factual Spec Strip (No Fake Claims) */}
+              {/* Factual Spec Strip with Subtle Glass Polish */}
               <motion.div
                 variants={fadeUp}
                 className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pt-6 max-w-4xl mx-auto w-full"
@@ -598,13 +602,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   return (
                     <div
                       key={stat.label}
-                      className="p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 dark:border-brandObsidian-700/80 bg-white/90 dark:bg-brandObsidian-900/90 backdrop-blur-md shadow-xs hover:border-brandGold-500/50 hover:shadow-md hover:-translate-y-0.5 transition-all text-left flex flex-col justify-between group"
+                      className="p-4 rounded-2xl border border-slate-200/90 dark:border-brandGold-500/25 bg-white/95 dark:bg-[#0c121e]/90 backdrop-blur-xl shadow-xs hover:border-brandGold-500/60 hover:shadow-md hover:shadow-brandGold-500/10 hover:-translate-y-1 transition-all duration-300 text-left flex flex-col justify-between group relative overflow-hidden"
                     >
-                      <div className="flex items-center justify-between mb-2 sm:mb-3">
-                        <div className="w-8 h-8 rounded-xl bg-brandGold-500/10 text-brandGold-600 dark:text-brandGold-400 flex items-center justify-center group-hover:bg-brandGold-500 group-hover:text-brandObsidian-950 transition-colors">
+                      <div className="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-brandGold-500/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                      <div className="flex items-center justify-between mb-2.5 sm:mb-3">
+                        <div className="w-8 h-8 rounded-xl bg-brandGold-500/10 text-brandGold-600 dark:text-brandGold-400 flex items-center justify-center group-hover:bg-brandGold-500 group-hover:text-brandObsidian-950 transition-colors duration-300">
                           <StatIcon className="w-4 h-4" />
                         </div>
-                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-brandObsidian-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-brandObsidian-700">
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-brandObsidian-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-brandObsidian-700 group-hover:border-brandGold-500/40 transition-colors">
                           {stat.badge}
                         </span>
                       </div>

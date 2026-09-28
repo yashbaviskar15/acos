@@ -480,6 +480,7 @@ export default function App() {
             isOpen={isCommandPaletteOpen}
             onClose={() => setIsCommandPaletteOpen(false)}
             onNavigate={handleUniversalNavigate}
+            mode="landing"
           />
           <CookieConsent />
         </ErrorBoundary>
@@ -573,6 +574,7 @@ export default function App() {
           onClose={() => setIsCommandPaletteOpen(false)}
           onNavigate={handleUniversalNavigate}
           initialQuery={searchTerm}
+          mode="landing"
         />
         <CookieConsent />
       </ErrorBoundary>
@@ -787,6 +789,7 @@ export default function App() {
           onClose={() => setIsCommandPaletteOpen(false)}
           onNavigate={handleUniversalNavigate}
           initialQuery={searchTerm}
+          mode="dashboard"
         />
 
         <CookieConsent />
