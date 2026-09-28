@@ -906,7 +906,7 @@ export const FeaturesPage: React.FC<PageProps> = ({
         </section>
 
         {/* Interactive Controls & Category Tabs */}
-        <section className="sticky top-16 z-30 bg-white/95 dark:bg-brandObsidian-950/95 backdrop-blur-md border-y border-slate-200 dark:border-brandObsidian-800 py-3 shadow-xs">
+        <section className="relative z-10 bg-white/95 dark:bg-brandObsidian-950/95 backdrop-blur-md border-y border-slate-200 dark:border-brandObsidian-800 py-3 shadow-xs">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col xl:flex-row xl:items-center justify-between gap-3">
             {/* Category Filter Pills (no scrollbar visible) */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 xl:pb-0 scrollbar-none no-scrollbar">
@@ -987,7 +987,7 @@ export const FeaturesPage: React.FC<PageProps> = ({
                           key={srv.id}
                           initial={{ opacity: 0, y: 12 }}
                           whileInView={{ opacity: 1, y: 0 }}
-                          viewport={{ once: true, margin: '-40px' }}
+                          viewport={{ once: true }}
                           transition={{ duration: 0.35, delay: idx * 0.02 }}
                           onClick={() => setSelectedService(srv)}
                           className={[
@@ -1069,7 +1069,7 @@ export const FeaturesPage: React.FC<PageProps> = ({
               </div>
 
               {/* Right Column: Sticky Live Architecture & Code Inspector (5 Cols on LG) */}
-              <div className="lg:col-span-5 lg:sticky lg:top-24 space-y-3">
+              <div className="lg:col-span-5 lg:sticky lg:top-20 space-y-3">
                 <div className="p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-brandObsidian-700 bg-white dark:bg-brandObsidian-900 shadow-xl overflow-hidden">
                   <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-brandObsidian-800">
                     <div className="flex items-center gap-2.5 min-w-0">

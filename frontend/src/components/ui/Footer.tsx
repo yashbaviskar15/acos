@@ -252,7 +252,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onGoToLogin, onGoToR
             <div className="xl:col-span-3 space-y-4">
               <Logo size="md" subtitle="Sovereign Cloud Platform & OS" />
               <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed max-w-sm font-sans">
-                India's first unified sovereign cloud operating system. Orchestrating high-performance compute, managed Kubernetes, NVMe object storage, and zero-trust IAM across enterprise regions.
+                India's sovereign cloud OS for enterprise compute, Kubernetes, NVMe storage, and zero-trust security.
               </p>
 
               {/* Status & Compliance Badges */}
