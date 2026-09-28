@@ -62,8 +62,16 @@ export const ServiceCatalog: React.FC<ServiceCatalogProps> = ({ token, onNavigat
 
   // Fetch live resource inventory to display actual active counts dynamically
   const fetchInventory = async () => {
+    // Only attempt live inventory fetch if an authenticated session token exists
+    if (!token) {
+      setInventoryCounts({});
+      return;
+    }
     try {
-      const data = await apiFetch<any>('/api/v1/operations/infrastructure/inventory', { token });
+      const data = await apiFetch<any>('/api/v1/operations/infrastructure/inventory', {
+        token,
+        silent401: true,
+      });
       if (data && Array.isArray(data.resources)) {
         const counts: Record<string, number> = {};
         for (const res of data.resources) {
@@ -73,12 +81,17 @@ export const ServiceCatalog: React.FC<ServiceCatalogProps> = ({ token, onNavigat
         setInventoryCounts(counts);
       }
     } catch {
-      // Graceful fallback
+      // Graceful fallback to static catalog
+      setInventoryCounts({});
     }
   };
 
   useEffect(() => {
-    fetchInventory();
+    if (token) {
+      fetchInventory();
+    } else {
+      setInventoryCounts({});
+    }
   }, [token]);
 
   const allServices: CatalogServiceItem[] = [

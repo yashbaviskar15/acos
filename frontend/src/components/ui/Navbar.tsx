@@ -142,7 +142,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
 
     let isMounted = true;
-    apiFetch<any>('/api/v1/auth/me', { token })
+    apiFetch<any>('/api/v1/auth/me', { token, silent401: true })
       .then((data) => {
         if (!isMounted) return;
         if (data && (data.email || data.id)) {

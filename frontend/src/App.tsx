@@ -421,12 +421,18 @@ export default function App() {
 
   useEffect(() => {
     const handleInvalidation = (e: any) => {
+      // ONLY trigger session invalidation logout if the user actually had an active session
+      // and is currently in console mode. Never interrupt unauthenticated users on public landing pages.
+      const currentToken = token || localStorage.getItem('aravanta_token');
+      if (!currentToken || !isConsoleMode) {
+        return;
+      }
       const reason = e?.detail?.reason || 'Your session was invalidated or expired. Please sign in again.';
       handleLogout(reason);
     };
     window.addEventListener('acos:session-invalidated', handleInvalidation);
     return () => window.removeEventListener('acos:session-invalidated', handleInvalidation);
-  }, [token]);
+  }, [token, isConsoleMode]);
 
   const handleLogout = (reason?: unknown) => {
     if (token) {
@@ -487,6 +493,8 @@ export default function App() {
       onGoToRegister: handleGoToRegister,
       onGoToConsole: () => setIsConsoleMode(true),
       onOpenCommandPalette: () => setIsCommandPaletteOpen(true),
+      token,
+      user,
     };
 
     let PageComponent: React.ComponentType<any>;

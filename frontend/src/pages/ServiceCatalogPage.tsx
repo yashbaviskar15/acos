@@ -13,6 +13,7 @@ interface PageProps {
   onGoToRegister: () => void;
   onOpenCommandPalette?: () => void;
   onNavigate?: (view: LandingView) => void;
+  onGoToConsole?: () => void;
   token?: string | null;
   user?: any;
 }
@@ -22,7 +23,9 @@ export const ServiceCatalogPage: React.FC<PageProps> = ({
   onGoToRegister,
   onOpenCommandPalette,
   onNavigate,
+  onGoToConsole,
   token = null,
+  user,
 }) => {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-brandObsidian-950 font-sans antialiased text-slate-900 dark:text-slate-100 transition-colors">
@@ -31,6 +34,9 @@ export const ServiceCatalogPage: React.FC<PageProps> = ({
         onGoToRegister={onGoToRegister}
         onOpenCommandPalette={onOpenCommandPalette}
         onNavigate={onNavigate}
+        onGoToConsole={onGoToConsole}
+        user={user}
+        token={token}
         currentView="services"
       />
 
@@ -107,7 +113,13 @@ export const ServiceCatalogPage: React.FC<PageProps> = ({
               onNavigate={(tab) => {
                 if (tab === 'pricing') onNavigate?.('pricing');
                 else if (tab === 'docs') onNavigate?.('documentation');
-                else onNavigate?.('features');
+                else if (tab === 'cli') onNavigate?.('cli');
+                else if (tab === 'features') onNavigate?.('features');
+                else if (token && onGoToConsole) {
+                  onGoToConsole();
+                } else if (onNavigate) {
+                  onNavigate('features');
+                }
               }}
             />
           </div>

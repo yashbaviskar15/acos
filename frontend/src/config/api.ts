@@ -21,6 +21,8 @@ export interface ApiOptions extends RequestInit {
   token?: string | null;
   /** Skip retry for this call (e.g. non-idempotent writes you don't want to double-fire). */
   skipRetry?: boolean;
+  /** If true, do not emit acos:session-invalidated event on 401 response */
+  silent401?: boolean;
 }
 
 const FETCH_TIMEOUT_MS = 15_000;
@@ -55,6 +57,7 @@ export async function apiFetch<T = any>(
     token,
     headers: customHeaders,
     skipRetry,
+    silent401,
     ...fetchOptions
   } = options;
 
@@ -138,7 +141,16 @@ export async function apiFetch<T = any>(
           continue;
         }
 
-        if (typeof window !== 'undefined' && response.status === 401 && !cleanPath.includes('/auth/login') && !cleanPath.includes('/auth/register')) {
+        const hadAuthHeader = headers.has('Authorization');
+        if (
+          typeof window !== 'undefined' &&
+          response.status === 401 &&
+          !silent401 &&
+          hadAuthHeader &&
+          !cleanPath.includes('/auth/login') &&
+          !cleanPath.includes('/auth/register') &&
+          !cleanPath.includes('/auth/password-reset')
+        ) {
           window.dispatchEvent(
             new CustomEvent('acos:session-invalidated', {
               detail: {
