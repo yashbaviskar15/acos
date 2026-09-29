@@ -14,6 +14,7 @@ from app.core.database import get_db
 from app.services.arvgate.models import User
 from app.services.arvgate.dependencies import get_current_user, require_roles
 from app.core.cloud_models import DatabaseInstance, emit_notification
+from app.core.state_guard import transition_resource_state
 
 router = APIRouter(prefix="/api/v1/databases", tags=["ArvDB"])
 
@@ -177,7 +178,7 @@ def create_database(
         region=req.region,
         storage_gb=req.storage_gb,
         storage_used_gb=storage_used_gb,
-        status=status,
+        status="PROVISIONING",
         endpoint=endpoint,
         port=port,
         connection_count=1 if is_postgres else 0,
@@ -187,6 +188,21 @@ def create_database(
         credentials_encrypted=credentials_encrypted,
         created_at=datetime.utcnow(),
     )
+    if is_postgres and real_db_name:
+        transition_resource_state(
+            instance,
+            target_state="AVAILABLE",
+            provider_resource_id=real_db_name,
+            state_source="provider",
+            observed_at=datetime.utcnow()
+        )
+    else:
+        transition_resource_state(
+            instance,
+            target_state="AWAITING_PROVIDER_SETUP",
+            state_source="registry-only",
+            last_error="MySQL/Redis/MongoDB engines require external cloud provider credentials (AWS RDS or GCP Cloud SQL)."
+        )
     db.add(instance)
     db.commit()
     db.refresh(instance)

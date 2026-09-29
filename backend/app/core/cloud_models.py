@@ -50,13 +50,17 @@ class ComputeInstance(Base):
     instance_type = Column(String(50), default="arv.medium", nullable=False)
     os_image = Column(String(100), default="Ubuntu 22.04 LTS", nullable=False)
     region = Column(String(50), default="arv-us-east-1", nullable=False)
-    status = Column(String(20), default="RUNNING", nullable=False)  # RUNNING, STOPPED, TERMINATED
-    private_ip = Column(String(50), nullable=False)
+    status = Column(String(30), default="AWAITING_PROVIDER_SETUP", nullable=False)
+    private_ip = Column(String(50), nullable=True)
     public_ip = Column(String(50), nullable=True)
-    cpu_usage = Column(Float, default=5.0)
-    ram_usage = Column(Float, default=20.0)
+    cpu_usage = Column(Float, nullable=True)
+    ram_usage = Column(Float, nullable=True)
     disk_gb = Column(Integer, default=50)
     tags = Column(Text, default="{}")
+    provider_resource_id = Column(String(100), nullable=True)
+    state_source = Column(String(50), nullable=True)
+    observed_at = Column(DateTime, nullable=True)
+    last_error = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow)
 
@@ -78,6 +82,10 @@ class ComputeInstance(Base):
             "ram_usage": self.ram_usage,
             "disk_gb": self.disk_gb,
             "tags": parsed_tags,
+            "provider_resource_id": self.provider_resource_id,
+            "state_source": self.state_source or ("provider" if self.provider_resource_id else "registry-only"),
+            "observed_at": self.observed_at.isoformat() + "Z" if self.observed_at else None,
+            "last_error": self.last_error,
             "launched_at": self.created_at.isoformat() + "Z" if self.created_at else datetime.datetime.utcnow().isoformat() + "Z",
             "created_at": self.created_at.isoformat() + "Z" if self.created_at else datetime.datetime.utcnow().isoformat() + "Z",
         }
@@ -92,13 +100,17 @@ class KubeCluster(Base):
     name = Column(String(100), index=True, nullable=False)
     version = Column(String(20), default="1.30.1", nullable=False)
     region = Column(String(50), default="arv-us-east-1", nullable=False)
-    status = Column(String(20), default="ACTIVE", nullable=False)
-    node_count = Column(Integer, default=3)
+    status = Column(String(30), default="AWAITING_PROVIDER_SETUP", nullable=False)
+    node_count = Column(Integer, default=0)
     node_size = Column(String(50), default="arv.large")
-    endpoint = Column(String(255), nullable=False)
-    cpu_cores_total = Column(Integer, default=12)
-    ram_gb_total = Column(Integer, default=48)
+    endpoint = Column(String(255), nullable=True)
+    cpu_cores_total = Column(Integer, default=0)
+    ram_gb_total = Column(Integer, default=0)
     pod_count = Column(Integer, default=0)
+    provider_resource_id = Column(String(100), nullable=True)
+    state_source = Column(String(50), nullable=True)
+    observed_at = Column(DateTime, nullable=True)
+    last_error = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     def to_dict(self) -> dict:
@@ -114,6 +126,10 @@ class KubeCluster(Base):
             "cpu_cores_total": self.cpu_cores_total,
             "ram_gb_total": self.ram_gb_total,
             "pod_count": self.pod_count,
+            "provider_resource_id": self.provider_resource_id,
+            "state_source": self.state_source or ("k8s-api" if self.provider_resource_id else "registry-only"),
+            "observed_at": self.observed_at.isoformat() + "Z" if self.observed_at else None,
+            "last_error": self.last_error,
             "created_at": self.created_at.isoformat() + "Z" if self.created_at else datetime.datetime.utcnow().isoformat() + "Z",
         }
 
@@ -187,7 +203,7 @@ class DatabaseInstance(Base):
     region = Column(String(50), default="arv-us-east-1", nullable=False)
     storage_gb = Column(Integer, default=100)
     storage_used_gb = Column(Float, default=0.0)
-    status = Column(String(20), default="AVAILABLE", nullable=False)
+    status = Column(String(30), default="AWAITING_PROVIDER_SETUP", nullable=False)
     endpoint = Column(String(255), nullable=True)
     port = Column(String(10), default="5432", nullable=True)
     connection_count = Column(Integer, default=0)
@@ -196,6 +212,10 @@ class DatabaseInstance(Base):
     iops = Column(Integer, nullable=True)
     credentials_encrypted = Column(Text, nullable=True)
     telemetry_status = Column(String(50), default="ACTIVE")
+    provider_resource_id = Column(String(100), nullable=True)
+    state_source = Column(String(50), nullable=True)
+    observed_at = Column(DateTime, nullable=True)
+    last_error = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     def to_dict(self) -> dict:
@@ -214,6 +234,10 @@ class DatabaseInstance(Base):
             "max_connections": self.max_connections,
             "latency_ms": self.latency_ms,
             "iops": self.iops,
+            "provider_resource_id": self.provider_resource_id,
+            "state_source": self.state_source or ("provider" if self.provider_resource_id else "registry-only"),
+            "observed_at": self.observed_at.isoformat() + "Z" if self.observed_at else None,
+            "last_error": self.last_error,
             "created_at": self.created_at.isoformat() + "Z" if self.created_at else datetime.datetime.utcnow().isoformat() + "Z",
         }
 

@@ -6,6 +6,8 @@ import {
 import { ModalPortal } from '../components/ModalPortal';
 import { DataTablePagination } from '../components/DataTablePagination';
 import { apiFetch } from '../config/api';
+import { StatusBadge } from '../components/ui/StatusBadge';
+import { SourceBadge } from '../components/ui/SourceBadge';
 
 interface NetworkingProps {
   token: string | null;
@@ -18,6 +20,10 @@ interface ArvVPCItem {
   region: string;
   status: string;
   is_default: boolean;
+  provider_resource_id?: string;
+  state_source?: string;
+  observed_at?: string;
+  last_error?: string;
   created_at: string;
 }
 
@@ -428,10 +434,10 @@ export const Networking: React.FC<NetworkingProps> = ({ token }) => {
                         {vpc.region}
                       </td>
                       <td className="py-3 px-4">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                          {vpc.status || 'ACTIVE'}
-                        </span>
+                        <div className="flex flex-col gap-1 items-start">
+                          <StatusBadge status={vpc.status || 'AWAITING_PROVIDER_SETUP'} />
+                          <SourceBadge source={vpc.state_source || (vpc.provider_resource_id ? 'provider' : 'registry-only')} observedAt={vpc.observed_at} />
+                        </div>
                       </td>
                       <td className="py-3 px-4">
                         {vpc.is_default ? (

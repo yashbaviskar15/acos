@@ -123,15 +123,15 @@ event = json.loads(sys.argv[1]) if len(sys.argv) > 1 else {{}}
 result = {fn.handler.split('.')[0] if '.' in fn.handler else fn.handler}(event, {{}})
 print(json.dumps(result) if result is not None else '{{}}')
 """
-    
     start_time = time.monotonic()
     try:
+        import sys
+        python_bin = sys.executable or "python"
         proc = subprocess.run(
-            ["python3", "-c", wrapper, payload_json],
+            [python_bin, "-c", wrapper, payload_json],
             capture_output=True,
             text=True,
-            timeout=min(fn.timeout_seconds, 30),  # cap at 30s on serverless
-            env={"PATH": "/usr/bin:/bin"},  # minimal env
+            timeout=min(fn.timeout_seconds, 30),
         )
         duration_ms = int((time.monotonic() - start_time) * 1000)
         

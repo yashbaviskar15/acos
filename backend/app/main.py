@@ -52,7 +52,8 @@ from app.services.arvevents.router import router as arvevents_router
 from app.services.arvnetwork.router import router as arvnetwork_router
 from app.services.arvdns.router import router as arvdns_router
 from app.services.cloud_providers.router import router as cloud_providers_router
-import app.services.arvgate.models
+from app.core.jobs_router import router as jobs_router
+import app.core.jobs
 import app.control_plane.models
 import app.core.cloud_models
 import app.services.arvcommunity.models
@@ -227,6 +228,7 @@ app.include_router(arvevents_router)
 app.include_router(arvnetwork_router)
 app.include_router(arvdns_router)
 app.include_router(cloud_providers_router)
+app.include_router(jobs_router)
 
 @app.get("/", tags=["Root"])
 @app.get("/api", tags=["Root"], include_in_schema=False)

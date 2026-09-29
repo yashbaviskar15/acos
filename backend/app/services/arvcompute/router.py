@@ -1,10 +1,14 @@
 """
 Aravanta CloudOS — ArvCompute Service Router
-Full CRUD for virtual machine instances backed by persistent database storage,
-scoped to authenticated users, with real notification emission.
+Real cloud control plane implementation:
+- Dispatches to real cloud providers (AWS EC2 or verified Local Docker).
+- When credentials are not configured, records metadata honestly in AWAITING_PROVIDER_SETUP.
+- Prohibits fake IPs, fake metrics, or fake RUNNING states without provider proof.
+- Governed by Evidence-Gated State Guard.
 """
 import hashlib
 import json
+import base64
 from datetime import datetime
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Query, Depends, status
@@ -17,6 +21,10 @@ from app.core.database import get_db
 from app.services.arvgate.models import User, AuditLog
 from app.services.arvgate.dependencies import get_current_user, require_roles
 from app.core.cloud_models import ComputeInstance, emit_notification, SSHKeyPair
+from app.core.state_guard import transition_resource_state, StateGuardViolation
+from app.core.crypto import PLATFORM_MASTER_KEY, decrypt_aes256gcm
+from app.core.providers import get_provider
+from app.services.cloud_providers.models import CloudProviderCredential
 
 router = APIRouter(prefix="/api/v1/compute", tags=["ArvCompute"])
 
@@ -44,6 +52,28 @@ OS_IMAGES = [
 def _det_id(prefix: str, name: str) -> str:
     return f"{prefix}-{hashlib.md5(f'{name}-{datetime.utcnow().timestamp()}'.encode()).hexdigest()[:10]}"
 
+def _get_compute_driver_for_user(db: Session, user_id: str):
+    cred = db.query(CloudProviderCredential).filter(
+        CloudProviderCredential.user_id == user_id,
+        CloudProviderCredential.provider.in_(["AWS", "EC2"])
+    ).first()
+    if cred:
+        try:
+            raw_creds = json.loads(decrypt_aes256gcm(PLATFORM_MASTER_KEY, cred.encrypted_credentials))
+            return get_provider("AWS", raw_creds), "provider"
+        except Exception:
+            pass
+    # Check local Docker daemon
+    try:
+        docker_provider = get_provider("DOCKER")
+        success, _, _ = docker_provider.test_connection({})
+        if success:
+            return docker_provider, "docker"
+    except Exception:
+        pass
+    return None, None
+
+
 # ─── Schemas ────────────────────────────────────────────────────
 class CreateInstanceRequest(BaseModel):
     name: str
@@ -61,14 +91,20 @@ class CreateKeypairRequest(BaseModel):
 
 # ─── Endpoints ──────────────────────────────────────────────────
 @router.get("/provider-status")
-def get_provider_status():
+def get_provider_status(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    provider, p_type = _get_compute_driver_for_user(db, str(current_user.id))
+    if provider:
+        return {
+            "provider_configured": True,
+            "provider_type": p_type,
+            "message": f"Connected to {p_type.upper()} compute infrastructure.",
+            "supported_providers": ["aws_ec2", "docker_local"]
+        }
     return {
         "provider_configured": False,
-        "message": "No compute provider configured. Connect AWS/GCP/Azure credentials to provision real VMs.",
-        "supported_providers": ["aws_ec2", "gcp_compute", "azure_vm", "docker_local"]
+        "message": "No compute provider configured. Connect AWS credentials to provision real VMs.",
+        "supported_providers": ["aws_ec2", "docker_local"]
     }
-
-import base64
 
 @router.post("/keypairs")
 def create_keypair(
@@ -163,7 +199,7 @@ def connect_instance(
     else:
         return {
             "connectable": False,
-            "reason": f"Instance is currently {inst.status} and has no public IP assigned. Configure a cloud provider to provision real compute.",
+            "reason": f"Instance {instance_id} is in status '{inst.status}' with no public IP assigned. A real instance must be provisioned on an active provider with a verified public IP to establish an SSH connection.",
             "status": inst.status
         }
 
@@ -177,9 +213,33 @@ def reconcile_instance(
     if not inst:
         raise HTTPException(status_code=404, detail=f"Instance {instance_id} not found")
     
-    if inst.status in ["PENDING_PROVIDER", "AWAITING_PROVIDER_SETUP"]:
-        inst.status = "AWAITING_PROVIDER_SETUP"
-        db.commit()
+    provider, p_type = _get_compute_driver_for_user(db, str(current_user.id))
+    if provider and inst.provider_resource_id:
+        try:
+            status_info = provider.compute.get_status(inst.provider_resource_id)
+            target_status = status_info.get("status", "UNKNOWN")
+            transition_resource_state(
+                inst,
+                target_state=target_status,
+                provider_resource_id=inst.provider_resource_id,
+                state_source=p_type,
+                observed_at=datetime.utcnow()
+            )
+            inst.private_ip = status_info.get("private_ip")
+            inst.public_ip = status_info.get("public_ip")
+        except Exception as e:
+            inst.last_error = str(e)
+    else:
+        if inst.status not in ["AWAITING_PROVIDER_SETUP", "FAILED", "DELETED"]:
+            transition_resource_state(
+                inst,
+                target_state="AWAITING_PROVIDER_SETUP",
+                state_source="registry-only",
+                last_error="No provider connection verified."
+            )
+    
+    db.commit()
+    db.refresh(inst)
     return inst.to_dict()
 
 @router.get("/instances")
@@ -225,6 +285,7 @@ def create_instance(
 ):
     inst_id = _det_id("arv-i", req.name)
     now = datetime.utcnow()
+    
     new_inst = ComputeInstance(
         id=inst_id,
         user_id=current_user.id,
@@ -233,7 +294,7 @@ def create_instance(
         instance_type=req.instance_type,
         os_image=req.os_image,
         region=req.region,
-        status="AWAITING_PROVIDER_SETUP",
+        status="PROVISIONING",
         private_ip=None,
         public_ip=None,
         cpu_usage=None,
@@ -244,6 +305,43 @@ def create_instance(
         updated_at=now
     )
     db.add(new_inst)
+    db.flush()
+
+    provider, p_type = _get_compute_driver_for_user(db, str(current_user.id))
+    if provider:
+        try:
+            spec = {
+                "name": req.name.strip(),
+                "instance_type": req.instance_type,
+                "os_image": req.os_image,
+                "disk_gb": req.disk_gb,
+                "resource_id": inst_id
+            }
+            res = provider.compute.create(spec, idempotency_key=inst_id)
+            target_st = res.get("status", "RUNNING")
+            transition_resource_state(
+                new_inst,
+                target_state=target_st,
+                provider_resource_id=res["provider_resource_id"],
+                state_source=p_type,
+                observed_at=now
+            )
+            new_inst.private_ip = res.get("private_ip")
+            new_inst.public_ip = res.get("public_ip")
+        except Exception as e:
+            transition_resource_state(
+                new_inst,
+                target_state="FAILED",
+                state_source=p_type or "provider",
+                last_error=str(e)
+            )
+    else:
+        transition_resource_state(
+            new_inst,
+            target_state="AWAITING_PROVIDER_SETUP",
+            state_source="registry-only",
+            last_error="No compute provider configured. Connect AWS credentials to provision real compute."
+        )
 
     # Log audit entry
     audit = AuditLog(
@@ -252,7 +350,7 @@ def create_instance(
         user_email=current_user.email,
         action="CREATE_INSTANCE",
         resource=req.name.strip(),
-        details=f"Deployed {req.instance_type} in {req.region}"
+        details=f"Compute instance request: {req.instance_type} in {req.region} (status: {new_inst.status})"
     )
     db.add(audit)
 
@@ -261,24 +359,25 @@ def create_instance(
         db=db,
         user_id=current_user.id,
         workspace_id=current_user.workspace_id,
-        title="VM Instance Deployed",
-        desc=f"Instance {req.name} ({req.instance_type}) was launched successfully in {req.region}.",
-        type="success"
+        title="VM Instance Created" if new_inst.status in ["RUNNING", "PROVISIONING"] else "Compute Setup Required",
+        desc=f"Instance {req.name} status is {new_inst.status}.",
+        type="success" if new_inst.status in ["RUNNING", "PROVISIONING"] else "warning"
     )
 
     db.commit()
     db.refresh(new_inst)
 
-    try:
-        from app.billing.metering_service import MeteringService
-        MeteringService.start_resource_meter(
-            db=db,
-            resource_id=new_inst.id,
-            resource_type="compute",
-            organization_id=current_user.workspace_id or "default"
-        )
-    except Exception:
-        pass
+    if new_inst.status == "RUNNING":
+        try:
+            from app.billing.metering_service import MeteringService
+            MeteringService.start_resource_meter(
+                db=db,
+                resource_id=new_inst.id,
+                resource_type="compute",
+                organization_id=current_user.workspace_id or "default"
+            )
+        except Exception:
+            pass
 
     return new_inst.to_dict()
 
@@ -304,6 +403,14 @@ def instance_action(
                 detail=f"User role '{current_user.role}' is not authorized to terminate instances."
             )
         inst_name = inst.name
+        if inst.provider_resource_id:
+            provider, p_type = _get_compute_driver_for_user(db, str(current_user.id))
+            if provider:
+                try:
+                    provider.compute.delete(inst.provider_resource_id)
+                except Exception as e:
+                    raise HTTPException(502, f"Provider error terminating instance: {e}")
+
         db.delete(inst)
         try:
             from app.billing.metering_service import MeteringService
@@ -327,63 +434,43 @@ def instance_action(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"User role '{current_user.role}' is not authorized to perform {action} action."
             )
+        if not inst.provider_resource_id:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot perform '{action}' on an unprovisioned instance (status: {inst.status}). Connect a cloud provider to provision real infrastructure."
+            )
+        
+        provider, p_type = _get_compute_driver_for_user(db, str(current_user.id))
+        if not provider:
+            raise HTTPException(status_code=503, detail="Active cloud provider credentials missing or unreachable.")
+        
+        try:
+            if action == "start":
+                res = provider.compute.start(inst.provider_resource_id)
+                target_state = res.get("status", "STARTING")
+            elif action == "stop":
+                res = provider.compute.stop(inst.provider_resource_id)
+                target_state = res.get("status", "STOPPING")
+            elif action == "reboot":
+                res = provider.compute.restart(inst.provider_resource_id)
+                target_state = res.get("status", "STARTING")
+
+            transition_resource_state(
+                inst,
+                target_state=target_state,
+                provider_resource_id=inst.provider_resource_id,
+                state_source=p_type,
+                observed_at=datetime.utcnow()
+            )
+        except Exception as e:
+            inst.last_error = str(e)
+            raise HTTPException(502, f"Provider error executing {action}: {e}")
+
+        db.commit()
+        db.refresh(inst)
+        return inst.to_dict()
     else:
         raise HTTPException(status_code=400, detail=f"Unknown action: {action}")
-
-    if action == "start":
-        inst.status = "START_REQUESTED"
-        inst.updated_at = datetime.utcnow()
-        try:
-            from app.billing.metering_service import MeteringService
-            MeteringService.start_resource_meter(
-                db=db,
-                resource_id=instance_id,
-                resource_type="compute",
-                organization_id=current_user.workspace_id or "default"
-            )
-        except Exception:
-            pass
-        emit_notification(
-            db=db,
-            user_id=current_user.id,
-            workspace_id=current_user.workspace_id,
-            title="Instance Start Requested",
-            desc=f"VM instance {inst.name} is requesting to start in {inst.region}.",
-            type="info"
-        )
-    elif action == "stop":
-        inst.status = "STOPPED"
-        inst.cpu_usage = 0.0
-        inst.ram_usage = 0.0
-        inst.updated_at = datetime.utcnow()
-        try:
-            from app.billing.metering_service import MeteringService
-            MeteringService.stop_resource_meter(db=db, resource_id=instance_id, debit_from_account=True)
-        except Exception:
-            pass
-        emit_notification(
-            db=db,
-            user_id=current_user.id,
-            workspace_id=current_user.workspace_id,
-            title="Instance Stopped",
-            desc=f"VM instance {inst.name} was STOPPED.",
-            type="warning"
-        )
-    elif action == "reboot":
-        inst.status = "REBOOT_REQUESTED"
-        inst.updated_at = datetime.utcnow()
-        emit_notification(
-            db=db,
-            user_id=current_user.id,
-            workspace_id=current_user.workspace_id,
-            title="Instance Rebooted",
-            desc=f"VM instance {inst.name} completed reboot cycle.",
-            type="info"
-        )
-
-    db.commit()
-    db.refresh(inst)
-    return inst.to_dict()
 
 @router.delete("/instances/{instance_id}")
 def delete_instance(
@@ -397,6 +484,14 @@ def delete_instance(
     user_role = (current_user.role or "").strip().lower()
     if user_role not in ["superadmin", "admin"] and inst.user_id != current_user.id and inst.workspace_id != current_user.workspace_id:
         raise HTTPException(status_code=403, detail="Access denied to this instance")
+
+    if inst.provider_resource_id:
+        provider, _ = _get_compute_driver_for_user(db, str(current_user.id))
+        if provider:
+            try:
+                provider.compute.delete(inst.provider_resource_id)
+            except Exception:
+                pass
 
     inst_name = inst.name
     db.delete(inst)
@@ -439,6 +534,7 @@ def compute_summary(
 
     running = len([i for i in instances if i.status == "RUNNING"])
     stopped = len([i for i in instances if i.status == "STOPPED"])
+    awaiting_setup = len([i for i in instances if i.status == "AWAITING_PROVIDER_SETUP"])
     total_vcpus = 0
     total_ram = 0
     for inst in instances:
@@ -455,7 +551,8 @@ def compute_summary(
         "total_instances": len(instances),
         "running": running,
         "stopped": stopped,
+        "awaiting_setup": awaiting_setup,
         "total_vcpus": total_vcpus,
         "total_ram_gb": total_ram,
-        "regions_active": len(set(i.region for i in instances)) if instances else 0,
+        "regions_active": len(set(i.region for i in instances if i.status == "RUNNING")) if instances else 0,
     }

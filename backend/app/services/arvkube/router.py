@@ -1,10 +1,10 @@
 """
 Aravanta CloudOS — ArvKube Service Router
 Full CRUD for Kubernetes clusters backed by persistent database storage,
-scoped to authenticated users, with real notification emission.
+scoped to authenticated users, with real live cluster verification.
+Enforces State Guard: ACTIVE clusters strictly require real k8s-api verification.
 """
 import hashlib
-import random
 from datetime import datetime
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Query, Depends, status, Response
@@ -16,13 +16,13 @@ from app.core.database import get_db
 from app.services.arvgate.models import User, AuditLog
 from app.services.arvgate.dependencies import get_current_user, require_roles
 from app.core.cloud_models import KubeCluster, emit_notification
+from app.core.state_guard import transition_resource_state
+from app.core.providers.kubernetes import KubernetesAPIDriver
 
 router = APIRouter(prefix="/api/v1/kubernetes", tags=["ArvKube"])
 
 K8S_VERSIONS = ["1.28.4", "1.29.2", "1.30.1"]
 NODE_SIZES = ["arv.medium", "arv.large", "arv.xlarge", "arv.2xlarge"]
-NAMESPACES = ["default", "kube-system", "aravanta-core", "monitoring", "ingress-nginx"]
-POD_PREFIXES = []
 
 def _det_id(prefix: str, name: str) -> str:
     return f"{prefix}-{hashlib.md5(f'{name}-{datetime.utcnow().timestamp()}'.encode()).hexdigest()[:10]}"
@@ -36,6 +36,10 @@ class CreateClusterRequest(BaseModel):
 
 class ScaleRequest(BaseModel):
     node_count: int
+
+class ConnectClusterRequest(BaseModel):
+    name: str
+    kubeconfig_yaml: str
 
 @router.get("/clusters")
 def list_clusters(
@@ -52,10 +56,6 @@ def list_clusters(
     clusters = query.order_by(KubeCluster.created_at.desc()).all()
     return [c.to_dict() for c in clusters]
 
-class ConnectClusterRequest(BaseModel):
-    name: str
-    kubeconfig_yaml: str
-
 @router.post("/connect-cluster")
 def connect_cluster(
     req: ConnectClusterRequest,
@@ -65,8 +65,6 @@ def connect_cluster(
     try:
         import yaml
         config = yaml.safe_load(req.kubeconfig_yaml)
-    except ImportError:
-        raise HTTPException(500, "PyYAML parser is initializing or not available on serverless environment.")
     except Exception as e:
         raise HTTPException(400, f"Invalid YAML: {e}")
     
@@ -78,6 +76,7 @@ def connect_cluster(
     if not endpoint:
         raise HTTPException(400, "Invalid kubeconfig: missing server endpoint")
 
+    driver = KubernetesAPIDriver(endpoint=endpoint)
     try:
         with httpx.Client(verify=False, timeout=5.0) as client:
             resp = client.get(f"{endpoint}/version")
@@ -85,7 +84,10 @@ def connect_cluster(
             version_data = resp.json()
             k8s_version = version_data.get("gitVersion", "unknown")
     except Exception as e:
-        raise HTTPException(400, f"Cluster unreachable: {str(e)}")
+        raise HTTPException(400, f"Cluster unreachable at {endpoint}: {str(e)}")
+
+    nodes = driver.get_nodes()
+    node_count = len(nodes) if nodes else 1
 
     cid = _det_id("arv-k8s", req.name)
     now = datetime.utcnow()
@@ -96,14 +98,21 @@ def connect_cluster(
         name=req.name.strip(),
         version=k8s_version,
         region="external",
-        status="ACTIVE",
-        node_count=1,
-        node_size="unknown",
+        status="PROVISIONING",
+        node_count=node_count,
+        node_size="custom",
         endpoint=endpoint,
-        cpu_cores_total=4,
-        ram_gb_total=16,
+        cpu_cores_total=node_count * 4,
+        ram_gb_total=node_count * 16,
         pod_count=0,
         created_at=now
+    )
+    transition_resource_state(
+        new_cluster,
+        target_state="ACTIVE",
+        provider_resource_id=endpoint,
+        state_source="k8s-api",
+        observed_at=now
     )
     db.add(new_cluster)
     db.commit()
@@ -123,8 +132,8 @@ def download_kubeconfig(
     if user_role not in ["superadmin", "admin"] and cluster.user_id != current_user.id and cluster.workspace_id != current_user.workspace_id:
         raise HTTPException(403, "Access denied to this cluster")
 
-    if cluster.status == "AWAITING_PROVIDER_SETUP":
-        raise HTTPException(404, "Kubeconfig is not available until cluster is provisioned by a cloud provider.")
+    if cluster.status == "AWAITING_PROVIDER_SETUP" or not cluster.endpoint:
+        raise HTTPException(404, "Kubeconfig is not available until cluster is provisioned on a live provider.")
 
     return Response(
         content=f"apiVersion: v1\nclusters:\n- cluster:\n    server: {cluster.endpoint}\n  name: {cluster.name}\n",
@@ -160,52 +169,44 @@ def create_cluster(
         name=req.name.strip(),
         version=req.version,
         region=req.region,
-        status="AWAITING_PROVIDER_SETUP",
+        status="PROVISIONING",
         node_count=0,
         node_size=req.node_size,
-        endpoint="",
+        endpoint=None,
         cpu_cores_total=0,
         ram_gb_total=0,
         pod_count=0,
         created_at=now
     )
+    transition_resource_state(
+        new_cluster,
+        target_state="AWAITING_PROVIDER_SETUP",
+        state_source="registry-only",
+        last_error="No Kubernetes provider configured. Connect a live K8s cluster or configure AWS EKS credentials."
+    )
     db.add(new_cluster)
 
-    # Log audit entry
     audit = AuditLog(
         id=f"audit-{hashlib.md5(f'{cid}-{now.isoformat()}'.encode()).hexdigest()[:12]}",
         workspace_id=current_user.workspace_id,
         user_email=current_user.email,
         action="CREATE_CLUSTER",
         resource=req.name.strip(),
-        details=f"Created cluster {req.name} ({req.version}) with {req.node_count} nodes in {req.region}"
+        details=f"Cluster registration: {req.name} ({req.version}) in {req.region} (status: AWAITING_PROVIDER_SETUP)"
     )
     db.add(audit)
 
-    # Emit persistent notification
     emit_notification(
         db=db,
         user_id=current_user.id,
         workspace_id=current_user.workspace_id,
-        title="Kubernetes Cluster Provisioned",
-        desc=f"Cluster {req.name} (v{req.version}) is now ACTIVE with {req.node_count} worker nodes.",
-        type="success"
+        title="Cluster Registered (Setup Required)",
+        desc=f"Cluster {req.name} registered. Provider setup required to provision worker nodes.",
+        type="warning"
     )
 
     db.commit()
     db.refresh(new_cluster)
-
-    try:
-        from app.billing.metering_service import MeteringService
-        MeteringService.start_resource_meter(
-            db=db,
-            resource_id=new_cluster.id,
-            resource_type="kubernetes",
-            organization_id=current_user.workspace_id or "default"
-        )
-    except Exception:
-        pass
-
     return new_cluster.to_dict()
 
 @router.delete("/clusters/{cluster_id}")
@@ -239,7 +240,6 @@ def delete_cluster(
         desc=f"Kubernetes cluster {c_name} ({cluster_id}) was deleted.",
         type="error"
     )
-    db.commit()
     return {"message": f"Cluster {cluster_id} deleted"}
 
 @router.post("/clusters/{cluster_id}/scale")
@@ -256,10 +256,12 @@ def scale_cluster(
     if user_role not in ["superadmin", "admin"] and cluster.user_id != current_user.id and cluster.workspace_id != current_user.workspace_id:
         raise HTTPException(403, "Access denied to this cluster")
 
+    if cluster.status == "AWAITING_PROVIDER_SETUP" or not cluster.provider_resource_id:
+        raise HTTPException(400, "Cannot scale a cluster in AWAITING_PROVIDER_SETUP. Connect a live provider or cluster endpoint first.")
+
     cluster.node_count = req.node_count
     cluster.cpu_cores_total = req.node_count * 4
     cluster.ram_gb_total = req.node_count * 16
-    cluster.pod_count = req.node_count * 3
 
     emit_notification(
         db=db,
@@ -286,11 +288,32 @@ def list_pods(
     if not cluster:
         raise HTTPException(404, "Cluster not found")
     
-    if cluster.status == "AWAITING_PROVIDER_SETUP":
+    if cluster.status != "ACTIVE" or not cluster.endpoint:
         response.headers["x-telemetry-status"] = "NO_TELEMETRY"
         return []
         
-    return []
+    driver = KubernetesAPIDriver(endpoint=cluster.endpoint)
+    pods = driver.get_pods(namespace=namespace)
+    return pods
+
+@router.get("/clusters/{cluster_id}/nodes")
+def list_nodes(
+    cluster_id: str,
+    response: Response,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    cluster = db.query(KubeCluster).filter(KubeCluster.id == cluster_id).first()
+    if not cluster:
+        raise HTTPException(404, "Cluster not found")
+    
+    if cluster.status != "ACTIVE" or not cluster.endpoint:
+        response.headers["x-telemetry-status"] = "NO_TELEMETRY"
+        return []
+        
+    driver = KubernetesAPIDriver(endpoint=cluster.endpoint)
+    nodes = driver.get_nodes()
+    return nodes
 
 @router.get("/versions")
 def list_versions():
@@ -315,9 +338,9 @@ def kube_summary(
     return {
         "total_clusters": len(clusters),
         "active_clusters": len([c for c in clusters if c.status == "ACTIVE"]),
+        "awaiting_setup": len([c for c in clusters if c.status == "AWAITING_PROVIDER_SETUP"]),
         "total_nodes": total_nodes,
         "total_pods": total_pods,
-        "total_cpu_cores": sum(c.cpu_cores_total for c in clusters),
-        "total_ram_gb": sum(c.ram_gb_total for c in clusters),
+        "total_cpu_cores": sum(c.cpu_cores_total for c in clusters if c.status == "ACTIVE"),
+        "total_ram_gb": sum(c.ram_gb_total for c in clusters if c.status == "ACTIVE"),
     }
-

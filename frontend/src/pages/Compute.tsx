@@ -9,6 +9,8 @@ import { ModalPortal } from '../components/ModalPortal';
 import { DataTablePagination } from '../components/DataTablePagination';
 import { apiFetch } from '../config/api';
 import { deductClientServiceCharge } from '../utils/billingDebit';
+import { StatusBadge } from '../components/ui/StatusBadge';
+import { SourceBadge } from '../components/ui/SourceBadge';
 
 interface ComputeProps {
   token: string | null;
@@ -391,23 +393,10 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
                     <td className="p-4 text-slate-700 dark:text-slate-300 font-sans">{inst.region || 'arv-us-east-1'}</td>
 
                     <td className="p-4">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono border inline-flex items-center gap-1 ${
-                        inst.status === 'RUNNING'
-                          ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30'
-                          : inst.status === 'AWAITING_PROVIDER_SETUP'
-                          ? 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/30'
-                          : inst.status === 'PROVISIONING'
-                          ? 'bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/30'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
-                      }`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${
-                          inst.status === 'RUNNING' ? 'bg-emerald-500 animate-pulse' 
-                          : inst.status === 'AWAITING_PROVIDER_SETUP' ? 'bg-amber-500'
-                          : inst.status === 'PROVISIONING' ? 'bg-blue-500 animate-pulse'
-                          : 'bg-slate-400'
-                        }`} />
-                        {inst.status || 'AWAITING_PROVIDER_SETUP'}
-                      </span>
+                      <div className="flex flex-col gap-1 items-start">
+                        <StatusBadge status={inst.status || 'AWAITING_PROVIDER_SETUP'} />
+                        <SourceBadge source={inst.state_source || (inst.provider_resource_id ? 'provider' : 'registry-only')} observedAt={inst.observed_at} />
+                      </div>
                     </td>
 
                     <td className="p-4 text-right space-x-1 shrink-0">
@@ -422,8 +411,8 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
                       {inst.status === 'STOPPED' ? (
                         <button
                           onClick={() => handleAction(inst.id, 'start')}
-                          disabled={!!actionLoading}
-                          className="p-1.5 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 rounded-lg transition-colors cursor-pointer"
+                          disabled={!!actionLoading || !inst.provider_resource_id}
+                          className="p-1.5 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 rounded-lg transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                           title="Start Instance"
                         >
                           <Play className="w-3.5 h-3.5" />
@@ -431,8 +420,8 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
                       ) : (
                         <button
                           onClick={() => setConfirmTarget({ id: inst.id, action: 'stop', name: inst.name })}
-                          disabled={!!actionLoading}
-                          className="p-1.5 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30 rounded-lg transition-colors cursor-pointer"
+                          disabled={!!actionLoading || inst.status !== 'RUNNING'}
+                          className="p-1.5 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30 rounded-lg transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                           title="Stop Instance"
                         >
                           <Square className="w-3.5 h-3.5" />
@@ -442,7 +431,7 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
                       <button
                         onClick={() => handleAction(inst.id, 'reboot')}
                         disabled={!!actionLoading || inst.status !== 'RUNNING'}
-                        className="p-1.5 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 rounded-lg transition-colors cursor-pointer disabled:opacity-30"
+                        className="p-1.5 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 rounded-lg transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                         title="Reboot Instance"
                       >
                         <RotateCw className="w-3.5 h-3.5" />

@@ -201,8 +201,10 @@ def get_dashboard_services(
         rate = vm_rates.get(vm.instance_type, 0.048)
         created_time = vm.created_at or (now - timedelta(hours=1))
         age_hours = max(0.05, (now - created_time).total_seconds() / 3600.0)
-        active_rate = rate if vm.status == "RUNNING" else rate * 0.25
-        cost_usd = round(max(0.01, age_hours * active_rate), 3)
+        is_active = vm.status == "RUNNING"
+        is_stopped = vm.status == "STOPPED"
+        active_rate = rate if is_active else (rate * 0.25 if is_stopped else 0.0)
+        cost_usd = round(age_hours * active_rate, 3) if (is_active or is_stopped) else 0.0
         cost_inr = round(cost_usd * INR_CONVERSION_RATE, 2)
 
         service_items.append({
@@ -249,7 +251,8 @@ def get_dashboard_services(
         rate = db_rates.get(db_inst.tier, 0.065)
         created_time = db_inst.created_at or (now - timedelta(hours=1))
         age_hours = max(0.05, (now - created_time).total_seconds() / 3600.0)
-        cost_usd = round(max(0.01, age_hours * rate), 3)
+        is_avail = db_inst.status == "AVAILABLE"
+        cost_usd = round(max(0.0, age_hours * rate), 3) if is_avail else 0.0
         cost_inr = round(cost_usd * INR_CONVERSION_RATE, 2)
 
         service_items.append({
@@ -260,9 +263,9 @@ def get_dashboard_services(
             "spec": f"{db_inst.engine} ({db_inst.tier})",
             "status": db_inst.status,
             "created_at": created_time.isoformat() + "Z",
-            "runtime_hours": round(age_hours, 1),
-            "hourly_rate_usd": rate,
-            "hourly_rate_inr": round(rate * INR_CONVERSION_RATE, 2),
+            "runtime_hours": round(age_hours, 1) if is_avail else 0.0,
+            "hourly_rate_usd": rate if is_avail else 0.0,
+            "hourly_rate_inr": round(rate * INR_CONVERSION_RATE, 2) if is_avail else 0.0,
             "accrued_cost_usd": cost_usd,
             "accrued_cost_inr": cost_inr,
         })
@@ -296,7 +299,8 @@ def get_dashboard_services(
         rate = 0.10 + (c.node_count * 0.04)
         created_time = c.created_at or (now - timedelta(hours=1))
         age_hours = max(0.05, (now - created_time).total_seconds() / 3600.0)
-        cost_usd = round(max(0.01, age_hours * rate), 3)
+        is_active = c.status == "ACTIVE"
+        cost_usd = round(max(0.0, age_hours * rate), 3) if is_active else 0.0
         cost_inr = round(cost_usd * INR_CONVERSION_RATE, 2)
 
         service_items.append({
@@ -307,9 +311,9 @@ def get_dashboard_services(
             "spec": f"{c.node_count} nodes ({c.node_size})",
             "status": c.status,
             "created_at": created_time.isoformat() + "Z",
-            "runtime_hours": round(age_hours, 1),
-            "hourly_rate_usd": round(rate, 3),
-            "hourly_rate_inr": round(rate * INR_CONVERSION_RATE, 2),
+            "runtime_hours": round(age_hours, 1) if is_active else 0.0,
+            "hourly_rate_usd": round(rate, 3) if is_active else 0.0,
+            "hourly_rate_inr": round(rate * INR_CONVERSION_RATE, 2) if is_active else 0.0,
             "accrued_cost_usd": cost_usd,
             "accrued_cost_inr": cost_inr,
         })

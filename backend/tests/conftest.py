@@ -16,6 +16,12 @@ from app.main import app as fastapi_app
 import app.services.arvgate.models
 import app.control_plane.models
 import app.core.cloud_models
+import app.services.cloud_providers.models
+import app.services.arvnetwork.models
+import app.services.arvdns.models
+import app.services.arvfunctions.models
+import app.services.arvevents.models
+import app.services.arvvault.models
 import app.services.arvcommunity.models
 import app.services.arvcostiq.models
 import app.services.arvguard.models

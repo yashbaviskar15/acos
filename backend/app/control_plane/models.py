@@ -148,15 +148,22 @@ class JobRecord(Base):
     __tablename__ = "control_plane_jobs"
 
     id = Column(String(50), primary_key=True, index=True, default=lambda: _gen_id("job"))
-    organization_id = Column(String(50), index=True, nullable=False)
-    project_id = Column(String(50), index=True, nullable=False)
+    organization_id = Column(String(50), index=True, nullable=True)
+    project_id = Column(String(50), index=True, nullable=True)
     resource_id = Column(String(50), index=True, nullable=True)
     action = Column(String(100), nullable=False)  # create, start, stop, restart, delete, deploy
+    job_type = Column(String(100), nullable=True)
     status = Column(String(30), default="QUEUED", index=True, nullable=False)
+    progress = Column(Integer, default=0, nullable=False)
+    retry_count = Column(Integer, default=0, nullable=False)
+    max_retries = Column(Integer, default=3, nullable=False)
+    idempotency_key = Column(String(128), unique=True, index=True, nullable=True)
+    payload = Column(Text, default="{}")
     result = Column(Text, default="{}", nullable=False)
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=False)
+    finished_at = Column(DateTime, nullable=True)
 
     def to_dict(self) -> dict:
         try:
@@ -165,15 +172,21 @@ class JobRecord(Base):
             parsed_result = {}
         return {
             "id": self.id,
+            "job_id": self.id,
             "organization_id": self.organization_id,
             "project_id": self.project_id,
             "resource_id": self.resource_id,
             "action": self.action,
+            "job_type": self.job_type or self.action,
             "status": self.status,
+            "progress": self.progress,
+            "retry_count": self.retry_count,
+            "max_retries": self.max_retries,
             "result": parsed_result,
             "error_message": self.error_message,
             "created_at": self.created_at.isoformat() + "Z" if self.created_at else None,
             "updated_at": self.updated_at.isoformat() + "Z" if self.updated_at else None,
+            "finished_at": self.finished_at.isoformat() + "Z" if self.finished_at else None,
         }
 
 

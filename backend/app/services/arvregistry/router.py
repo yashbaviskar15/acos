@@ -1,8 +1,10 @@
 """
 Aravanta CloudOS — ArvRegistry Service Router
-Container image registry and vulnerability scan data derived dynamically from persistent applications.
+Container image registry and vulnerability scan data.
+Queries real local Docker images if engine is running, or application images without formula metrics.
+Prohibits fabricated image sizes or synthesized vulnerability scores.
 """
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, Header
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -17,8 +19,9 @@ router = APIRouter(prefix="/api/v1/registry", tags=["ArvRegistry — Container R
 class RepoResponse(BaseModel):
     name: str
     tag_count: int
-    vulnerabilities: dict
-    size_mb: float
+    vulnerabilities: Dict[str, Any]
+    size_mb: Optional[float] = None
+    source: str = "registry-only"
 
 @router.get("/repositories", response_model=List[RepoResponse])
 def list_repositories(
@@ -27,24 +30,52 @@ def list_repositories(
     current_user: User = Depends(get_current_user),
 ):
     ws_id = current_user.workspace_id or workspace_id or "default"
+    repos = []
+    seen = set()
 
+    # 1. Attempt to query real Docker images from host if daemon is online
+    try:
+        import docker
+        client = docker.from_env()
+        docker_images = client.images.list()
+        for img in docker_images:
+            tags = img.tags or []
+            if not tags:
+                continue
+            repo_name = tags[0].split(":")[0]
+            if repo_name not in seen and repo_name != "<none>":
+                seen.add(repo_name)
+                size_bytes = img.attrs.get("Size", 0)
+                repos.append(
+                    RepoResponse(
+                        name=repo_name,
+                        tag_count=len(tags),
+                        vulnerabilities={"scan_status": "NO_SCAN_DATA"},
+                        size_mb=round(size_bytes / (1024 * 1024), 1) if size_bytes else None,
+                        source="docker-engine"
+                    )
+                )
+    except Exception:
+        pass
+
+    # 2. Add registered application images from database metadata without fake size formulas
     apps = db.query(ApplicationRecord).filter(
         (ApplicationRecord.workspace_id == ws_id) | (ApplicationRecord.user_id == current_user.id)
     ).all()
 
-    seen_repos = set()
-    repos = []
-
     for a in apps:
-        image_name = a.image.split(":")[0] if a.image else f"aravanta/{a.name}"
-        if image_name not in seen_repos:
-            seen_repos.add(image_name)
+        if not a.image:
+            continue
+        image_name = a.image.split(":")[0]
+        if image_name not in seen:
+            seen.add(image_name)
             repos.append(
                 RepoResponse(
                     name=image_name,
-                    tag_count=max(1, len(apps)),
+                    tag_count=1,
                     vulnerabilities={"scan_status": "NO_SCAN_DATA"},
-                    size_mb=round(120.0 + len(a.name) * 8.5, 1)
+                    size_mb=None,
+                    source="registry-only"
                 )
             )
 

@@ -1,6 +1,8 @@
 """
 Aravanta CloudOS — ArvEdge Service Router
-Load balancing, edge routing, and WAF rules derived dynamically from persistent infrastructure.
+Edge routing and load balancer service.
+Queries genuine load balancer infrastructure from ArvNetwork.
+Never synthesizes fake load balancers or fictitious endpoints.
 """
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Header
@@ -10,7 +12,7 @@ from pydantic import BaseModel
 from app.core.database import get_db
 from app.services.arvgate.dependencies import get_current_user
 from app.services.arvgate.models import User
-from app.core.cloud_models import ApplicationRecord, KubeCluster
+from app.services.arvnetwork.models import ArvLoadBalancer
 
 router = APIRouter(prefix="/api/v1/edge", tags=["ArvEdge — Load Balancer & WAF"])
 
@@ -19,8 +21,11 @@ class LoadBalancerResponse(BaseModel):
     name: str
     type: str
     status: str
-    dns_name: str
-    target_groups: int
+    dns_name: Optional[str] = None
+    target_groups: int = 1
+    provider_resource_id: Optional[str] = None
+    state_source: Optional[str] = None
+    last_error: Optional[str] = None
 
 @router.get("/load-balancers", response_model=List[LoadBalancerResponse])
 def list_load_balancers(
@@ -28,37 +33,25 @@ def list_load_balancers(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    ws_id = current_user.workspace_id or workspace_id or "default"
-    
-    app_count = db.query(ApplicationRecord).filter(
-        (ApplicationRecord.workspace_id == ws_id) | (ApplicationRecord.user_id == current_user.id)
-    ).count()
+    user_role = (current_user.role or "").strip().lower()
+    query = db.query(ArvLoadBalancer)
+    if user_role not in ["superadmin", "admin"]:
+        query = query.filter(ArvLoadBalancer.user_id == str(current_user.id))
 
-    clusters = db.query(KubeCluster).filter(
-        (KubeCluster.workspace_id == ws_id) | (KubeCluster.user_id == current_user.id)
-    ).all()
-
-    lbs = [
-        LoadBalancerResponse(
-            id="alb-main-01",
-            name=f"aravanta-{current_user.workspace_name.lower().replace(' ', '-') if current_user.workspace_name else 'public'}-gateway",
-            type="Application (L7)",
-            status="ACTIVE",
-            dns_name=f"gateway.{ws_id}.aravanta.cloud",
-            target_groups=max(1, app_count)
-        )
-    ]
-
-    for c in clusters:
-        lbs.append(
+    lbs = query.all()
+    results = []
+    for lb in lbs:
+        results.append(
             LoadBalancerResponse(
-                id=f"nlb-{c.id[:8]}",
-                name=f"{c.name}-network-ingress",
-                type="Network (L4)",
-                status="ACTIVE" if c.status == "ACTIVE" else "PROVISIONING",
-                dns_name=f"k8s.{c.region}.aravanta.cloud",
-                target_groups=max(1, c.node_count)
+                id=lb.id,
+                name=lb.name,
+                type=lb.lb_type or "Application (L7)",
+                status=lb.status or "AWAITING_PROVIDER_SETUP",
+                dns_name=None,  # Real DNS name allocated only when provider provisions real ALB
+                target_groups=1,
+                provider_resource_id=lb.provider_resource_id,
+                state_source=lb.state_source or "registry-only",
+                last_error=lb.last_error
             )
         )
-
-    return lbs
+    return results
