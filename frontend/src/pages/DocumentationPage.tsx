@@ -676,22 +676,39 @@ export const DocumentationPage: React.FC<PageProps> = ({
 }) => {
   const [query, setQuery] = useState('');
   const [activeGroup, setActiveGroup] = useState<string>('k8s');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
   const articleRef = useRef<HTMLElement>(null);
 
-  // Global '/' hotkey to focus search bar
+  // Global '/' hotkey to focus search bar & outside click handling
   useEffect(() => {
-    const handleSlashKey = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (
         e.key === '/' &&
         !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)
       ) {
         e.preventDefault();
         searchInputRef.current?.focus();
+        setIsSearchOpen(true);
+      }
+      if (e.key === 'Escape') {
+        setIsSearchOpen(false);
       }
     };
-    window.addEventListener('keydown', handleSlashKey);
-    return () => window.removeEventListener('keydown', handleSlashKey);
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setIsSearchOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
   const filteredSidebar = useMemo(() => {
@@ -847,8 +864,8 @@ export const DocumentationPage: React.FC<PageProps> = ({
 
       <main>
         {/* Top Header & Search Hero */}
-        <section className="relative pt-12 pb-8 border-b border-slate-200 dark:border-brandObsidian-800 overflow-hidden bg-white/40 dark:bg-brandObsidian-900/30">
-          <div aria-hidden className="absolute inset-x-0 top-0 -z-10 h-[380px] bg-hero-radial opacity-70 pointer-events-none" />
+        <section className="relative pt-12 pb-8 border-b border-slate-200 dark:border-brandObsidian-800 bg-white/40 dark:bg-brandObsidian-900/30">
+          <div aria-hidden className="absolute inset-x-0 top-0 -z-10 h-[380px] bg-hero-radial opacity-70 pointer-events-none overflow-hidden" />
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div
               initial={{ opacity: 0, y: 10 }}
@@ -870,12 +887,16 @@ export const DocumentationPage: React.FC<PageProps> = ({
 
               {/* Search Bar */}
               <div className="max-w-2xl mx-auto pt-2">
-                <div className="relative">
+                <div ref={searchContainerRef} className="relative z-40">
                   <Input
                     ref={searchInputRef}
                     size="lg"
                     value={query}
-                    onChange={(e) => setQuery(e.target.value)}
+                    onFocus={() => setIsSearchOpen(true)}
+                    onChange={(e) => {
+                      setQuery(e.target.value);
+                      setIsSearchOpen(true);
+                    }}
                     placeholder='Search docs: "Kubernetes", "compute shapes", "S3 store", "TOTP MFA"...'
                     leftIcon={<Search className="w-5 h-5 text-brandGold-500" />}
                     rightIcon={
@@ -887,32 +908,39 @@ export const DocumentationPage: React.FC<PageProps> = ({
                     }
                     wrapperClassName="!rounded-2xl !shadow-lg !bg-white dark:!bg-brandObsidian-900 border border-slate-300 dark:border-brandObsidian-700"
                     clearable
-                    onClear={() => setQuery('')}
+                    onClear={() => {
+                      setQuery('');
+                      setIsSearchOpen(false);
+                    }}
                   />
 
                   {/* Live Search Quick Results Dropdown */}
-                  {searchMatches.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-700 rounded-2xl shadow-2xl overflow-hidden z-30 p-2 text-left animate-fadeIn">
-                      <div className="px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
-                        Matching Documentation Topics ({searchMatches.length})
+                  {isSearchOpen && searchMatches.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-white/95 dark:bg-[#0B0F17]/95 backdrop-blur-xl border border-slate-200 dark:border-brandObsidian-700/80 rounded-2xl shadow-2xl z-50 p-2 text-left animate-fadeIn max-h-[min(380px,65vh)] overflow-y-auto scrollbar-thin">
+                      <div className="flex items-center justify-between px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-brandObsidian-800/80 pb-1.5 mb-1">
+                        <span>Matching Documentation Topics ({searchMatches.length})</span>
+                        <span className="text-[10px] text-slate-500 font-normal">esc to close</span>
                       </div>
                       <div className="space-y-1">
                         {searchMatches.map((res, i) => (
                           <button
                             key={i}
                             type="button"
-                            onClick={() => handleSelectSearchMatch(res.topicId, res.subSectionId)}
-                            className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-brandObsidian-800 transition-colors text-left group cursor-pointer"
+                            onClick={() => {
+                              handleSelectSearchMatch(res.topicId, res.subSectionId);
+                              setIsSearchOpen(false);
+                            }}
+                            className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-brandObsidian-800/80 transition-colors text-left group cursor-pointer"
                           >
-                            <div className="min-w-0 flex-1">
-                              <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-brandGold-600 dark:group-hover:text-brandGold-400 transition-colors truncate">
+                            <div className="min-w-0 flex-1 pr-2">
+                              <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:text-brandGold-600 dark:group-hover:text-brandGold-400 transition-colors truncate">
                                 {res.title}
                               </div>
-                              <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                              <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5 font-mono">
                                 {res.subtitle}
                               </div>
                             </div>
-                            <span className="shrink-0 text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-100 dark:bg-brandObsidian-800 text-slate-500 font-semibold ml-2">
+                            <span className="shrink-0 text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-100 dark:bg-brandObsidian-800 text-slate-500 font-semibold ml-2 group-hover:bg-brandGold-500/10 group-hover:text-brandGold-500 transition-colors">
                               {res.type}
                             </span>
                           </button>
