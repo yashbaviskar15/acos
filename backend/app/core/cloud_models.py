@@ -636,10 +636,8 @@ def emit_notification(
     )
     try:
         db.add(notif)
-        db.commit()
-        db.refresh(notif)
     except Exception:
-        db.rollback()
+        pass
     return notif
 
 class SSHKeyPair(Base):

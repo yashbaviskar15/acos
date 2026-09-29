@@ -109,6 +109,19 @@ def init_db():
             try:
                 with engine.connect() as conn:
                     conn.execute(text("ALTER TABLE payment_methods ALTER COLUMN last4 TYPE VARCHAR(100);"))
+                    for tbl in [
+                        "compute_instances", "database_instances", "kube_clusters", "arv_vpcs",
+                        "arv_load_balancers", "arv_dns_zones", "applications", "deployments",
+                        "sandboxes", "workflows", "backups", "cloud_resources", "control_plane_jobs"
+                    ]:
+                        try:
+                            conn.execute(text(f"ALTER TABLE {tbl} ALTER COLUMN status TYPE VARCHAR(60);"))
+                        except Exception:
+                            pass
+                    try:
+                        conn.execute(text("ALTER TABLE cloud_resources ALTER COLUMN desired_state TYPE VARCHAR(60);"))
+                    except Exception:
+                        pass
                     conn.commit()
             except Exception:
                 pass

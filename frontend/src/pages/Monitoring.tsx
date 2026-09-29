@@ -86,10 +86,15 @@ export const Monitoring: React.FC<{ token: string | null }> = ({ token }) => {
               <span>Fleet CPU Load</span>
               <Cpu className="w-4 h-4 text-blue-500" />
             </div>
-            <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">{metrics.cpu_usage_percent}%</p>
+            <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+              {metrics.cpu_usage_percent !== null && metrics.cpu_usage_percent !== undefined ? `${metrics.cpu_usage_percent}%` : 'N/A'}
+            </p>
             <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
-              <div className="bg-blue-500 h-full" style={{ width: `${metrics.cpu_usage_percent}%` }} />
+              <div className="bg-blue-500 h-full" style={{ width: `${metrics.cpu_usage_percent || 0}%` }} />
             </div>
+            <p className="text-[10px] text-slate-400 mt-1.5">
+              {metrics.cpu_usage_percent !== null && metrics.cpu_usage_percent !== undefined ? 'Live agent telemetry' : 'No active compute agent'}
+            </p>
           </div>
 
           <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm">
@@ -97,10 +102,15 @@ export const Monitoring: React.FC<{ token: string | null }> = ({ token }) => {
               <span>RAM Allocation</span>
               <HardDrive className="w-4 h-4 text-purple-500" />
             </div>
-            <p className="text-2xl font-black text-purple-600 dark:text-purple-400 mt-1">{metrics.memory_usage_percent}%</p>
+            <p className="text-2xl font-black text-purple-600 dark:text-purple-400 mt-1">
+              {metrics.memory_usage_percent !== null && metrics.memory_usage_percent !== undefined ? `${metrics.memory_usage_percent}%` : 'N/A'}
+            </p>
             <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
-              <div className="bg-purple-500 h-full" style={{ width: `${metrics.memory_usage_percent}%` }} />
+              <div className="bg-purple-500 h-full" style={{ width: `${metrics.memory_usage_percent || 0}%` }} />
             </div>
+            <p className="text-[10px] text-slate-400 mt-1.5">
+              {metrics.memory_usage_percent !== null && metrics.memory_usage_percent !== undefined ? 'Live agent telemetry' : 'No active memory agent'}
+            </p>
           </div>
 
           <div className="bg-white dark:bg-[#0F2038] border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm">
