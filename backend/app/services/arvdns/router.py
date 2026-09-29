@@ -14,7 +14,10 @@ from app.core.state_guard import transition_resource_state
 from app.core.crypto import PLATFORM_MASTER_KEY, decrypt_aes256gcm
 from app.core.providers import get_provider
 from app.services.cloud_providers.models import CloudProviderCredential
-import dns.resolver
+try:
+    import dns.resolver
+except ImportError:
+    dns = None
 
 router = APIRouter(prefix="/api/v1/dns", tags=["ArvDNS"])
 
@@ -207,17 +210,27 @@ def verify_record(record_id: str, db: Session = Depends(get_db), user: User = De
     
     resolved = False
     resolved_values = []
-    try:
-        answers = dns.resolver.resolve(rec.record_name, rec.record_type, lifetime=5.0)
-        resolved_values = [str(r).strip() for r in answers]
-        if any(rec.record_value in v for v in resolved_values):
-            resolved = True
-        elif rec.record_type == "CNAME" and len(resolved_values) > 0:
-            resolved = True
-    except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.LifetimeTimeout):
-        resolved = False
-    except Exception:
-        resolved = False
+    if dns is not None:
+        try:
+            answers = dns.resolver.resolve(rec.record_name, rec.record_type, lifetime=5.0)
+            resolved_values = [str(r).strip() for r in answers]
+            if any(rec.record_value in v for v in resolved_values):
+                resolved = True
+            elif rec.record_type == "CNAME" and len(resolved_values) > 0:
+                resolved = True
+        except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.LifetimeTimeout):
+            resolved = False
+        except Exception:
+            resolved = False
+    else:
+        import socket
+        try:
+            addr = socket.gethostbyname(rec.record_name)
+            resolved_values = [addr]
+            if rec.record_value in addr:
+                resolved = True
+        except Exception:
+            resolved = False
 
     return {
         "record_id": rec.id,

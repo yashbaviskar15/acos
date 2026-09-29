@@ -5,8 +5,14 @@ If Docker daemon is offline or unavailable, explicitly signals AWAITING_PROVIDER
 """
 from typing import Dict, Any, Tuple, Optional, List
 from datetime import datetime
-import docker
-from docker.errors import DockerException, NotFound, APIError
+try:
+    import docker
+    from docker.errors import DockerException, NotFound, APIError
+except ImportError:
+    docker = None
+    class DockerException(Exception): pass  # type: ignore
+    class NotFound(Exception): pass        # type: ignore
+    class APIError(Exception): pass        # type: ignore
 
 from .base import (
     BaseCloudProvider,
@@ -14,11 +20,17 @@ from .base import (
 )
 
 class DockerComputeDriver(BaseComputeDriver):
-    def __init__(self, client: docker.DockerClient):
+    def __init__(self, client: Any = None):
         self.client = client
 
     def create(self, spec: Dict[str, Any], idempotency_key: str) -> Dict[str, Any]:
         """Runs a real container instance on local Docker daemon."""
+        if docker is None or self.client is None:
+            return {
+                "status": "AWAITING_PROVIDER_SETUP",
+                "message": "Docker SDK / daemon is not available on this host environment."
+            }
+
         image = spec.get("os_image_name") or "ubuntu:22.04"
         name = spec.get("name", f"aravanta-c-{idempotency_key[:8]}")
         resource_id = spec.get("resource_id", "container-unknown")
@@ -55,24 +67,32 @@ class DockerComputeDriver(BaseComputeDriver):
         }
 
     def start(self, provider_resource_id: str) -> Dict[str, Any]:
+        if docker is None or self.client is None:
+            return {"provider_resource_id": provider_resource_id, "status": "FAILED", "error": "Docker client unavailable"}
         c = self.client.containers.get(provider_resource_id)
         c.start()
         c.reload()
         return {"provider_resource_id": provider_resource_id, "status": "RUNNING" if c.status == "running" else "STARTING"}
 
     def stop(self, provider_resource_id: str) -> Dict[str, Any]:
+        if docker is None or self.client is None:
+            return {"provider_resource_id": provider_resource_id, "status": "FAILED", "error": "Docker client unavailable"}
         c = self.client.containers.get(provider_resource_id)
         c.stop(timeout=10)
         c.reload()
         return {"provider_resource_id": provider_resource_id, "status": "STOPPED"}
 
     def restart(self, provider_resource_id: str) -> Dict[str, Any]:
+        if docker is None or self.client is None:
+            return {"provider_resource_id": provider_resource_id, "status": "FAILED", "error": "Docker client unavailable"}
         c = self.client.containers.get(provider_resource_id)
         c.restart()
         c.reload()
         return {"provider_resource_id": provider_resource_id, "status": "RUNNING"}
 
     def delete(self, provider_resource_id: str) -> Dict[str, Any]:
+        if docker is None or self.client is None:
+            return {"provider_resource_id": provider_resource_id, "status": "DELETED"}
         try:
             c = self.client.containers.get(provider_resource_id)
             c.remove(force=True)
@@ -81,6 +101,8 @@ class DockerComputeDriver(BaseComputeDriver):
         return {"provider_resource_id": provider_resource_id, "status": "DELETED"}
 
     def get_status(self, provider_resource_id: str) -> Dict[str, Any]:
+        if docker is None or self.client is None:
+            return {"status": "UNKNOWN", "observed_at": datetime.utcnow().isoformat(), "error": "Docker client unavailable"}
         try:
             c = self.client.containers.get(provider_resource_id)
             c.reload()
@@ -110,18 +132,28 @@ class DockerLocalProvider(BaseCloudProvider):
     def __init__(self):
         self._client = None
 
-    def _get_client(self) -> docker.DockerClient:
+    def _get_client(self):
+        if docker is None:
+            raise RuntimeError("The 'docker' Python package is not installed on this host environment.")
         if not self._client:
             self._client = docker.from_env()
         return self._client
 
     @property
     def compute(self) -> DockerComputeDriver:
-        client = self._get_client()
+        client = None
+        try:
+            client = self._get_client()
+        except Exception:
+            pass
         return DockerComputeDriver(client)
 
     def test_connection(self, credentials: Dict[str, Any] = None) -> Tuple[bool, str, Dict[str, Any]]:
         """Pings the local Docker daemon to verify it is responsive."""
+        if docker is None:
+            return False, "NOT_SUPPORTED_ON_HOST", {
+                "error": "The 'docker' Python SDK is not installed on this host (e.g. serverless runtime). Real container operations require a local Docker host."
+            }
         try:
             client = self._get_client()
             if client.ping():

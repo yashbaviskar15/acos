@@ -187,6 +187,8 @@ export async function apiFetch<T = any>(
         method,
         status: (err as any)?.status ?? null,
         message: err?.message,
+        payload: (err as any)?.payload ?? null,
+        technical: (err as any)?._technical ?? null,
         aborted,
         attempt,
       });

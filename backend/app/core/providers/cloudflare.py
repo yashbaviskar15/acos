@@ -4,7 +4,10 @@ Manages real DNS records via Cloudflare API and verifies propagation with dnspyt
 """
 from typing import Dict, Any, Tuple, Optional
 import httpx
-import dns.resolver
+try:
+    import dns.resolver
+except ImportError:
+    dns = None
 
 from .base import (
     BaseCloudProvider,
@@ -63,27 +66,58 @@ class CloudflareDNSDriver(BaseDNSDriver):
         return {"provider_resource_id": record_id, "status": "DELETED"}
 
     def lookup(self, name: str, record_type: str = "A") -> Dict[str, Any]:
-        """Performs real DNS query using dnspython to verify active propagation."""
-        try:
-            answers = dns.resolver.resolve(name, record_type.upper(), lifetime=5.0)
-            resolved = [str(rdata) for rdata in answers]
-            return {
-                "name": name,
-                "type": record_type.upper(),
-                "resolved_values": resolved,
-                "propagated": len(resolved) > 0,
-                "ttl": answers.rrset.ttl if answers.rrset else None,
-                "source": "dns-resolver"
-            }
-        except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.LifetimeTimeout) as e:
-            return {
-                "name": name,
-                "type": record_type.upper(),
-                "resolved_values": [],
-                "propagated": False,
-                "error": str(e),
-                "source": "dns-resolver"
-            }
+        """Performs real DNS query using dnspython or socket to verify active propagation."""
+        if dns is not None:
+            try:
+                answers = dns.resolver.resolve(name, record_type.upper(), lifetime=5.0)
+                resolved = [str(rdata) for rdata in answers]
+                return {
+                    "name": name,
+                    "type": record_type.upper(),
+                    "resolved_values": resolved,
+                    "propagated": len(resolved) > 0,
+                    "ttl": answers.rrset.ttl if answers.rrset else None,
+                    "source": "dns-resolver"
+                }
+            except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.LifetimeTimeout) as e:
+                return {
+                    "name": name,
+                    "type": record_type.upper(),
+                    "resolved_values": [],
+                    "propagated": False,
+                    "error": str(e),
+                    "source": "dns-resolver"
+                }
+            except Exception as e:
+                return {
+                    "name": name,
+                    "type": record_type.upper(),
+                    "resolved_values": [],
+                    "propagated": False,
+                    "error": str(e),
+                    "source": "dns-resolver"
+                }
+        else:
+            import socket
+            try:
+                addr = socket.gethostbyname(name)
+                return {
+                    "name": name,
+                    "type": record_type.upper(),
+                    "resolved_values": [addr],
+                    "propagated": True,
+                    "ttl": None,
+                    "source": "socket-resolver"
+                }
+            except Exception as e:
+                return {
+                    "name": name,
+                    "type": record_type.upper(),
+                    "resolved_values": [],
+                    "propagated": False,
+                    "error": str(e),
+                    "source": "socket-resolver"
+                }
 
 
 class CloudflareProvider(BaseCloudProvider):

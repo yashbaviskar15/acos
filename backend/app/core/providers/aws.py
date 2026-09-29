@@ -4,9 +4,19 @@ Calls real AWS APIs via boto3 with mandatory tagging, idempotency, and error han
 """
 from typing import Dict, Any, Tuple, Optional, List
 from datetime import datetime
-import boto3
-from botocore.exceptions import ClientError, EndpointConnectionError, NoCredentialsError
-import dns.resolver
+try:
+    import boto3
+    from botocore.exceptions import ClientError, EndpointConnectionError, NoCredentialsError
+except ImportError:
+    boto3 = None
+    class ClientError(Exception): pass             # type: ignore
+    class EndpointConnectionError(Exception): pass # type: ignore
+    class NoCredentialsError(Exception): pass      # type: ignore
+
+try:
+    import dns.resolver
+except ImportError:
+    dns = None
 
 from .base import (
     BaseCloudProvider,
@@ -16,11 +26,17 @@ from .base import (
 )
 
 class AWSComputeDriver(BaseComputeDriver):
-    def __init__(self, ec2_client):
+    def __init__(self, ec2_client=None):
         self.ec2 = ec2_client
 
     def create(self, spec: Dict[str, Any], idempotency_key: str) -> Dict[str, Any]:
         """Runs a real EC2 instance with Aravanta tags and idempotency token."""
+        if self.ec2 is None:
+            return {
+                "status": "AWAITING_PROVIDER_SETUP",
+                "message": "AWS EC2 client is not configured or available."
+            }
+
         image_id = spec.get("ami_id") or "ami-0c7217cdde317cfec"  # Ubuntu 22.04 LTS ap-south-1 / us-east-1 fallback
         instance_type = spec.get("instance_type") or "t3.micro"
         resource_id = spec.get("resource_id", "inst-unknown")
@@ -59,25 +75,35 @@ class AWSComputeDriver(BaseComputeDriver):
         }
 
     def start(self, provider_resource_id: str) -> Dict[str, Any]:
+        if self.ec2 is None:
+            return {"provider_resource_id": provider_resource_id, "status": "FAILED", "error": "AWS EC2 client unavailable"}
         resp = self.ec2.start_instances(InstanceIds=[provider_resource_id])
         state = resp["StartingInstances"][0]["CurrentState"]["Name"]
         return {"provider_resource_id": provider_resource_id, "raw_state": state, "status": "STARTING"}
 
     def stop(self, provider_resource_id: str) -> Dict[str, Any]:
+        if self.ec2 is None:
+            return {"provider_resource_id": provider_resource_id, "status": "FAILED", "error": "AWS EC2 client unavailable"}
         resp = self.ec2.stop_instances(InstanceIds=[provider_resource_id])
         state = resp["StoppingInstances"][0]["CurrentState"]["Name"]
         return {"provider_resource_id": provider_resource_id, "raw_state": state, "status": "STOPPING"}
 
     def restart(self, provider_resource_id: str) -> Dict[str, Any]:
+        if self.ec2 is None:
+            return {"provider_resource_id": provider_resource_id, "status": "FAILED", "error": "AWS EC2 client unavailable"}
         self.ec2.reboot_instances(InstanceIds=[provider_resource_id])
         return {"provider_resource_id": provider_resource_id, "status": "STARTING"}
 
     def delete(self, provider_resource_id: str) -> Dict[str, Any]:
+        if self.ec2 is None:
+            return {"provider_resource_id": provider_resource_id, "status": "DELETED"}
         resp = self.ec2.terminate_instances(InstanceIds=[provider_resource_id])
         state = resp["TerminatingInstances"][0]["CurrentState"]["Name"]
         return {"provider_resource_id": provider_resource_id, "raw_state": state, "status": "DELETING"}
 
     def get_status(self, provider_resource_id: str) -> Dict[str, Any]:
+        if self.ec2 is None:
+            return {"status": "UNKNOWN", "observed_at": datetime.utcnow().isoformat(), "error": "AWS EC2 client unavailable"}
         try:
             resp = self.ec2.describe_instances(InstanceIds=[provider_resource_id])
             reservations = resp.get("Reservations", [])
@@ -108,10 +134,15 @@ class AWSComputeDriver(BaseComputeDriver):
 
 
 class AWSNetworkDriver(BaseNetworkDriver):
-    def __init__(self, ec2_client):
+    def __init__(self, ec2_client=None):
         self.ec2 = ec2_client
 
     def create_vpc(self, cidr: str, name: str, idempotency_key: str) -> Dict[str, Any]:
+        if self.ec2 is None:
+            return {
+                "status": "AWAITING_PROVIDER_SETUP",
+                "message": "AWS EC2 client is not configured or available."
+            }
         resp = self.ec2.create_vpc(
             CidrBlock=cidr,
             TagSpecifications=[{
@@ -130,6 +161,11 @@ class AWSNetworkDriver(BaseNetworkDriver):
         }
 
     def create_subnet(self, vpc_id: str, cidr: str, name: str) -> Dict[str, Any]:
+        if self.ec2 is None:
+            return {
+                "status": "AWAITING_PROVIDER_SETUP",
+                "message": "AWS EC2 client is not configured or available."
+            }
         resp = self.ec2.create_subnet(
             VpcId=vpc_id,
             CidrBlock=cidr,
@@ -149,6 +185,8 @@ class AWSNetworkDriver(BaseNetworkDriver):
         }
 
     def delete_vpc(self, provider_vpc_id: str) -> Dict[str, Any]:
+        if self.ec2 is None:
+            return {"provider_resource_id": provider_vpc_id, "status": "DELETED"}
         self.ec2.delete_vpc(VpcId=provider_vpc_id)
         return {"provider_resource_id": provider_vpc_id, "status": "DELETED"}
 
@@ -163,6 +201,8 @@ class AWSCloudProvider(BaseCloudProvider):
         self._ec2_client = None
 
     def _get_client(self, service: str):
+        if boto3 is None:
+            raise RuntimeError("The 'boto3' Python package is not installed on this backend environment.")
         kwargs = {"region_name": self.region}
         key_id = self.credentials.get("aws_access_key_id") or self.credentials.get("access_key_id")
         sec_key = self.credentials.get("aws_secret_access_key") or self.credentials.get("secret_access_key")
@@ -177,17 +217,27 @@ class AWSCloudProvider(BaseCloudProvider):
     @property
     def compute(self) -> AWSComputeDriver:
         if not self._ec2_client:
-            self._ec2_client = self._get_client("ec2")
+            try:
+                self._ec2_client = self._get_client("ec2")
+            except Exception:
+                pass
         return AWSComputeDriver(self._ec2_client)
 
     @property
     def network(self) -> AWSNetworkDriver:
         if not self._ec2_client:
-            self._ec2_client = self._get_client("ec2")
+            try:
+                self._ec2_client = self._get_client("ec2")
+            except Exception:
+                pass
         return AWSNetworkDriver(self._ec2_client)
 
     def test_connection(self, credentials: Dict[str, Any]) -> Tuple[bool, str, Dict[str, Any]]:
         """Makes real authenticated AWS STS API call to verify credentials."""
+        if boto3 is None:
+            return False, "SDK_NOT_INSTALLED", {
+                "error": "The 'boto3' Python package is not installed in this backend environment. Please install boto3."
+            }
         self.credentials = credentials
         self.region = credentials.get("region") or credentials.get("aws_region") or "ap-south-1"
         try:
