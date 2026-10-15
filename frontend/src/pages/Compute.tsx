@@ -14,9 +14,10 @@ import { SourceBadge } from '../components/ui/SourceBadge';
 
 interface ComputeProps {
   token: string | null;
+  onNavigate?: (tab: string) => void;
 }
 
-export const Compute: React.FC<ComputeProps> = ({ token }) => {
+export const Compute: React.FC<ComputeProps> = ({ token, onNavigate }) => {
   const [instances, setInstances] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -25,6 +26,8 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
   const [selectedRegion, setSelectedRegion] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [reconcilingFleet, setReconcilingFleet] = useState(false);
+  const [reconcileReport, setReconcileReport] = useState<any>(null);
   const [confirmTarget, setConfirmTarget] = useState<{ id: string; action: 'stop' | 'terminate'; name: string } | null>(null);
   const [connectTarget, setConnectTarget] = useState<any | null>(null);
   const [connectInfo, setConnectInfo] = useState<any | null>(null);
@@ -126,6 +129,37 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
     }
   };
 
+  const handleReconcileInstance = async (instanceId: string) => {
+    setActionLoading(`${instanceId}-reconcile`);
+    try {
+      await apiFetch(`/v1/compute/instances/${instanceId}/reconcile`, {
+        method: 'POST',
+        token,
+      });
+      fetchInstances();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleReconcileFleet = async () => {
+    setReconcilingFleet(true);
+    try {
+      const data = await apiFetch<any>('/v1/compute/reconcile-fleet', {
+        method: 'POST',
+        token,
+      });
+      setReconcileReport(data);
+      fetchInstances();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setReconcilingFleet(false);
+    }
+  };
+
   const handleSort = (field: string) => {
     if (sortField === field) {
       setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
@@ -187,7 +221,7 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <button
             onClick={fetchInstances}
             disabled={loading}
@@ -198,6 +232,16 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
           </button>
 
           <button
+            onClick={handleReconcileFleet}
+            disabled={reconcilingFleet}
+            className="px-3 py-2 text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-all flex items-center gap-2 text-xs font-mono font-bold cursor-pointer"
+            title="Query cloud providers to detect drift and external deletions"
+          >
+            <RotateCw className={`w-3.5 h-3.5 ${reconcilingFleet ? 'animate-spin text-amber-500' : 'text-emerald-500'}`} />
+            <span>{reconcilingFleet ? 'Reconciling...' : 'Reconcile Fleet'}</span>
+          </button>
+
+          <button
             onClick={() => setShowDeployWizard(true)}
             className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all flex items-center gap-2 shadow-md shadow-blue-600/20 cursor-pointer"
           >
@@ -205,6 +249,30 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
           </button>
         </div>
       </div>
+
+      {/* Fleet Reconciliation Report Notification Banner */}
+      {reconcileReport && (
+        <div className="p-3 sm:p-3.5 rounded-2xl bg-slate-900 border border-slate-800 text-white flex items-center justify-between text-xs font-mono shadow-md animate-in fade-in duration-200">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="font-bold">Reconciled {reconcileReport.total_scanned} instances:</span>
+            <span className="text-emerald-400 font-bold">{reconcileReport.healthy} healthy</span>
+            {reconcileReport.drift_detected > 0 && (
+              <span className="text-amber-400 font-bold">• {reconcileReport.drift_detected} state drifts</span>
+            )}
+            {reconcileReport.external_deletions > 0 && (
+              <span className="text-rose-400 font-bold">• {reconcileReport.external_deletions} external deletions</span>
+            )}
+          </div>
+          <button
+            onClick={() => setReconcileReport(null)}
+            className="p-1 text-slate-400 hover:text-white rounded-lg cursor-pointer"
+            title="Dismiss report"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* KPI Metrics Widgets */}
       {summary && (
@@ -438,6 +506,15 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
                       </button>
 
                       <button
+                        onClick={() => handleReconcileInstance(inst.id)}
+                        disabled={!!actionLoading}
+                        className="p-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Reconcile instance state with cloud provider"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${actionLoading === `${inst.id}-reconcile` ? 'animate-spin text-brandGold-500' : ''}`} />
+                      </button>
+
+                      <button
                         onClick={() => setConfirmTarget({ id: inst.id, action: 'terminate', name: inst.name })}
                         disabled={!!actionLoading}
                         className="p-1.5 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50 rounded-lg transition-colors cursor-pointer"
@@ -539,18 +616,69 @@ export const Compute: React.FC<ComputeProps> = ({ token }) => {
                 </div>
               </div>
             ) : (
-              <div className="p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl space-y-2 font-sans">
+              <div className="p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl space-y-3 font-sans">
                 <div className="flex items-center gap-2 text-amber-800 dark:text-amber-400 font-bold text-xs">
                   <ShieldAlert className="w-4 h-4 text-amber-500 shrink-0" />
                   <span>Instance Awaiting Provider Assignment</span>
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                  {connectInfo?.reason || "This virtual machine does not have a live public IP address assigned yet. To provision a real hypervisor VM, configure an AWS, GCP, Azure, or Docker provider in Settings → Cloud Providers."}
+                  {connectInfo?.reason || "This virtual machine does not have a live public IP address assigned yet. In Aravanta Cloud OS, real provider verification is required before establishing an SSH connection."}
                 </p>
+
+                {/* 1-Click Guidance Cards */}
+                <div className="pt-2 border-t border-amber-200/80 dark:border-amber-500/20 space-y-2">
+                  <div className="text-[11px] font-bold text-slate-800 dark:text-slate-200 font-mono">
+                    How to solve this & assign a reachable IP:
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                    <div className="p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 border border-amber-200 dark:border-slate-800 space-y-1">
+                      <div className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-mono">
+                        <span>1. Local Docker (Free)</span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-normal">
+                        Start Docker Desktop on this PC, then click Re-Check below to automatically spin up a local container VM.
+                      </p>
+                    </div>
+
+                    <div className="p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 border border-amber-200 dark:border-slate-800 space-y-1">
+                      <div className="font-bold text-blue-600 dark:text-blue-400 flex items-center justify-between font-mono">
+                        <span>2. Cloud AWS EC2</span>
+                        {onNavigate && (
+                          <button
+                            onClick={() => {
+                              setConnectTarget(null);
+                              onNavigate('settings');
+                            }}
+                            className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                          >
+                            Go to Settings &rarr;
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-normal">
+                        Connect AWS credentials in Settings to provision genuine EC2 instances with elastic public IPs.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
-            <div className="pt-2 flex justify-end">
+            <div className="pt-2 flex items-center justify-between gap-2">
+              <button
+                onClick={async () => {
+                  if (connectTarget) {
+                    await handleReconcileInstance(connectTarget.id);
+                    await handleOpenConnect(connectTarget);
+                  }
+                }}
+                disabled={!!actionLoading}
+                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold font-mono flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${actionLoading ? 'animate-spin' : ''}`} />
+                <span>Re-Check Provider</span>
+              </button>
+
               <button
                 onClick={() => setConnectTarget(null)}
                 className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold cursor-pointer font-sans"

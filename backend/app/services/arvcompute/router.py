@@ -12,12 +12,13 @@ import base64
 from datetime import datetime
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Query, Depends, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.hazmat.primitives import serialization
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.core.database import get_db, SessionLocal
 from app.services.arvgate.models import User, AuditLog
 from app.services.arvgate.dependencies import get_current_user, require_roles
 from app.core.cloud_models import ComputeInstance, emit_notification, SSHKeyPair
@@ -25,6 +26,8 @@ from app.core.state_guard import transition_resource_state, StateGuardViolation
 from app.core.crypto import PLATFORM_MASTER_KEY, decrypt_aes256gcm
 from app.core.providers import get_provider
 from app.services.cloud_providers.models import CloudProviderCredential
+from app.core.jobs import create_job, dispatch_async_job, update_job_progress
+from app.core.reconciler import FleetReconciler
 
 router = APIRouter(prefix="/api/v1/compute", tags=["ArvCompute"])
 
@@ -196,6 +199,14 @@ def connect_instance(
             "username": "ubuntu",
             "port": 22
         }
+    elif (inst.state_source in ["docker", "local"] or (inst.tags and "container" in inst.tags)) and inst.status == "RUNNING":
+        return {
+            "connectable": True,
+            "ssh_command": f"docker exec -it {inst.name} /bin/bash",
+            "public_ip": inst.private_ip or "127.0.0.1 (Local Container VM)",
+            "username": "root",
+            "port": 22
+        }
     else:
         return {
             "connectable": False,
@@ -214,21 +225,47 @@ def reconcile_instance(
         raise HTTPException(status_code=404, detail=f"Instance {instance_id} not found")
     
     provider, p_type = _get_compute_driver_for_user(db, str(current_user.id))
-    if provider and inst.provider_resource_id:
-        try:
-            status_info = provider.compute.get_status(inst.provider_resource_id)
-            target_status = status_info.get("status", "UNKNOWN")
-            transition_resource_state(
-                inst,
-                target_state=target_status,
-                provider_resource_id=inst.provider_resource_id,
-                state_source=p_type,
-                observed_at=datetime.utcnow()
-            )
-            inst.private_ip = status_info.get("private_ip")
-            inst.public_ip = status_info.get("public_ip")
-        except Exception as e:
-            inst.last_error = str(e)
+    if provider:
+        if inst.provider_resource_id:
+            try:
+                status_info = provider.compute.get_status(inst.provider_resource_id)
+                target_status = status_info.get("status", "UNKNOWN")
+                transition_resource_state(
+                    inst,
+                    target_state=target_status,
+                    provider_resource_id=inst.provider_resource_id,
+                    state_source=p_type,
+                    observed_at=datetime.utcnow()
+                )
+                inst.private_ip = status_info.get("private_ip")
+                inst.public_ip = status_info.get("public_ip")
+                inst.last_error = None
+            except Exception as e:
+                inst.last_error = str(e)
+        elif inst.status in ["AWAITING_PROVIDER_SETUP", "PROVISIONING"]:
+            # Auto-provision on active provider now that driver is verified
+            try:
+                spec = {
+                    "name": inst.name,
+                    "instance_type": inst.instance_type,
+                    "os_image": inst.os_image,
+                    "disk_gb": inst.disk_gb,
+                    "resource_id": inst.id
+                }
+                res = provider.compute.create(spec, idempotency_key=inst.id)
+                target_st = res.get("status", "RUNNING")
+                transition_resource_state(
+                    inst,
+                    target_state=target_st,
+                    provider_resource_id=res["provider_resource_id"],
+                    state_source=p_type,
+                    observed_at=datetime.utcnow()
+                )
+                inst.private_ip = res.get("private_ip")
+                inst.public_ip = res.get("public_ip")
+                inst.last_error = None
+            except Exception as e:
+                inst.last_error = str(e)
     else:
         if inst.status not in ["AWAITING_PROVIDER_SETUP", "FAILED", "DELETED"]:
             transition_resource_state(
@@ -277,9 +314,19 @@ def get_instance(
         raise HTTPException(status_code=403, detail="Access denied to this instance")
     return inst.to_dict()
 
+@router.post("/reconcile-fleet")
+def reconcile_fleet_endpoint(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator"]))
+):
+    """Triggers an on-demand reconciliation across all compute instances."""
+    user_filter = str(current_user.id) if current_user.role not in ["SuperAdmin", "Admin"] else None
+    return FleetReconciler.reconcile_fleet(db=db, user_id=user_filter)
+
 @router.post("/instances", status_code=201)
 def create_instance(
     req: CreateInstanceRequest,
+    async_mode: bool = Query(False, alias="async"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(["SuperAdmin", "Admin", "Operator"]))
 ):
@@ -305,8 +352,75 @@ def create_instance(
         updated_at=now
     )
     db.add(new_inst)
-    db.flush()
+    db.commit()
+    db.refresh(new_inst)
 
+    # Asynchronous provisioning contract (HTTP 202 + job_id)
+    if async_mode:
+        job = create_job(
+            job_type="PROVISION_INSTANCE",
+            resource_id=inst_id,
+            organization_id=current_user.workspace_id,
+            payload={"name": req.name, "instance_type": req.instance_type, "region": req.region}
+        )
+
+        def _bg_provision():
+            with SessionLocal() as bg_db:
+                inst = bg_db.query(ComputeInstance).filter(ComputeInstance.id == inst_id).first()
+                if not inst:
+                    return {"error": "Instance not found"}
+                provider, p_type = _get_compute_driver_for_user(bg_db, str(inst.user_id))
+                if provider:
+                    try:
+                        spec = {
+                            "name": req.name.strip(),
+                            "instance_type": req.instance_type,
+                            "os_image": req.os_image,
+                            "disk_gb": req.disk_gb,
+                            "resource_id": inst_id
+                        }
+                        res = provider.compute.create(spec, idempotency_key=inst_id)
+                        target_st = res.get("status", "RUNNING")
+                        transition_resource_state(
+                            inst,
+                            target_state=target_st,
+                            provider_resource_id=res["provider_resource_id"],
+                            state_source=p_type,
+                            observed_at=datetime.utcnow()
+                        )
+                        inst.private_ip = res.get("private_ip")
+                        inst.public_ip = res.get("public_ip")
+                    except Exception as exc:
+                        transition_resource_state(
+                            inst,
+                            target_state="FAILED",
+                            state_source=p_type or "provider",
+                            last_error=str(exc)
+                        )
+                else:
+                    transition_resource_state(
+                        inst,
+                        target_state="AWAITING_PROVIDER_SETUP",
+                        state_source="registry-only",
+                        last_error="No compute provider configured. Connect AWS credentials."
+                    )
+                bg_db.commit()
+                bg_db.refresh(inst)
+                return inst.to_dict()
+
+        dispatch_async_job(job.id, _bg_provision)
+        return JSONResponse(
+            status_code=status.HTTP_202_ACCEPTED,
+            content={
+                "job_id": job.id,
+                "resource_id": inst_id,
+                "status": "QUEUED",
+                "message": "Instance provisioning queued asynchronously.",
+                "instance": new_inst.to_dict()
+            }
+        )
+
+    # Synchronous execution path (for tests and standard clients)
     provider, p_type = _get_compute_driver_for_user(db, str(current_user.id))
     if provider:
         try:

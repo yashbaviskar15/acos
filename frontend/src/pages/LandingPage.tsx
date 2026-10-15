@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence, Variants } from 'framer-motion';
+import { motion, AnimatePresence, Variants, useScroll, useSpring } from 'framer-motion';
 import {
   ArrowRight,
   ShieldCheck,
@@ -21,7 +21,6 @@ import {
   Copy,
   Zap,
   Folder,
-  LayoutGrid,
   MessageSquare,
   Cpu,
   Radio,
@@ -33,6 +32,11 @@ import {
   ExternalLink,
   Play,
   Layers,
+  Globe2,
+  Search,
+  HelpCircle,
+  X,
+  ChevronDown,
 } from 'lucide-react';
 
 import { Navbar, LandingView } from '../components/ui/Navbar';
@@ -40,12 +44,8 @@ import { Footer } from '../components/ui/Footer';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Card, CardBody } from '../components/ui/Card';
-import {
-  Accordion,
-  AccordionItem,
-  AccordionHeader,
-  AccordionBody,
-} from '../components/ui/Accordion';
+import { Sovereign3DCanvas } from '../components/landing/Sovereign3DCanvas';
+import { Sovereign3DBackground } from '../components/landing/Sovereign3DBackground';
 
 interface LandingPageProps {
   onGoToLogin: () => void;
@@ -58,6 +58,28 @@ interface LandingPageProps {
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' &&
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const ScrollReveal: React.FC<{
+  children: React.ReactNode;
+  className?: string;
+  delay?: number;
+  reduceMotion?: boolean;
+}> = ({ children, className = '', delay = 0, reduceMotion = false }) => {
+  if (reduceMotion) {
+    return <div className={className}>{children}</div>;
+  }
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-50px' }}
+      transition={{ duration: 0.55, delay, ease: [0.16, 1, 0.3, 1] }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+};
 
 // ── Pan-India Sovereign Datacenter Network Regions ──
 const edgeRegions = [
@@ -315,33 +337,82 @@ const realPricingRates = [
   { service: 'Egress Network Bandwidth', monthlyRate: '₹0.50', annualRate: '₹0.40', unit: 'per GB', note: 'Predictable outbound transfer' },
 ];
 
-// ── Verified FAQs ──
-const faqs = [
+// ── Verified Operational FAQs with Rich Domain Metadata ──
+interface OperationalFaq {
+  id: string;
+  category: 'security' | 'storage' | 'gitops' | 'billing' | 'architecture';
+  categoryLabel: string;
+  badge: string;
+  q: string;
+  a: string;
+  highlights: string[];
+}
+
+const faqs: OperationalFaq[] = [
   {
+    id: 'rbac',
+    category: 'security',
+    categoryLabel: 'Security & IAM',
+    badge: '5-Tier RBAC Matrix',
     q: 'How does Aravanta CloudOS enforce server-side RBAC and role hierarchy?',
     a: 'Every operational action is verified against a 5-tier Role-Based Access Control matrix (SuperAdmin, Admin, Operator, Developer, Viewer) backed by the database. Client payloads attempting to supply unauthorized role or permission mutations are strictly rejected at the Pydantic schema validation boundary. Critical operations like instance termination or billing updates require SuperAdmin or Admin privileges.',
+    highlights: ['SuperAdmin to Viewer Hierarchy', 'Pydantic Schema Barrier', 'Zero Client Trust'],
   },
   {
+    id: 'storage',
+    category: 'storage',
+    categoryLabel: 'Storage & S3',
+    badge: 'S3-Compatible NVMe',
     q: 'How does ArvStore manage documents, files, and S3 storage buckets?',
     a: 'ArvStore provides an S3-compatible object storage layer with bucket-level access control (Private or Public-Read) and storage tiering (Standard or Glacier). Users can upload files up to 100MB with drag-and-drop, organize files into hierarchical directories using folder prefixes, copy secure download links, and preview documents directly in the console.',
+    highlights: ['Multi-AZ NVMe S3', 'Hierarchical Prefixes', 'AES-256-GCM Encryption'],
   },
   {
+    id: 'gitops',
+    category: 'gitops',
+    categoryLabel: 'GitOps & Delivery',
+    badge: 'Automated 1.2s Rollback',
     q: 'How do progressive canary deployments and automated rollbacks work?',
     a: 'When a new release is triggered via GitOps or the console, ArvCD deploys a canary slice (e.g. 25% traffic). The system evaluates synthetic health probes, P95 latency thresholds, and HTTP error rates. If anomalies or SLO breaches occur, an automated rollback restores the previous stable release in under 1.2 seconds with zero dropped connections.',
+    highlights: ['Canary Traffic Slices', 'Synthetic Health Probes', '1.2s Instant Revert'],
   },
   {
+    id: 'billing',
+    category: 'billing',
+    categoryLabel: 'FinOps & Billing',
+    badge: '18% GST Compliant',
     q: 'How is consumption-based FinOps billing calculated and invoiced?',
     a: 'All infrastructure consumption is metered per-second using the pricing engine rates (e.g. ₹1.50/vCPU-hr for compute, ₹1.00/GB-mo for S3 storage, ₹0.50/GB for egress). Accounts can track real-time spend against configurable monthly budget caps. Invoices are generated with standard Indian Goods and Services Tax (9% CGST + 9% SGST = 18%) and can be exported as official PDFs or interactive WebCopies.',
+    highlights: ['Per-Second Metering', '18% CGST/SGST Invoicing', 'Hard Budget Caps'],
   },
   {
+    id: 'auth',
+    category: 'security',
+    categoryLabel: 'Security & IAM',
+    badge: 'RFC 6238 TOTP MFA',
     q: 'What authentication methods and security protections are implemented?',
     a: 'Aravanta CloudOS supports email and Account ID (ARV-ACC-XXXXXX) sign-in, RFC 6238 Time-based One-Time Passwords (TOTP MFA with 30-second token rotation), workspace invitation tokens, sliding-window rate limiting (5 failed attempts locks the account for 60 seconds), and cryptographic audit logging for all administrative actions.',
+    highlights: ['RFC 6238 TOTP MFA', 'Account ID Sign-In', 'Sliding Rate Limiter'],
   },
   {
+    id: 'architecture',
+    category: 'architecture',
+    categoryLabel: 'Architecture & HA',
+    badge: 'FastAPI + Postgres 16',
     q: 'What is the underlying deployment and architecture of the live platform?',
     a: 'The production platform runs serverless on Vercel with a React 18 + Vite frontend and a Python 3.11 FastAPI backend connected to managed PostgreSQL. The repository also includes production-ready Kubernetes manifests and Terraform definitions for self-hosted or dedicated sovereign enterprise deployments.',
+    highlights: ['FastAPI Microkernel', 'PostgreSQL 16 HA', 'Sovereign K8s / Terraform'],
   },
 ];
+
+const faqCategories = [
+  { id: 'all', label: 'All Operations', count: 6, icon: Layers },
+  { id: 'security', label: 'Security & IAM', count: 2, icon: ShieldCheck },
+  { id: 'storage', label: 'Storage & S3', count: 1, icon: HardDrive },
+  { id: 'gitops', label: 'GitOps & Canary', count: 1, icon: GitBranch },
+  { id: 'billing', label: 'FinOps & Billing', count: 1, icon: BarChart3 },
+  { id: 'architecture', label: 'HA Architecture', count: 1, icon: Server },
+] as const;
 
 export const LandingPage: React.FC<LandingPageProps> = ({
   onGoToLogin,
@@ -358,11 +429,38 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [copiedCodeKey, setCopiedCodeKey] = useState<string | null>(null);
   const [heroSelectedModule, setHeroSelectedModule] = useState<'vm' | 'k8s' | 's3' | 'db'>('vm');
   const [heroCopied, setHeroCopied] = useState(false);
+  const [heroRightTab, setHeroRightTab] = useState<'3d' | 'blade' | 'topology'>('3d');
+  const [cliCopied, setCliCopied] = useState(false);
   const [selectedEdgeRegion, setSelectedEdgeRegion] = useState<'mumbai' | 'bengaluru' | 'delhi' | 'hyderabad' | 'chennai'>('mumbai');
   const [selectedDevTab, setSelectedDevTab] = useState<'terraform' | 'cli' | 'python' | 'curl'>('terraform');
   const [devSnippetCopied, setDevSnippetCopied] = useState(false);
+  const [faqCategory, setFaqCategory] = useState<'all' | 'security' | 'storage' | 'gitops' | 'billing' | 'architecture'>('all');
+  const [faqSearch, setFaqSearch] = useState('');
+  const [openFaqId, setOpenFaqId] = useState<string | null>('rbac');
+
+  const filteredFaqs = useMemo(() => {
+    return faqs.filter((faq) => {
+      const matchesCategory = faqCategory === 'all' || faq.category === faqCategory;
+      const qLower = faqSearch.toLowerCase().trim();
+      if (!qLower) return matchesCategory;
+      const matchesSearch =
+        faq.q.toLowerCase().includes(qLower) ||
+        faq.a.toLowerCase().includes(qLower) ||
+        faq.badge.toLowerCase().includes(qLower) ||
+        faq.highlights.some((h) => h.toLowerCase().includes(qLower));
+      return matchesCategory && matchesSearch;
+    });
+  }, [faqCategory, faqSearch]);
+
   const reduceMotion = useMemo(prefersReducedMotion, []);
   const [mounted, setMounted] = useState(false);
+
+  const { scrollYProgress } = useScroll();
+  const scaleX = useSpring(scrollYProgress, {
+    stiffness: 100,
+    damping: 30,
+    restDelta: 0.001,
+  });
 
   useEffect(() => {
     setMounted(true);
@@ -405,7 +503,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-brandObsidian-950 text-slate-900 dark:text-slate-100 font-sans antialiased selection:bg-brandGold-500/30 selection:text-brandGold-900 dark:selection:text-brandGold-100 overflow-x-clip">
+    <div className="min-h-screen bg-slate-50 dark:bg-brandObsidian-950 text-slate-900 dark:text-slate-100 font-sans antialiased selection:bg-brandGold-500/30 selection:text-brandGold-900 dark:selection:text-brandGold-100 overflow-x-clip relative">
+      {/* ── FULL-PAGE AMBIENT 3D SOVEREIGN TOPOLOGY CANVAS (SCROLL & PARALLAX REACTIVE) ── */}
+      <Sovereign3DBackground />
+
+      {/* ── GLOBAL SCROLL PROGRESS INDICATOR ── */}
+      {!reduceMotion && (
+        <motion.div
+          style={{ scaleX }}
+          className="fixed top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-brandGold-600 via-amber-400 to-brandGold-400 origin-left z-50 pointer-events-none shadow-[0_0_12px_rgba(234,179,8,0.6)]"
+        />
+      )}
+
       {/* ── PERSISTENT HEADER NAVIGATION ── */}
       <Navbar
         onGoToLogin={onGoToLogin}
@@ -416,13 +525,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         currentView="home"
       />
 
-      <main id="main-content">
+      <main id="main-content" className="relative z-10">
         {/* ── HERO SECTION ── */}
-        <section className="relative overflow-hidden pt-10 sm:pt-14 lg:pt-20 pb-16 sm:pb-24 lg:pb-28">
+        <section className="relative overflow-hidden pt-6 sm:pt-8 lg:pt-10 pb-12 sm:pb-16">
           {/* Subtle Grid and Radial Lighting */}
           <div
             aria-hidden
-            className="absolute inset-x-0 top-0 -z-10 h-[680px] bg-hero-radial opacity-90 pointer-events-none"
+            className="absolute inset-x-0 top-0 -z-10 h-[680px] bg-hero-radial opacity-60 pointer-events-none"
           />
           <div
             aria-hidden
@@ -460,33 +569,31 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             {/* ── Split-Screen Hero Grid (7 cols left, 5 cols right on LG) ── */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-center">
               
-              {/* Left Column: Eyebrow, Main Headline, Subtext, CTAs & Trust Badges */}
+              {/* Left Column: Eyebrow, Main Headline, Subtext, CLI Quickstart, CTAs & Trust Badges */}
               <motion.div
                 variants={containerVariants}
                 initial="hidden"
                 animate={mounted ? 'show' : 'hidden'}
-                className="lg:col-span-7 space-y-6 text-left"
+                className="lg:col-span-7 space-y-4 sm:space-y-5 text-left"
               >
                 {/* Eyebrow Pill */}
                 <motion.div variants={fadeUp} className="flex justify-start">
-                  <div className="inline-flex flex-wrap items-center gap-x-2.5 gap-y-1.5 px-3.5 py-1.5 rounded-full border border-brandGold-500/40 bg-brandGold-500/10 dark:bg-brandGold-950/40 text-brandGold-700 dark:text-brandGold-300 text-xs font-semibold tracking-wide shadow-sm shadow-brandGold-500/10 backdrop-blur-xl ring-1 ring-brandGold-500/20">
-                    <span className="relative flex h-2 w-2">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-brandGold-500/40 bg-brandGold-500/10 dark:bg-brandGold-950/40 text-brandGold-700 dark:text-brandGold-300 text-[11px] font-semibold backdrop-blur-xl ring-1 ring-brandGold-500/20 max-w-full">
+                    <span className="relative flex h-2 w-2 shrink-0">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                     </span>
-                    <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold uppercase text-[11px]">
-                      All Systems Operational
+                    <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider truncate">
+                      ALL 6 REGIONS OPERATIONAL
                     </span>
-                    <span className="opacity-30">•</span>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-brandGold-500/20 text-brandGold-800 dark:text-brandGold-200 font-bold text-[10px] font-mono">
-                      v2.4 GA
-                    </span>
-                    <span className="opacity-30">•</span>
-                    <span className="inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300 text-[11px] font-mono">
+                    <span className="opacity-30 shrink-0">•</span>
+                    <span className="font-mono text-[10px] text-brandGold-400 font-bold shrink-0">v2.4 GA</span>
+                    <span className="hidden sm:inline-block opacity-30 shrink-0">•</span>
+                    <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-mono text-slate-300 shrink-0">
                       <span className="w-1.5 h-1.5 rounded-full bg-brandGold-500" />
-                      <span>ap-south-1 Sovereign (8ms Latency)</span>
+                      <span>7.8ms RTT</span>
                     </span>
                   </div>
                 </motion.div>
@@ -494,10 +601,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 {/* Main Headline */}
                 <motion.h1
                   variants={fadeUp}
-                  className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight leading-[1.06] text-slate-900 dark:text-white font-sans"
+                  className="text-3xl sm:text-4xl lg:text-[42px] xl:text-5xl font-black tracking-tight leading-[1.08] text-slate-900 dark:text-white font-sans"
                 >
                   Aravanta Cloud OS
-                  <span className="block mt-2 text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold bg-gradient-to-r from-brandGold-600 via-amber-400 to-brandGold-400 bg-clip-text text-transparent drop-shadow-xs">
+                  <span className="block mt-1.5 text-xl sm:text-2xl md:text-3xl lg:text-4xl font-extrabold bg-gradient-to-r from-brandGold-600 via-amber-400 to-brandGold-400 bg-clip-text text-transparent drop-shadow-xs">
                     The Sovereign Multi-Cloud Operating System
                   </span>
                 </motion.h1>
@@ -505,10 +612,43 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 {/* Supporting Copy */}
                 <motion.p
                   variants={fadeUp}
-                  className="text-sm sm:text-base md:text-lg text-slate-600 dark:text-slate-300 leading-relaxed font-normal max-w-2xl"
+                  className="text-xs sm:text-sm md:text-base text-slate-600 dark:text-slate-300 leading-relaxed font-normal max-w-xl"
                 >
-                  Orchestrate elastic virtual machines, managed Kubernetes clusters, distributed S3 storage, serverless functions, and high-availability databases from a single sovereign control plane — with sub-second telemetry, GitOps delivery, and predictable FinOps billing in INR (₹).
+                  Deploy dedicated AMD EPYC™ compute, managed Kubernetes clusters, NVMe S3 storage, and HA Postgres directly within India's borders. Enforce DPDPA 2023 compliance with zero cross-border transit, WireGuard® kernel mesh, and transparent per-second billing in INR (₹).
                 </motion.p>
+
+                {/* Authentic 1-Click CLI Quickstart Chip */}
+                <motion.div variants={fadeUp} className="pt-0.5">
+                  <div className="w-full sm:inline-flex items-center gap-2 p-1.5 pr-2.5 rounded-xl bg-slate-900/95 dark:bg-[#080d16] border border-slate-800 dark:border-brandGold-500/30 text-xs font-mono text-slate-300 shadow-xl backdrop-blur-md flex justify-between max-w-lg">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span className="px-2 py-0.5 rounded-lg bg-black/60 text-brandGold-400 font-bold border border-white/5 shrink-0 text-[10px] font-mono">$</span>
+                      <span className="text-slate-200 select-all font-semibold font-mono text-[11px] sm:text-xs truncate">
+                        curl -sSL https://get.aravanta.com | bash
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText('curl -sSL https://get.aravanta.com | bash && arv login');
+                        setCliCopied(true);
+                        setTimeout(() => setCliCopied(false), 2000);
+                      }}
+                      className="ml-2 px-2.5 py-1 rounded-lg text-slate-400 hover:text-brandGold-300 hover:bg-white/5 transition-all cursor-pointer flex items-center gap-1.5 font-sans text-[11px] font-semibold border border-transparent hover:border-brandGold-500/30 shrink-0"
+                      title="Copy quickstart command"
+                    >
+                      {cliCopied ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="text-emerald-400">Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copy</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </motion.div>
 
                 {/* Real Aligned Responsive CTAs */}
                 <motion.div
@@ -519,225 +659,300 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     size="lg"
                     variant="primary"
                     onClick={onGoToRegister}
-                    className="h-12 px-6 rounded-xl bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold text-sm sm:text-base shadow-lg shadow-brandGold-500/25 hover:shadow-brandGold-500/40 hover:-translate-y-0.5 transition-all btn-press cursor-pointer shrink-0"
+                    className="h-11 sm:h-12 px-6 rounded-xl bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold text-sm sm:text-base shadow-lg shadow-brandGold-500/25 hover:shadow-brandGold-500/40 hover:-translate-y-0.5 transition-all btn-press cursor-pointer shrink-0"
                     rightIcon={<ArrowRight className="w-4 h-4" />}
                   >
-                    Get Started Free
+                    Deploy Free in 60s
                   </Button>
                   <Button
                     size="lg"
                     variant="outline"
                     onClick={() => onNavigate?.('cli')}
-                    className="h-12 px-5 rounded-xl border border-slate-300 dark:border-brandObsidian-700 bg-white/90 dark:bg-brandObsidian-900/90 hover:border-brandGold-500 text-slate-800 dark:text-slate-200 hover:text-brandGold-600 dark:hover:text-brandGold-400 font-bold text-sm shadow-xs hover:-translate-y-0.5 transition-all btn-press cursor-pointer shrink-0"
+                    className="h-11 sm:h-12 px-5 rounded-xl border border-slate-300 dark:border-brandObsidian-700 bg-white/90 dark:bg-brandObsidian-900/90 hover:border-brandGold-500 text-slate-800 dark:text-slate-200 hover:text-brandGold-600 dark:hover:text-brandGold-400 font-bold text-sm shadow-xs hover:-translate-y-0.5 transition-all btn-press cursor-pointer shrink-0"
                     leftIcon={<Terminal className="w-4 h-4 text-brandGold-500" />}
                   >
                     Web Terminal
                   </Button>
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    onClick={() => onNavigate?.('services')}
-                    className="h-12 px-5 rounded-xl border border-slate-300 dark:border-brandObsidian-700 bg-white/90 dark:bg-brandObsidian-900/90 hover:border-brandGold-500 text-slate-800 dark:text-slate-200 hover:text-brandGold-600 dark:hover:text-brandGold-400 font-bold text-sm shadow-xs hover:-translate-y-0.5 transition-all btn-press cursor-pointer shrink-0"
-                    leftIcon={<Boxes className="w-4 h-4 text-brandGold-500" />}
-                  >
-                    Explore 20+ Services
-                  </Button>
-                  {onGoToConsole && (
-                    <Button
-                      size="lg"
-                      variant="ghost"
-                      onClick={onGoToConsole}
-                      className="h-12 px-4 rounded-xl text-slate-700 dark:text-slate-300 hover:text-brandGold-600 dark:hover:text-brandGold-400 font-bold text-sm hover:bg-slate-100 dark:hover:bg-brandObsidian-800/80 transition-colors shrink-0"
-                      leftIcon={<LayoutGrid className="w-4 h-4 text-brandGold-500" />}
-                    >
-                      Console
-                    </Button>
-                  )}
                 </motion.div>
 
-                {/* Inline Trust Badges Bar */}
+                {/* Inline Systems-Grade Trust Badges Bar */}
                 <motion.div
                   variants={fadeUp}
-                  className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-2 text-xs font-mono text-slate-500 dark:text-slate-400"
+                  className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-x-4 gap-y-2 pt-2 text-[11px] font-mono text-slate-500 dark:text-slate-400"
                 >
-                  <span className="inline-flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-brandGold-500" />
-                    <span>100% In-Country Sovereign</span>
+                  <span className="inline-flex items-center gap-1.5 truncate">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-brandGold-500 shrink-0" />
+                    <span>100% In-Country</span>
                   </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <ShieldCheck className="w-3.5 h-3.5 text-brandGold-500" />
+                  <span className="inline-flex items-center gap-1.5 truncate">
+                    <ShieldCheck className="w-3.5 h-3.5 text-brandGold-500 shrink-0" />
                     <span>Tier-IV ISO 27001</span>
                   </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <Lock className="w-3.5 h-3.5 text-brandGold-500" />
-                    <span>DPDPA 2023 Compliant</span>
+                  <span className="inline-flex items-center gap-1.5 truncate">
+                    <Lock className="w-3.5 h-3.5 text-brandGold-500 shrink-0" />
+                    <span>DPDPA 2023</span>
                   </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <Zap className="w-3.5 h-3.5 text-brandGold-500" />
-                    <span>Zero Cross-Border Egress Tax</span>
+                  <span className="inline-flex items-center gap-1.5 truncate">
+                    <Cpu className="w-3.5 h-3.5 text-brandGold-500 shrink-0" />
+                    <span>AMD EPYC™ Genoa</span>
                   </span>
                 </motion.div>
               </motion.div>
 
-              {/* Right Column: Hero Interactive Sovereign Cloud Control Deck (Inspired by Image 2 Reference) */}
+              {/* Right Column: Hero Interactive Sovereign Cloud Control Deck with Standardized Card Size */}
               <motion.div
                 initial={reduceMotion ? { opacity: 1 } : { opacity: 0, x: 20 }}
                 animate={mounted ? { opacity: 1, x: 0 } : {}}
                 transition={{ duration: 0.6, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-                className="lg:col-span-5 relative"
+                className="lg:col-span-5 relative space-y-2.5"
               >
                 {/* Ambient glow behind right artifact */}
                 <div className="absolute -inset-4 rounded-[2.5rem] bg-gradient-to-tr from-brandGold-500/20 via-amber-500/10 to-transparent blur-2xl -z-10" />
 
-                {/* Interactive Deck Card Container */}
-                <div className="rounded-3xl border border-slate-200/90 dark:border-brandGold-500/30 bg-white/95 dark:bg-[#0c121e]/95 p-4 sm:p-5 shadow-2xl backdrop-blur-xl space-y-4 ring-1 ring-black/5 dark:ring-brandGold-500/10">
-                  {/* Top Bar: Live Node Selector */}
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-brandObsidian-800">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-brandGold-500/10 text-brandGold-500 flex items-center justify-center">
-                        <Server className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-slate-900 dark:text-white font-mono flex items-center gap-1.5">
-                          <span>ap-south-1a</span>
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        </div>
-                        <div className="text-[10px] text-slate-500 font-mono">Tier-IV Sovereign Core</div>
-                      </div>
-                    </div>
-                    <Badge variant="gold" size="sm" className="font-mono text-[10px]">
-                      SLO: 99.99%
-                    </Badge>
-                  </div>
-
-                  {/* Interactive Workload Switcher Pills */}
-                  <div className="grid grid-cols-4 gap-1 p-1 rounded-xl bg-slate-100 dark:bg-brandObsidian-900/80 border border-slate-200/60 dark:border-brandObsidian-800 text-[11px] font-mono font-bold">
+                {/* Deck Mode Segmented Controller */}
+                <div className="flex items-center justify-between p-1 rounded-2xl bg-white/95 dark:bg-[#0c121e]/95 border border-slate-200/90 dark:border-brandGold-500/30 backdrop-blur-xl shadow-lg ring-1 ring-black/5 dark:ring-brandGold-500/10 shrink-0">
+                  <div className="flex items-center gap-1 text-xs font-mono font-bold w-full">
                     {[
-                      { id: 'vm', label: 'Compute', icon: Server },
-                      { id: 'k8s', label: 'Kube', icon: Boxes },
-                      { id: 's3', label: 'S3 Store', icon: HardDrive },
-                      { id: 'db', label: 'Postgres', icon: Database },
-                    ].map((m) => {
-                      const Icon = m.icon;
-                      const active = heroSelectedModule === m.id;
+                      { id: '3d', label: '3D Mesh', icon: Globe2 },
+                      { id: 'blade', label: 'Console Blade', icon: Server },
+                      { id: 'topology', label: 'Topology', icon: Network },
+                    ].map((tab) => {
+                      const Icon = tab.icon;
+                      const active = heroRightTab === tab.id;
                       return (
                         <button
-                          key={m.id}
-                          onClick={() => setHeroSelectedModule(m.id as any)}
-                          className={`py-1.5 px-1.5 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                          key={tab.id}
+                          onClick={() => setHeroRightTab(tab.id as any)}
+                          className={`flex-1 py-1.5 px-2 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer text-[11px] ${
                             active
-                              ? 'bg-brandGold-500 text-brandObsidian-950 shadow-xs'
-                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                              ? 'bg-brandGold-500 text-brandObsidian-950 font-bold shadow-md shadow-brandGold-500/20'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-brandObsidian-800/60'
                           }`}
                         >
-                          <Icon className="w-3 h-3" />
-                          <span>{m.label}</span>
+                          <Icon className="w-3.5 h-3.5" />
+                          <span>{tab.label}</span>
                         </button>
                       );
                     })}
                   </div>
+                </div>
 
-                  {/* The Metallic Obsidian & Gold Workload Blade Card */}
-                  <div className="relative rounded-2xl overflow-hidden p-5 bg-gradient-to-br from-[#121929] via-[#090d16] to-[#04070c] border border-brandGold-500/40 text-white shadow-xl space-y-4">
-                    {/* Metallic Shimmer accent line */}
-                    <div className="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-brandGold-400 to-transparent" />
-                    <div className="absolute -top-12 -right-12 w-28 h-28 bg-brandGold-500/20 rounded-full blur-xl pointer-events-none" />
+                {/* View 1: 3D Sovereign Canvas Deck */}
+                {heroRightTab === '3d' && (
+                  <div className="relative h-[390px] sm:h-[430px] lg:h-[460px]">
+                    <Sovereign3DCanvas
+                      className="w-full h-full"
+                      selectedNodeId={selectedEdgeRegion}
+                      onSelectNode={(node) => {
+                        if (['mumbai', 'bengaluru', 'delhi', 'hyderabad', 'chennai'].includes(node.id)) {
+                          setSelectedEdgeRegion(node.id as any);
+                        }
+                      }}
+                    />
+                  </div>
+                )}
 
-                    {/* Card Header Row */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-xl bg-brandGold-500/20 border border-brandGold-500/40 flex items-center justify-center">
-                          <Cpu className="w-4 h-4 text-brandGold-400" />
+                {/* View 2: The Metallic Obsidian & Gold Workload Blade Card */}
+                {heroRightTab === 'blade' && (
+                  <div className="rounded-3xl border border-slate-200/90 dark:border-brandGold-500/30 bg-white/95 dark:bg-[#0c121e]/95 p-4 sm:p-5 shadow-2xl backdrop-blur-xl h-[390px] sm:h-[430px] lg:h-[460px] flex flex-col justify-between ring-1 ring-black/5 dark:ring-brandGold-500/10 animate-in fade-in duration-300">
+                    {/* Top Bar: Live Node Selector */}
+                    <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-brandObsidian-800 shrink-0">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-brandGold-500/10 text-brandGold-500 flex items-center justify-center">
+                          <Server className="w-4 h-4" />
                         </div>
                         <div>
-                          <div className="text-xs font-bold text-white tracking-wide font-sans">
-                            {heroSelectedModule === 'vm' ? 'c3.4xlarge-epyc-prod' :
-                             heroSelectedModule === 'k8s' ? 'k8s-mumbai-cluster-01' :
-                             heroSelectedModule === 's3' ? 'arv-production-vault' : 'mumbai-pg-ha-cluster'}
+                          <div className="text-xs font-bold text-slate-900 dark:text-white font-mono flex items-center gap-1.5">
+                            <span>ap-south-1a</span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                           </div>
-                          <div className="text-[10px] font-mono text-brandGold-400">
-                            {heroSelectedModule === 'vm' ? 'AMD EPYC 9654 (Dedicated)' :
-                             heroSelectedModule === 'k8s' ? 'Kubernetes 1.30 (3-Node HA)' :
-                             heroSelectedModule === 's3' ? 'NVMe S3 Standard (Multi-AZ)' : 'PostgreSQL 16 HA Standby'}
+                          <div className="text-[10px] text-slate-500 font-mono">Tier-IV Sovereign Core</div>
+                        </div>
+                      </div>
+                      <Badge variant="gold" size="sm" className="font-mono text-[10px]">
+                        SLO: 99.99%
+                      </Badge>
+                    </div>
+
+                    {/* Interactive Workload Switcher Pills */}
+                    <div className="grid grid-cols-4 gap-1 p-1 rounded-xl bg-slate-100 dark:bg-brandObsidian-900/80 border border-slate-200/60 dark:border-brandObsidian-800 text-[11px] font-mono font-bold shrink-0 my-1">
+                      {[
+                        { id: 'vm', label: 'Compute', icon: Server },
+                        { id: 'k8s', label: 'Kube', icon: Boxes },
+                        { id: 's3', label: 'S3 Store', icon: HardDrive },
+                        { id: 'db', label: 'Postgres', icon: Database },
+                      ].map((m) => {
+                        const Icon = m.icon;
+                        const active = heroSelectedModule === m.id;
+                        return (
+                          <button
+                            key={m.id}
+                            onClick={() => setHeroSelectedModule(m.id as any)}
+                            className={`py-1.5 px-1.5 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                              active
+                                ? 'bg-brandGold-500 text-brandObsidian-950 shadow-xs'
+                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                            }`}
+                          >
+                            <Icon className="w-3 h-3" />
+                            <span>{m.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Blade Body */}
+                    <div className="relative rounded-2xl overflow-hidden p-4 sm:p-5 bg-gradient-to-br from-[#121929] via-[#090d16] to-[#04070c] border border-brandGold-500/40 text-white shadow-xl flex-1 flex flex-col justify-between my-1">
+                      <div className="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-brandGold-400 to-transparent" />
+                      <div className="absolute -top-12 -right-12 w-28 h-28 bg-brandGold-500/20 rounded-full blur-xl pointer-events-none" />
+
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-brandGold-500/20 border border-brandGold-500/40 flex items-center justify-center">
+                            <Cpu className="w-4 h-4 text-brandGold-400" />
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-white tracking-wide font-sans">
+                              {heroSelectedModule === 'vm' ? 'c3.4xlarge-epyc-prod' :
+                               heroSelectedModule === 'k8s' ? 'k8s-mumbai-cluster-01' :
+                               heroSelectedModule === 's3' ? 'arv-production-vault' : 'mumbai-pg-ha-cluster'}
+                            </div>
+                            <div className="text-[10px] font-mono text-brandGold-400">
+                              {heroSelectedModule === 'vm' ? 'AMD EPYC 9654 (Dedicated)' :
+                               heroSelectedModule === 'k8s' ? 'Kubernetes 1.30 (3-Node HA)' :
+                               heroSelectedModule === 's3' ? 'NVMe S3 Standard (Multi-AZ)' : 'PostgreSQL 16 HA Standby'}
+                            </div>
+                          </div>
+                        </div>
+                        <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                          RUNNING
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2.5 pt-1 text-xs font-mono">
+                        <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                          <div className="text-[10px] text-slate-400 uppercase">Core Capacity</div>
+                          <div className="text-sm font-bold text-white mt-0.5">
+                            {heroSelectedModule === 'vm' ? '64 vCPU / 128GB' :
+                             heroSelectedModule === 'k8s' ? '18 Nodes / 144 Pods' :
+                             heroSelectedModule === 's3' ? '14.8 TB Active NVMe' : '16 vCPU / 64GB RAM'}
+                          </div>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                          <div className="text-[10px] text-slate-400 uppercase">Edge Latency</div>
+                          <div className="text-sm font-bold text-brandGold-400 mt-0.5">
+                            7.8 ms (ap-south-1)
                           </div>
                         </div>
                       </div>
-                      <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                        RUNNING
+
+                      <div className="space-y-1.5 pt-0.5">
+                        <div className="flex justify-between text-[11px] font-mono text-slate-300">
+                          <span>CPU Fleet Utilization</span>
+                          <span className="font-bold text-emerald-400">32.4% Optimal</span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                          <div className="h-full bg-gradient-to-r from-emerald-500 to-brandGold-400 w-[32.4%] rounded-full" />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-white/10 text-[11px] font-mono">
+                        <span className="text-slate-400">Rate: ₹1.50 / vCPU-hr</span>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText('arv compute connect prod-api-gateway-c3');
+                            setHeroCopied(true);
+                            setTimeout(() => setHeroCopied(false), 2000);
+                          }}
+                          className="text-brandGold-400 hover:text-brandGold-300 flex items-center gap-1 cursor-pointer font-bold"
+                        >
+                          {heroCopied ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>Command Copied!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Terminal className="w-3.5 h-3.5" />
+                              <span>Copy SSH CLI</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* View 3: Multi-Region Topology Matrix */}
+                {heroRightTab === 'topology' && (
+                  <div className="rounded-3xl border border-slate-200/90 dark:border-brandGold-500/30 bg-white/95 dark:bg-[#0c121e]/95 p-4 sm:p-5 shadow-2xl backdrop-blur-xl h-[390px] sm:h-[430px] lg:h-[460px] flex flex-col justify-between ring-1 ring-black/5 dark:ring-brandGold-500/10 animate-in fade-in duration-300">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-brandObsidian-800 shrink-0">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-brandGold-500/10 text-brandGold-500 flex items-center justify-center">
+                          <Network className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-slate-900 dark:text-white font-mono">Pan-India WireGuard Mesh</div>
+                          <div className="text-[10px] text-slate-500 font-mono">6 Regions • Zero Cross-Border Transit</div>
+                        </div>
+                      </div>
+                      <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                        100% OPERATIONAL
                       </span>
                     </div>
 
-                    {/* Card Metrics & Specs Grid */}
-                    <div className="grid grid-cols-2 gap-2.5 pt-1 text-xs font-mono">
-                      <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
-                        <div className="text-[10px] text-slate-400 uppercase">Core Capacity</div>
-                        <div className="text-sm font-bold text-white mt-0.5">
-                          {heroSelectedModule === 'vm' ? '64 vCPU / 128GB' :
-                           heroSelectedModule === 'k8s' ? '18 Nodes / 144 Pods' :
-                           heroSelectedModule === 's3' ? '14.8 TB Active NVMe' : '16 vCPU / 64GB RAM'}
+                    <div className="space-y-1.5 font-mono text-xs flex-1 flex flex-col justify-between py-2">
+                      {edgeRegions.map((region) => (
+                        <div
+                          key={region.id}
+                          className="p-2 sm:p-2.5 rounded-xl bg-slate-50 dark:bg-brandObsidian-900 border border-slate-200/60 dark:border-brandObsidian-800 flex items-center justify-between hover:border-brandGold-500/40 transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                            <div>
+                              <div className="font-bold text-slate-900 dark:text-white text-[11px]">
+                                {region.city} ({region.code})
+                              </div>
+                              <div className="text-[9px] text-slate-500 dark:text-slate-400">
+                                {region.peering.slice(0, 2).join(' • ')}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold text-brandGold-600 dark:text-brandGold-400 text-[11px]">
+                              {region.latency}
+                            </div>
+                            <div className="text-[9px] text-slate-400">P95 RTT</div>
+                          </div>
                         </div>
-                      </div>
-                      <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
-                        <div className="text-[10px] text-slate-400 uppercase">Edge Latency</div>
-                        <div className="text-sm font-bold text-brandGold-400 mt-0.5">
-                          7.8 ms (ap-south-1)
-                        </div>
-                      </div>
+                      ))}
                     </div>
 
-                    {/* Live Telemetry Progress Bar */}
-                    <div className="space-y-1.5 pt-0.5">
-                      <div className="flex justify-between text-[11px] font-mono text-slate-300">
-                        <span>CPU Fleet Utilization</span>
-                        <span className="font-bold text-emerald-400">32.4% Optimal</span>
-                      </div>
-                      <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-emerald-500 to-brandGold-400 w-[32.4%] rounded-full" />
-                      </div>
-                    </div>
-
-                    {/* Bottom Card Footer */}
-                    <div className="flex items-center justify-between pt-2 border-t border-white/10 text-[11px] font-mono">
-                      <span className="text-slate-400">Rate: ₹1.50 / vCPU-hr</span>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText('arv compute connect prod-api-gateway-c3');
-                          setHeroCopied(true);
-                          setTimeout(() => setHeroCopied(false), 2000);
-                        }}
-                        className="text-brandGold-400 hover:text-brandGold-300 flex items-center gap-1 cursor-pointer font-bold"
-                      >
-                        {heroCopied ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Command Copied!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Terminal className="w-3.5 h-3.5" />
-                            <span>Copy SSH CLI</span>
-                          </>
-                        )}
-                      </button>
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-brandObsidian-800 text-[10px] font-mono text-slate-400 shrink-0">
+                      <span className="flex items-center gap-1.5 text-emerald-400 font-bold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        Kernel Mesh Active
+                      </span>
+                      <span>Zero Cross-Border Egress</span>
                     </div>
                   </div>
+                )}
 
-                  {/* Floating Micro Highlights Row (Matching Image 2 Style) */}
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-brandObsidian-900 border border-slate-200/60 dark:border-brandObsidian-800 text-[11px]">
-                      <Sparkles className="w-3.5 h-3.5 text-brandGold-500 shrink-0" />
-                      <div className="truncate">
-                        <div className="font-bold text-slate-800 dark:text-slate-200">₹4,000 Free Credits</div>
-                        <div className="text-[10px] text-slate-500">Auto-applied on signup</div>
-                      </div>
+                {/* Floating Micro Highlights Row (Always visible under right artifact) */}
+                <div className="grid grid-cols-2 gap-2 pt-0.5">
+                  <div className="flex items-center gap-2 p-2.5 rounded-2xl bg-white/90 dark:bg-brandObsidian-900/90 border border-slate-200/60 dark:border-brandObsidian-800 text-[11px] shadow-sm">
+                    <Sparkles className="w-3.5 h-3.5 text-brandGold-500 shrink-0" />
+                    <div className="truncate">
+                      <div className="font-bold text-slate-800 dark:text-slate-200">₹4,000 Free Credits</div>
+                      <div className="text-[10px] text-slate-500">Auto-applied on signup</div>
                     </div>
-                    <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-brandObsidian-900 border border-slate-200/60 dark:border-brandObsidian-800 text-[11px]">
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                      <div className="truncate">
-                        <div className="font-bold text-slate-800 dark:text-slate-200">Zero Egress Fees</div>
-                        <div className="text-[10px] text-slate-500">Free internal network</div>
-                      </div>
+                  </div>
+                  <div className="flex items-center gap-2 p-2.5 rounded-2xl bg-white/90 dark:bg-brandObsidian-900/90 border border-slate-200/60 dark:border-brandObsidian-800 text-[11px] shadow-sm">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    <div className="truncate">
+                      <div className="font-bold text-slate-800 dark:text-slate-200">Zero Egress Fees</div>
+                      <div className="text-[10px] text-slate-500">Free internal network</div>
                     </div>
                   </div>
                 </div>
@@ -1240,7 +1455,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
             
             {/* Header with Title and Executive Summary */}
-            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+            <ScrollReveal reduceMotion={reduceMotion} className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
               <div className="space-y-4 max-w-3xl">
                 <Badge variant="gold" size="md">
                   Pan-India Sovereign Edge Infrastructure
@@ -1265,13 +1480,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <span>MeitY Tier-IV Standards Compliant</span>
                 </div>
               </div>
-            </div>
+            </ScrollReveal>
 
             {/* Split Grid: Interactive Region Selector + Telemetry Radar */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
               
               {/* Left Column (7 cols): Interactive Region Cards */}
-              <div className="lg:col-span-7 space-y-4">
+              <ScrollReveal reduceMotion={reduceMotion} delay={0.1} className="lg:col-span-7 space-y-4">
                 <div className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Select Active Sovereign Region Hub:
                 </div>
@@ -1358,10 +1573,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     </div>
                   );
                 })()}
-              </div>
+              </ScrollReveal>
 
               {/* Right Column (5 cols): Sovereign Guarantee Card & Verified Infrastructure Quote */}
-              <div className="lg:col-span-5 space-y-4">
+              <ScrollReveal reduceMotion={reduceMotion} delay={0.2} className="lg:col-span-5 space-y-4">
                 
                 {/* Visual Sovereign Compliance Card */}
                 <div className="p-6 rounded-3xl bg-gradient-to-br from-[#121929] via-[#090d16] to-[#04070c] border border-brandGold-500/40 text-white shadow-xl space-y-4 relative overflow-hidden">
@@ -1422,7 +1637,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <span>Verified Production Workload • ₹320 Cr/mo Processed</span>
                   </div>
                 </div>
-              </div>
+              </ScrollReveal>
             </div>
           </div>
         </section>
@@ -1430,7 +1645,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         {/* ── CORE CAPABILITIES SECTION ── */}
         <section id="capabilities" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-            <div className="text-center max-w-3xl mx-auto space-y-4">
+            <ScrollReveal reduceMotion={reduceMotion} className="text-center max-w-3xl mx-auto space-y-4">
               <Badge variant="gold" size="md">
                 Verified Capabilities
               </Badge>
@@ -1440,49 +1655,57 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
                 Every service below is backed by running backend routers, database schemas, and visual console views in Aravanta CloudOS.
               </p>
-            </div>
+            </ScrollReveal>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {capabilities.map((cap) => {
+              {capabilities.map((cap, idx) => {
                 const Icon = cap.icon;
                 return (
-                  <Card
+                  <motion.div
                     key={cap.title}
-                    hover
-                    className="group border-slate-200 dark:border-brandObsidian-700/80 bg-white dark:bg-brandObsidian-900 flex flex-col justify-between"
+                    initial={reduceMotion ? {} : { opacity: 0, y: 24 }}
+                    whileInView={reduceMotion ? {} : { opacity: 1, y: 0 }}
+                    viewport={{ once: true, margin: '-40px' }}
+                    transition={{ duration: 0.45, delay: (idx % 3) * 0.08 }}
+                    className="h-full"
                   >
-                    <CardBody className="space-y-4 !p-6 flex-1 flex flex-col justify-between">
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div className="w-11 h-11 rounded-xl bg-brandGold-500/10 text-brandGold-500 dark:text-brandGold-400 flex items-center justify-center group-hover:bg-brandGold-500 group-hover:text-brandObsidian-950 transition-colors">
-                            <Icon className="w-5.5 h-5.5" />
+                    <Card
+                      hover
+                      className="group border-slate-200 dark:border-brandObsidian-700/80 bg-white dark:bg-brandObsidian-900 flex flex-col justify-between h-full"
+                    >
+                      <CardBody className="space-y-4 !p-6 flex-1 flex flex-col justify-between">
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div className="w-11 h-11 rounded-xl bg-brandGold-500/10 text-brandGold-500 dark:text-brandGold-400 flex items-center justify-center group-hover:bg-brandGold-500 group-hover:text-brandObsidian-950 transition-colors">
+                              <Icon className="w-5.5 h-5.5" />
+                            </div>
+                            <Badge variant="outline" size="sm">{cap.tag}</Badge>
                           </div>
-                          <Badge variant="outline" size="sm">{cap.tag}</Badge>
-                        </div>
-                        <div>
-                          <div className="text-[11px] font-mono uppercase font-bold text-slate-400">
-                            {cap.category}
+                          <div>
+                            <div className="text-[11px] font-mono uppercase font-bold text-slate-400">
+                              {cap.category}
+                            </div>
+                            <h3 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white mt-1 group-hover:text-brandGold-600 dark:group-hover:text-brandGold-400 transition-colors">
+                              {cap.title}
+                            </h3>
+                            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mt-2">
+                              {cap.desc}
+                            </p>
                           </div>
-                          <h3 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white mt-1 group-hover:text-brandGold-600 dark:group-hover:text-brandGold-400 transition-colors">
-                            {cap.title}
-                          </h3>
-                          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mt-2">
-                            {cap.desc}
-                          </p>
                         </div>
-                      </div>
 
-                      <div className="pt-4 border-t border-slate-100 dark:border-brandObsidian-800">
-                        <button
-                          onClick={() => onNavigate?.(cap.route)}
-                          className="inline-flex items-center gap-1.5 text-xs font-bold text-brandGold-600 dark:text-brandGold-400 hover:text-brandGold-700 dark:hover:text-brandGold-300 transition-colors cursor-pointer"
-                        >
-                          <span>Explore {cap.category}</span>
-                          <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-                        </button>
-                      </div>
-                    </CardBody>
-                  </Card>
+                        <div className="pt-4 border-t border-slate-100 dark:border-brandObsidian-800">
+                          <button
+                            onClick={() => onNavigate?.(cap.route)}
+                            className="inline-flex items-center gap-1.5 text-xs font-bold text-brandGold-600 dark:text-brandGold-400 hover:text-brandGold-700 dark:hover:text-brandGold-300 transition-colors cursor-pointer"
+                          >
+                            <span>Explore {cap.category}</span>
+                            <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                          </button>
+                        </div>
+                      </CardBody>
+                    </Card>
+                  </motion.div>
                 );
               })}
             </div>
@@ -1494,7 +1717,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             
             {/* The Signature Curved Enterprise Container */}
-            <div className="rounded-3xl border border-brandGold-500/30 bg-gradient-to-br from-[#0e1526] via-[#090d16] to-[#04070c] p-8 sm:p-12 lg:p-16 relative overflow-hidden shadow-2xl text-center space-y-10">
+            <motion.div
+              initial={reduceMotion ? {} : { opacity: 0, y: 30 }}
+              whileInView={reduceMotion ? {} : { opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-60px' }}
+              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+              className="rounded-3xl border border-brandGold-500/30 bg-gradient-to-br from-[#0e1526] via-[#090d16] to-[#04070c] p-8 sm:p-12 lg:p-16 relative overflow-hidden shadow-2xl text-center space-y-10"
+            >
               {/* Subtle ambient lighting arc */}
               <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-brandGold-500/15 via-brandGold-500/5 to-transparent blur-2xl pointer-events-none" />
               <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-96 bg-brandGold-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -1558,11 +1787,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     desc: 'Observe live Prometheus metrics, enable automated Canary rollbacks on latency spikes, and settle consumption via UPI, NetBanking, or GST tax invoices.',
                     badge: 'Zero Egress Tax',
                   },
-                ].map((s) => {
+                ].map((s, idx) => {
                   const SIcon = s.icon;
                   return (
-                    <div
+                    <motion.div
                       key={s.step}
+                      initial={reduceMotion ? {} : { opacity: 0, y: 20 }}
+                      whileInView={reduceMotion ? {} : { opacity: 1, y: 0 }}
+                      viewport={{ once: true, margin: '-30px' }}
+                      transition={{ duration: 0.45, delay: idx * 0.12 }}
                       className="p-6 rounded-2xl bg-white/5 border border-white/10 hover:border-brandGold-500/50 hover:bg-white/10 transition-all duration-300 flex flex-col justify-between space-y-4 group"
                     >
                       <div className="space-y-3">
@@ -1592,7 +1825,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                         <span>Production Verified</span>
                         <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                       </div>
-                    </div>
+                    </motion.div>
                   );
                 })}
               </div>
@@ -1618,7 +1851,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   Read Migration Architecture Guide
                 </Button>
               </div>
-            </div>
+            </motion.div>
           </div>
         </section>
 
@@ -1628,7 +1861,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-start">
               {/* Left Column (5 cols): Context, Integration Logos & Documentation CTA */}
-              <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-24">
+              <ScrollReveal reduceMotion={reduceMotion} className="lg:col-span-5 space-y-6 lg:sticky lg:top-24">
                 <Badge variant="gold" size="md">
                   Developer-First Toolchain
                 </Badge>
@@ -1688,65 +1921,67 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     CLI Reference
                   </Button>
                 </div>
-              </div>
+              </ScrollReveal>
 
               {/* Right Column (7 cols): Interactive Code Box + 4 Feature Cards */}
               <div className="lg:col-span-7 space-y-6">
                 
                 {/* Interactive Code Box with Switcher and 1-Click Copy */}
-                <div className="rounded-2xl border border-slate-200 dark:border-brandObsidian-700 bg-white dark:bg-brandObsidian-900 shadow-xl overflow-hidden">
-                  {/* Code Box Header Tabs */}
-                  <div className="px-4 py-3 border-b border-slate-200 dark:border-brandObsidian-800 bg-slate-100/70 dark:bg-brandObsidian-800/60 flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-200/70 dark:bg-brandObsidian-900 border border-slate-300 dark:border-brandObsidian-700 text-xs font-mono">
-                      {[
-                        { id: 'terraform', label: 'Terraform' },
-                        { id: 'cli', label: 'arv CLI' },
-                        { id: 'python', label: 'Python SDK' },
-                        { id: 'curl', label: 'REST API' },
-                      ].map((tab) => (
-                        <button
-                          key={tab.id}
-                          onClick={() => setSelectedDevTab(tab.id as any)}
-                          className={`px-3 py-1.5 rounded-lg transition-all font-bold cursor-pointer ${
-                            selectedDevTab === tab.id
-                              ? 'bg-brandGold-500 text-brandObsidian-950 shadow-xs'
-                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                          }`}
-                        >
-                          {tab.label}
-                        </button>
-                      ))}
+                <ScrollReveal reduceMotion={reduceMotion} delay={0.1}>
+                  <div className="rounded-2xl border border-slate-200 dark:border-brandObsidian-700 bg-white dark:bg-brandObsidian-900 shadow-xl overflow-hidden">
+                    {/* Code Box Header Tabs */}
+                    <div className="px-4 py-3 border-b border-slate-200 dark:border-brandObsidian-800 bg-slate-100/70 dark:bg-brandObsidian-800/60 flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-200/70 dark:bg-brandObsidian-900 border border-slate-300 dark:border-brandObsidian-700 text-xs font-mono">
+                        {[
+                          { id: 'terraform', label: 'Terraform' },
+                          { id: 'cli', label: 'arv CLI' },
+                          { id: 'python', label: 'Python SDK' },
+                          { id: 'curl', label: 'REST API' },
+                        ].map((tab) => (
+                          <button
+                            key={tab.id}
+                            onClick={() => setSelectedDevTab(tab.id as any)}
+                            className={`px-3 py-1.5 rounded-lg transition-all font-bold cursor-pointer ${
+                              selectedDevTab === tab.id
+                                ? 'bg-brandGold-500 text-brandObsidian-950 shadow-xs'
+                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                            }`}
+                          >
+                            {tab.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(devTabSnippets[selectedDevTab].code);
+                          setDevSnippetCopied(true);
+                          setTimeout(() => setDevSnippetCopied(false), 2000);
+                        }}
+                        className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-brandObsidian-700 bg-white dark:bg-brandObsidian-800 text-slate-700 dark:text-slate-300 text-xs font-mono font-bold flex items-center gap-1.5 hover:border-brandGold-500 cursor-pointer shadow-xs transition-colors"
+                      >
+                        {devSnippetCopied ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-500" />
+                            <span>Copied to Clipboard!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5 text-brandGold-500" />
+                            <span>Copy Snippet</span>
+                          </>
+                        )}
+                      </button>
                     </div>
 
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(devTabSnippets[selectedDevTab].code);
-                        setDevSnippetCopied(true);
-                        setTimeout(() => setDevSnippetCopied(false), 2000);
-                      }}
-                      className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-brandObsidian-700 bg-white dark:bg-brandObsidian-800 text-slate-700 dark:text-slate-300 text-xs font-mono font-bold flex items-center gap-1.5 hover:border-brandGold-500 cursor-pointer shadow-xs transition-colors"
-                    >
-                      {devSnippetCopied ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-emerald-500" />
-                          <span>Copied to Clipboard!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5 text-brandGold-500" />
-                          <span>Copy Snippet</span>
-                        </>
-                      )}
-                    </button>
+                    {/* Code View Area */}
+                    <div className="p-4 sm:p-5 bg-brandObsidian-950 text-slate-200 font-mono text-xs sm:text-sm overflow-x-auto leading-relaxed border-t border-brandObsidian-800">
+                      <pre className="whitespace-pre">
+                        <code>{devTabSnippets[selectedDevTab].code}</code>
+                      </pre>
+                    </div>
                   </div>
-
-                  {/* Code View Area */}
-                  <div className="p-4 sm:p-5 bg-brandObsidian-950 text-slate-200 font-mono text-xs sm:text-sm overflow-x-auto leading-relaxed border-t border-brandObsidian-800">
-                    <pre className="whitespace-pre">
-                      <code>{devTabSnippets[selectedDevTab].code}</code>
-                    </pre>
-                  </div>
-                </div>
+                </ScrollReveal>
 
                 {/* 4 Toolchain Feature Tiles (Inspired by Image 2's 4 visual tiles) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1779,11 +2014,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       badge: 'RFC 6238 MFA',
                       route: 'iam' as const,
                     },
-                  ].map((tile) => {
+                  ].map((tile, idx) => {
                     const TileIcon = tile.icon;
                     return (
-                      <div
+                      <motion.div
                         key={tile.title}
+                        initial={reduceMotion ? {} : { opacity: 0, y: 20 }}
+                        whileInView={reduceMotion ? {} : { opacity: 1, y: 0 }}
+                        viewport={{ once: true, margin: '-30px' }}
+                        transition={{ duration: 0.4, delay: idx * 0.08 }}
                         className="p-5 rounded-2xl bg-white dark:bg-brandObsidian-900 border border-slate-200/90 dark:border-brandObsidian-800 hover:border-brandGold-500/50 hover:shadow-card-hover transition-all duration-200 flex flex-col justify-between space-y-3 group"
                       >
                         <div className="space-y-2">
@@ -1810,7 +2049,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                           <span>Explore Primitive</span>
                           <ExternalLink className="w-3 h-3" />
                         </button>
-                      </div>
+                      </motion.div>
                     );
                   })}
                 </div>
@@ -1825,7 +2064,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
               
               {/* Left Column (5 cols): High-Impact CISO Testimonial Card (Image 2 style) */}
-              <div className="lg:col-span-5">
+              <motion.div
+                initial={reduceMotion ? {} : { opacity: 0, x: -24 }}
+                whileInView={reduceMotion ? {} : { opacity: 1, x: 0 }}
+                viewport={{ once: true, margin: '-50px' }}
+                transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+                className="lg:col-span-5"
+              >
                 <div className="rounded-3xl bg-gradient-to-br from-[#121929] via-[#090d16] to-[#04070c] border border-brandGold-500/40 p-6 sm:p-8 text-white shadow-2xl relative overflow-hidden space-y-6">
                   <div className="absolute top-0 right-0 w-44 h-44 bg-brandGold-500/10 rounded-full blur-2xl pointer-events-none" />
 
@@ -1860,10 +2105,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     </div>
                   </div>
                 </div>
-              </div>
+              </motion.div>
 
               {/* Right Column (7 cols): Compliance Checklist & Architecture */}
-              <div className="lg:col-span-7 space-y-6">
+              <ScrollReveal reduceMotion={reduceMotion} delay={0.15} className="lg:col-span-7 space-y-6">
                 <Badge variant="gold" size="md">
                   Sovereignty & Governance
                 </Badge>
@@ -1901,9 +2146,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       title: 'Cryptographic Immutable Audit Trail',
                       desc: 'Every administrative mutation is signed with actor IP, timestamp, and payload hash.',
                     },
-                  ].map((item) => (
-                    <div
+                  ].map((item, idx) => (
+                    <motion.div
                       key={item.title}
+                      initial={reduceMotion ? {} : { opacity: 0, y: 16 }}
+                      whileInView={reduceMotion ? {} : { opacity: 1, y: 0 }}
+                      viewport={{ once: true, margin: '-30px' }}
+                      transition={{ duration: 0.35, delay: (idx % 2) * 0.08 }}
                       className="p-4 rounded-xl bg-white dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-800 shadow-xs space-y-1.5"
                     >
                       <div className="flex items-start gap-2">
@@ -1917,7 +2166,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       <p className="text-[11px] text-slate-500 dark:text-slate-400 pl-7 leading-relaxed">
                         {item.desc}
                       </p>
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
 
@@ -1932,7 +2181,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     Download Compliance Whitepaper
                   </Button>
                 </div>
-              </div>
+              </ScrollReveal>
             </div>
           </div>
         </section>
@@ -1940,7 +2189,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         {/* ── ENGINEERING COMMUNITY PREVIEW ── */}
         <section id="community" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <ScrollReveal reduceMotion={reduceMotion} className="flex flex-col md:flex-row md:items-end justify-between gap-6">
               <div className="space-y-4 max-w-2xl">
                 <Badge variant="gold" size="md">
                   Community & Engineering Forum
@@ -1964,7 +2213,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   Browse All Discussions
                 </Button>
               </div>
-            </div>
+            </ScrollReveal>
 
             {/* Real Discussion Category Previews */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -1990,9 +2239,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   replies: '19 replies',
                   tag: 'Object Storage',
                 },
-              ].map((post) => (
-                <div
+              ].map((post, idx) => (
+                <motion.div
                   key={post.title}
+                  initial={reduceMotion ? {} : { opacity: 0, y: 20 }}
+                  whileInView={reduceMotion ? {} : { opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: '-30px' }}
+                  transition={{ duration: 0.4, delay: idx * 0.1 }}
                   onClick={() => onNavigate?.('community')}
                   className="p-6 rounded-2xl bg-white dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-800 hover:border-brandGold-500/50 hover:shadow-card-hover transition-all cursor-pointer flex flex-col justify-between space-y-4"
                 >
@@ -2015,7 +2268,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       {post.replies}
                     </span>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           </div>
@@ -2024,7 +2277,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         {/* ── FACTUAL CONSUMPTION PRICING & FINOPS ── */}
         <section id="pricing" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800 bg-slate-100/50 dark:bg-brandObsidian-900/40">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-            <div className="text-center max-w-3xl mx-auto space-y-4">
+            <ScrollReveal reduceMotion={reduceMotion} className="text-center max-w-3xl mx-auto space-y-4">
               <Badge variant="outline" size="md">
                 Transparent FinOps Rates
               </Badge>
@@ -2063,13 +2316,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </button>
                 </div>
               </div>
-            </div>
+            </ScrollReveal>
 
             {/* Real Unit Price Rate Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {realPricingRates.map((item) => (
-                <div
+              {realPricingRates.map((item, idx) => (
+                <motion.div
                   key={item.service}
+                  initial={reduceMotion ? {} : { opacity: 0, y: 16 }}
+                  whileInView={reduceMotion ? {} : { opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: '-30px' }}
+                  transition={{ duration: 0.35, delay: idx * 0.05 }}
                   className="p-5 rounded-2xl bg-white dark:bg-brandObsidian-900 border border-slate-200 dark:border-brandObsidian-800 space-y-2"
                 >
                   <div className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400">
@@ -2086,11 +2343,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <div className="text-xs text-slate-500 dark:text-slate-400">
                     {item.note}
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
 
-            <div className="text-center pt-4">
+            <ScrollReveal reduceMotion={reduceMotion} delay={0.1} className="text-center pt-4">
               <Button
                 variant="outline"
                 size="lg"
@@ -2100,40 +2357,260 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               >
                 View Full Pricing Tiers & TCO Comparison
               </Button>
-            </div>
+            </ScrollReveal>
           </div>
         </section>
 
-        {/* ── ARCHITECTURE & SAFETY FAQ ── */}
-        <section id="faq" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-            <div className="text-center max-w-2xl mx-auto space-y-4">
-              <Badge variant="gold" size="md">
-                Platform Architecture FAQ
-              </Badge>
+        {/* ── ARCHITECTURE & SAFETY FAQ (REDESIGNED 2-COLUMN OPERATIONAL DECK) ── */}
+        <section id="faq" className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800 relative">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+            <ScrollReveal reduceMotion={reduceMotion} className="text-center max-w-3xl mx-auto space-y-4">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brandGold-500/10 border border-brandGold-500/30 text-brandGold-400 font-mono text-xs font-bold uppercase tracking-wider">
+                <HelpCircle className="w-3.5 h-3.5" />
+                <span>Verified Architecture & Operations</span>
+              </div>
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.1]">
                 Frequently Asked Operational Questions
               </h2>
-              <p className="text-base text-slate-600 dark:text-slate-300 leading-relaxed">
-                Direct answers to engineering questions about security, deployments, and multi-cloud operations.
+              <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl mx-auto">
+                Evidence-gated engineering answers regarding multi-cloud RBAC, S3 object durability, automated canary rollbacks, and Indian GST FinOps.
               </p>
-            </div>
+            </ScrollReveal>
 
-            <Accordion type="single" defaultValue="0">
-              {faqs.map((f, i) => (
-                <AccordionItem key={i} value={String(i)}>
-                  <AccordionHeader value={String(i)}>{f.q}</AccordionHeader>
-                  <AccordionBody value={String(i)}>{f.a}</AccordionBody>
-                </AccordionItem>
-              ))}
-            </Accordion>
+            {/* Split 2-Column Responsive Deck */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-start">
+              {/* Left Column: Domain Filter & SRE Contact Card */}
+              <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-24">
+                {/* Domain Filter Deck */}
+                <div className="p-2 sm:p-2.5 rounded-2xl bg-white/90 dark:bg-[#0c121e]/90 border border-slate-200/90 dark:border-brandGold-500/30 backdrop-blur-xl shadow-lg ring-1 ring-black/5 dark:ring-brandGold-500/10">
+                  <div className="text-[11px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase px-2 py-1 tracking-wider hidden sm:block">
+                    Operational Domains
+                  </div>
+                  {/* Desktop: Vertical stack, Mobile: horizontal flex with no-scrollbar */}
+                  <div className="flex sm:flex-col gap-1.5 overflow-x-auto sm:overflow-x-visible no-scrollbar py-1 sm:py-0">
+                    {faqCategories.map((cat) => {
+                      const Icon = cat.icon;
+                      const isSelected = faqCategory === cat.id;
+                      return (
+                        <button
+                          key={cat.id}
+                          onClick={() => setFaqCategory(cat.id as any)}
+                          className={`flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all shrink-0 sm:shrink cursor-pointer text-left ${
+                            isSelected
+                              ? 'bg-brandGold-500 text-brandObsidian-950 font-bold shadow-md shadow-brandGold-500/20'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-brandObsidian-800/60'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 truncate">
+                            <Icon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-brandObsidian-950' : 'text-brandGold-500'}`} />
+                            <span className="truncate">{cat.label}</span>
+                          </div>
+                          <span
+                            className={`text-[10px] font-mono px-1.5 py-0.5 rounded-md shrink-0 ${
+                              isSelected
+                                ? 'bg-brandObsidian-950/20 text-brandObsidian-950 font-bold'
+                                : 'bg-slate-200/80 dark:bg-brandObsidian-800 text-slate-500 dark:text-slate-400'
+                            }`}
+                          >
+                            {cat.count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* SRE Escalation Blade Card */}
+                <div className="relative rounded-2xl overflow-hidden p-5 bg-gradient-to-br from-[#121929] via-[#090d16] to-[#04070c] border border-brandGold-500/40 text-white shadow-xl">
+                  <div className="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-brandGold-400 to-transparent" />
+                  <div className="flex items-center justify-between text-xs font-mono pb-3 border-b border-slate-800/80">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="text-emerald-400 font-bold">SRE Command Active</span>
+                    </div>
+                    <span className="text-slate-500 text-[10px]">P95 &lt; 15m</span>
+                  </div>
+                  <div className="space-y-2 py-3">
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4 text-brandGold-400" />
+                      <span>Custom Architecture Needs?</span>
+                    </h3>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      Enterprise air-gapped clusters, dedicated banking cores, or RBI/DPDPA regulatory boundary validation.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 pt-2 border-t border-slate-800/80">
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => onNavigate?.('documentation')}
+                      className="w-full text-xs py-2 rounded-lg bg-brandGold-500 hover:bg-brandGold-600 text-brandObsidian-950 font-bold cursor-pointer"
+                    >
+                      Platform Docs
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onNavigate?.('cli')}
+                      className="w-full text-xs py-2 rounded-lg border border-slate-700 bg-slate-900/80 hover:border-brandGold-500 text-slate-200 hover:text-white font-mono cursor-pointer"
+                    >
+                      Web Terminal
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Search & Custom Filtered Accordion Deck */}
+              <div className="lg:col-span-8 space-y-4">
+                {/* Instant Filter & Search Bar */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-2 sm:p-2.5 rounded-2xl bg-white/90 dark:bg-[#0c121e]/90 border border-slate-200/90 dark:border-brandGold-500/30 backdrop-blur-xl shadow-lg ring-1 ring-black/5 dark:ring-brandGold-500/10">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={faqSearch}
+                      onChange={(e) => setFaqSearch(e.target.value)}
+                      placeholder="Search operational answers (e.g., RBAC, canary, S3, GST, MFA)..."
+                      className="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brandGold-500/40"
+                    />
+                    {faqSearch && (
+                      <button
+                        onClick={() => setFaqSearch('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-full cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 shrink-0 px-1 flex items-center justify-between sm:justify-end gap-2">
+                    <span>
+                      Showing <strong className="text-brandGold-500">{filteredFaqs.length}</strong> of {faqs.length} FAQs
+                    </span>
+                    {(faqCategory !== 'all' || faqSearch) && (
+                      <button
+                        onClick={() => {
+                          setFaqCategory('all');
+                          setFaqSearch('');
+                        }}
+                        className="text-[10px] text-brandGold-500 hover:underline cursor-pointer ml-1"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* FAQ Items Deck */}
+                {filteredFaqs.length === 0 ? (
+                  <div className="p-8 sm:p-12 rounded-2xl border border-dashed border-slate-300 dark:border-slate-800 text-center space-y-3 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md">
+                    <HelpCircle className="w-8 h-8 text-slate-400 mx-auto" />
+                    <div className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                      No operational specifications matched "{faqSearch}"
+                    </div>
+                    <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                      Try searching with broader terms like <code className="text-brandGold-400">RBAC</code>, <code className="text-brandGold-400">storage</code>, <code className="text-brandGold-400">canary</code>, or <code className="text-brandGold-400">billing</code>.
+                    </p>
+                    <button
+                      onClick={() => {
+                        setFaqSearch('');
+                        setFaqCategory('all');
+                      }}
+                      className="text-xs font-bold text-brandGold-500 hover:underline pt-2 cursor-pointer inline-block"
+                    >
+                      Clear search & view all FAQs
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredFaqs.map((faq) => {
+                      const isOpen = openFaqId === faq.id;
+                      return (
+                        <div
+                          key={faq.id}
+                          className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
+                            isOpen
+                              ? 'bg-white/95 dark:bg-[#0c121e]/95 border-brandGold-500/60 shadow-xl shadow-brandGold-500/5 ring-1 ring-brandGold-500/30'
+                              : 'bg-white/80 dark:bg-[#0a0f1a]/80 border-slate-200/90 dark:border-slate-800/80 hover:border-brandGold-500/40 hover:bg-white dark:hover:bg-[#0c121e]/80 shadow-xs'
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setOpenFaqId(isOpen ? null : faq.id)}
+                            className="w-full p-4 sm:p-5 text-left flex items-start justify-between gap-4 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandGold-500/40"
+                          >
+                            <div className="space-y-2 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-[10px] font-mono uppercase tracking-wider font-bold text-brandGold-500 dark:text-brandGold-400 bg-brandGold-500/10 dark:bg-brandGold-500/15 px-2 py-0.5 rounded-md border border-brandGold-500/30">
+                                  {faq.categoryLabel}
+                                </span>
+                                <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-800">
+                                  {faq.badge}
+                                </span>
+                              </div>
+                              <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100 leading-snug">
+                                {faq.q}
+                              </h3>
+                            </div>
+                            <div
+                              className={`p-1.5 rounded-xl border shrink-0 transition-transform duration-200 mt-1 ${
+                                isOpen
+                                  ? 'bg-brandGold-500 text-brandObsidian-950 border-brandGold-500 rotate-180'
+                                  : 'bg-slate-100 dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800'
+                              }`}
+                            >
+                              <ChevronDown className="w-4 h-4" />
+                            </div>
+                          </button>
+
+                          <AnimatePresence initial={false}>
+                            {isOpen && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                                className="overflow-hidden"
+                              >
+                                <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-slate-100 dark:border-slate-800/80 space-y-3.5 text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                                  <p>{faq.a}</p>
+
+                                  {/* Architecture Spec Highlights */}
+                                  <div className="pt-2 flex flex-wrap items-center gap-1.5 border-t border-slate-100 dark:border-slate-800/60 text-[10px] font-mono">
+                                    <span className="text-slate-400 dark:text-slate-500 mr-1 uppercase">Engineered With:</span>
+                                    {faq.highlights.map((h, hi) => (
+                                      <span
+                                        key={hi}
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 text-slate-700 dark:text-slate-300"
+                                      >
+                                        <CheckCircle2 className="w-2.5 h-2.5 text-brandGold-500" />
+                                        <span>{h}</span>
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </section>
 
         {/* ── FINAL CALL TO ACTION ── */}
         <section className="py-20 sm:py-28 border-t border-slate-200 dark:border-brandObsidian-800 bg-slate-100/50 dark:bg-brandObsidian-900/40">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="relative overflow-hidden rounded-3xl bg-brandObsidian-950 text-white shadow-2xl p-8 sm:p-12 lg:p-16 text-center space-y-6">
+            <motion.div
+              initial={reduceMotion ? {} : { opacity: 0, scale: 0.97, y: 24 }}
+              whileInView={reduceMotion ? {} : { opacity: 1, scale: 1, y: 0 }}
+              viewport={{ once: true, margin: '-60px' }}
+              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+              className="relative overflow-hidden rounded-3xl bg-brandObsidian-950 text-white shadow-2xl p-8 sm:p-12 lg:p-16 text-center space-y-6"
+            >
               <div
                 aria-hidden
                 className="pointer-events-none absolute inset-0 opacity-[0.25]"
@@ -2205,7 +2682,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <Check className="w-4 h-4 text-brandGold-400" /> Server-Enforced RBAC
                 </span>
               </div>
-            </div>
+            </motion.div>
           </div>
         </section>
       </main>

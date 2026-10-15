@@ -21,12 +21,22 @@ Previously, ArvCompute allowed users to deploy "virtual machines" which defaulte
 4. **Connection Guarding**: Connect endpoint checks for an actual verified `public_ip`; otherwise it returns `connectable: False` with an honest status explanation.
 5. **UI Provenance**: `Compute.tsx` renders `StatusBadge` and `SourceBadge` displaying live provenance and observed timestamp.
 
-## 4. Verification Evidence
-- Test suite: `backend/tests/test_services_control_plane.py`
-  - `test_compute_instance_creation_without_provider`: Passed (100%)
-  - `test_compute_actions_blocked_on_unprovisioned`: Passed (100%)
-  - `test_compute_connect_blocked_without_public_ip`: Passed (100%)
-- Frontend production build: `npm run build` compiled cleanly with 0 errors.
+## 4. Verification Evidence & Level
+**Verification Level: `VERIFIED_LOCAL`**
+- Passed against real local Docker Engine 29.5.3 on Windows WSL2 backend.
+- Docker Engine connection verified: `(True, 'CONNECTED', {'version': '29.5.3', 'api_version': '1.54', 'os': 'linux'})`.
+- Lifecycle test verified:
+  - Create: `provider_resource_id = 207b6ea03c160e00dda0ba735dae9482efda87f6cd0ad1f81cddd464cb42bc0b`, status `RUNNING`.
+  - Observe: Container inspect and status reporting.
+  - Delete: Clean container termination at Docker engine.
+- Adapter fix implemented: Overcame `requests >= 2.32` / `urllib3` `http+docker` scheme incompatibility with custom `get_connection_with_tls_context` handler in `app/core/providers/docker_local.py`.
+- Windows named pipe discovery: Probes `npipe:////./pipe/dockerDesktopLinuxEngine` (Docker Desktop default) alongside legacy `npipe:////./pipe/docker_engine`.
+- Fleet Reconciler integration: `POST /api/v1/compute/reconcile-fleet` audits state drift, updates `state_source="reconciler"`, and catches external deletions.
+- Automated Test Suite:
+  - `backend/tests/test_no_fake_data_guard.py` (6/6 tests passing)
+  - `backend/tests/test_reconciler_and_jobs.py` (3/3 tests passing)
+  - Total: 9/9 tests passed (100%).
+- Frontend build: `tsc && vite build` passed cleanly with 0 TypeScript errors.
 
 ## 5. Invariants Checked
 - **Rule 1 (No Fabricated Data)**: No fake private/public IPs or synthetic CPU/RAM percentages.
@@ -34,3 +44,4 @@ Previously, ArvCompute allowed users to deploy "virtual machines" which defaulte
 - **Rule 3 (Provenance on Every Resource)**: Every instance records `provider_resource_id`, `state_source`, `observed_at`, `last_error`.
 - **Rule 4 (No Stub Implementations)**: AWS EC2 calls real boto3 API; Docker calls real Docker daemon API.
 - **Rule 5 (Graceful Degradation)**: Missing credentials cleanly report `AWAITING_PROVIDER_SETUP`.
+

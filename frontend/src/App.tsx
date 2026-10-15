@@ -700,7 +700,7 @@ export default function App() {
                 {activeTab === 'settings' && <Settings token={token} />}
                 
                 {/* Cloud Resources */}
-                {activeTab === 'compute' && <Compute token={token} />}
+                {activeTab === 'compute' && <Compute token={token} onNavigate={(tab) => setActiveTab(tab)} />}
                 {activeTab === 'kubernetes' && <Kubernetes token={token} onNavigate={(tab) => setActiveTab(tab)} />}
                 {activeTab === 'storage' && <Storage token={token} />}
                 {activeTab === 'database' && <Databases token={token} />}

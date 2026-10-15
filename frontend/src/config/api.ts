@@ -11,11 +11,20 @@
 const DEFAULT_BACKEND = 'https://arv-backend.vercel.app';
 const envApiUrl = (import.meta.env.VITE_API_URL || '').trim();
 
-export const API_BASE_URL = (
-  envApiUrl && envApiUrl !== '/' && (envApiUrl.startsWith('http://') || envApiUrl.startsWith('https://'))
-    ? envApiUrl
-    : DEFAULT_BACKEND
-).replace(/\/+$/, '');
+export function getApiBaseUrl(): string {
+  if (typeof window !== 'undefined') {
+    const custom = localStorage.getItem('acos_backend_url');
+    if (custom && (custom.startsWith('http://') || custom.startsWith('https://'))) {
+      return custom.replace(/\/+$/, '');
+    }
+  }
+  if (envApiUrl && envApiUrl !== '/' && (envApiUrl.startsWith('http://') || envApiUrl.startsWith('https://'))) {
+    return envApiUrl.replace(/\/+$/, '');
+  }
+  return DEFAULT_BACKEND.replace(/\/+$/, '');
+}
+
+export const API_BASE_URL = getApiBaseUrl();
 
 export interface ApiOptions extends RequestInit {
   token?: string | null;
@@ -73,7 +82,7 @@ export async function apiFetch<T = any>(
     cleanPath = `/api/v1${cleanPath}`;
   }
 
-  const fullUrl = `${API_BASE_URL}${cleanPath}`;
+  const fullUrl = `${getApiBaseUrl()}${cleanPath}`;
 
   const headers = new Headers(customHeaders ?? {});
   if (fetchOptions.body && !(fetchOptions.body instanceof FormData) && !headers.has('Content-Type')) {

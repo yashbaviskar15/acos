@@ -1,7 +1,7 @@
 import uuid
 import datetime
 import json
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, Float
 from app.core.database import Base
 
 class CompliancePolicy(Base):
@@ -83,4 +83,82 @@ class ComplianceScore(Base):
             "failed": self.failed,
             "exempted": self.exempted,
             "calculated_at": self.calculated_at.isoformat() if self.calculated_at else None
+        }
+
+class StrixScanRun(Base):
+    __tablename__ = "strix_scan_runs"
+    id = Column(String(50), primary_key=True, index=True, default=lambda: f"strix-run-{uuid.uuid4().hex[:12]}")
+    workspace_id = Column(String(50), index=True)
+    target = Column(String(255))
+    target_type = Column(String(50), default="web_app")      # web_app, api, codebase
+    scan_mode = Column(String(50), default="quick")          # quick, standard, deep
+    instruction = Column(Text, nullable=True)
+    max_budget = Column(Float, nullable=True)
+    status = Column(String(50), default="QUEUED")            # QUEUED, RUNNING, SUCCEEDED, FAILED, AWAITING_PROVIDER_SETUP
+    runner_type = Column(String(50), default="local_docker") # local_docker, cloud_api, cli
+    job_id = Column(String(50), nullable=True)
+    started_at = Column(DateTime, default=datetime.datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
+    raw_logs = Column(Text, default="")
+    summary = Column(Text, default="{}")
+    error_message = Column(Text, nullable=True)
+    state_source = Column(String(50), default="strix-agent")
+    observed_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "workspace_id": self.workspace_id,
+            "target": self.target,
+            "target_type": self.target_type,
+            "scan_mode": self.scan_mode,
+            "instruction": self.instruction,
+            "max_budget": self.max_budget,
+            "status": self.status,
+            "runner_type": self.runner_type,
+            "job_id": self.job_id,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "raw_logs": self.raw_logs,
+            "summary": json.loads(self.summary) if self.summary else {},
+            "error_message": self.error_message,
+            "state_source": self.state_source,
+            "observed_at": self.observed_at.isoformat() if self.observed_at else None,
+        }
+
+class StrixFinding(Base):
+    __tablename__ = "strix_findings"
+    id = Column(String(50), primary_key=True, index=True, default=lambda: f"strix-fnd-{uuid.uuid4().hex[:12]}")
+    run_id = Column(String(50), index=True)
+    workspace_id = Column(String(50), index=True)
+    title = Column(String(255))
+    description = Column(Text)
+    severity = Column(String(20), default="medium") # critical, high, medium, low, info
+    cvss_score = Column(Float, nullable=True)
+    owasp_category = Column(String(100), nullable=True)
+    affected_endpoint = Column(String(255), nullable=True)
+    proof_of_concept = Column(Text, nullable=True) # Working curl command, HTTP payload or script
+    remediation_patch = Column(Text, nullable=True) # Actionable code patch / guidance
+    status = Column(String(20), default="open")     # open, resolved, retesting, false_positive
+    state_source = Column(String(50), default="strix-agent")
+    detected_at = Column(DateTime, default=datetime.datetime.utcnow)
+    resolved_at = Column(DateTime, nullable=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "run_id": self.run_id,
+            "workspace_id": self.workspace_id,
+            "title": self.title,
+            "description": self.description,
+            "severity": self.severity,
+            "cvss_score": self.cvss_score,
+            "owasp_category": self.owasp_category,
+            "affected_endpoint": self.affected_endpoint,
+            "proof_of_concept": self.proof_of_concept,
+            "remediation_patch": self.remediation_patch,
+            "status": self.status,
+            "state_source": self.state_source,
+            "detected_at": self.detected_at.isoformat() if self.detected_at else None,
+            "resolved_at": self.resolved_at.isoformat() if self.resolved_at else None,
         }

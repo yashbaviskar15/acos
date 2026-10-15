@@ -8,6 +8,19 @@ from datetime import datetime
 try:
     import docker
     from docker.errors import DockerException, NotFound, APIError
+    # Compatibility fix: requests >= 2.32 introduces get_connection_with_tls_context
+    # which breaks docker-py's custom http+docker adapter unless overridden.
+    try:
+        from docker.transport import NpipeHTTPAdapter, UnixHTTPAdapter
+        def _get_connection_with_tls_context(self, request, verify, **kwargs):
+            return self.get_connection(request.url, kwargs.get("proxies"))
+
+        if not hasattr(NpipeHTTPAdapter, 'get_connection_with_tls_context'):
+            NpipeHTTPAdapter.get_connection_with_tls_context = _get_connection_with_tls_context
+        if not hasattr(UnixHTTPAdapter, 'get_connection_with_tls_context'):
+            UnixHTTPAdapter.get_connection_with_tls_context = _get_connection_with_tls_context
+    except Exception:
+        pass
 except ImportError:
     docker = None
     class DockerException(Exception): pass  # type: ignore
@@ -135,9 +148,36 @@ class DockerLocalProvider(BaseCloudProvider):
     def _get_client(self):
         if docker is None:
             raise RuntimeError("The 'docker' Python package is not installed on this host environment.")
-        if not self._client:
-            self._client = docker.from_env()
-        return self._client
+        if self._client:
+            try:
+                if self._client.ping():
+                    return self._client
+            except Exception:
+                self._client = None
+
+        import sys
+        candidates = []
+        if sys.platform == "win32":
+            candidates.extend([
+                "npipe:////./pipe/dockerDesktopLinuxEngine",
+                "npipe:////./pipe/docker_engine",
+                "tcp://127.0.0.1:2375"
+            ])
+        candidates.append(None)  # from_env()
+
+        for base_url in candidates:
+            try:
+                if base_url:
+                    client = docker.DockerClient(base_url=base_url)
+                else:
+                    client = docker.from_env()
+                if client.ping():
+                    self._client = client
+                    return self._client
+            except Exception:
+                continue
+
+        raise DockerException("Unable to connect to Docker daemon across standard endpoints.")
 
     @property
     def compute(self) -> DockerComputeDriver:
@@ -164,9 +204,8 @@ class DockerLocalProvider(BaseCloudProvider):
                     "os": version_info.get("Os")
                 }
             return False, "NETWORK_ERROR", {"error": "Docker daemon did not reply to ping."}
-        except DockerException as e:
-            return False, "NETWORK_ERROR", {
-                "error": f"Docker daemon is not running or accessible on host: {str(e)}"
-            }
         except Exception as e:
-            return False, "NETWORK_ERROR", {"error": str(e)}
+            err_msg = str(e)
+            if "pipe" in err_msg.lower() or "connect" in err_msg.lower():
+                err_msg = "Docker Desktop is installed, but the Docker Engine daemon is still starting or stopped. Please ensure the whale icon is green or restart Docker Desktop."
+            return False, "NETWORK_ERROR", {"error": err_msg}
