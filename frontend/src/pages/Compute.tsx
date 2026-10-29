@@ -32,15 +32,47 @@ export const Compute: React.FC<ComputeProps> = ({ token, onNavigate }) => {
   const [connectTarget, setConnectTarget] = useState<any | null>(null);
   const [connectInfo, setConnectInfo] = useState<any | null>(null);
   const [copiedCmd, setCopiedCmd] = useState(false);
+  const [terminalCmd, setTerminalCmd] = useState('');
+  const [terminalHistory, setTerminalHistory] = useState<Array<{ cmd: string; output: string; exit_code: number }>>([]);
+  const [executingCmd, setExecutingCmd] = useState(false);
 
   const handleOpenConnect = async (inst: any) => {
     setConnectTarget(inst);
     setConnectInfo(null);
+    setTerminalCmd('');
+    setTerminalHistory([]);
     try {
       const data = await apiFetch<any>(`/v1/compute/instances/${inst.id}/connect`, { token });
       setConnectInfo(data);
     } catch {
       setConnectInfo({ connectable: false, reason: 'Failed to retrieve connection instructions.' });
+    }
+  };
+
+  const handleExecCommand = async (cmdToRun?: string) => {
+    const cmd = (cmdToRun || terminalCmd).trim();
+    if (!cmd || !connectTarget) return;
+    setExecutingCmd(true);
+    try {
+      const res = await apiFetch<any>(`/v1/compute/instances/${connectTarget.id}/exec`, {
+        method: 'POST',
+        token,
+        body: JSON.stringify({ command: cmd })
+      });
+      setTerminalHistory(prev => [...prev, {
+        cmd,
+        output: res.output || res.stdout || res.stderr || '[Command finished with code 0]',
+        exit_code: res.exit_code
+      }]);
+      setTerminalCmd('');
+    } catch (err: any) {
+      setTerminalHistory(prev => [...prev, {
+        cmd,
+        output: err?.message || 'Execution error',
+        exit_code: 1
+      }]);
+    } finally {
+      setExecutingCmd(false);
     }
   };
 
@@ -88,6 +120,7 @@ export const Compute: React.FC<ComputeProps> = ({ token, onNavigate }) => {
           os_image: config.osImage,
           region: config.region,
           disk_gb: Number(config.diskGb),
+          provider: config.provider || 'sandbox',
           spec: {
             environment: config.environment,
             vpc_subnet: config.vpcSubnet,
@@ -587,33 +620,129 @@ export const Compute: React.FC<ComputeProps> = ({ token, onNavigate }) => {
             {connectInfo?.connectable ? (
               <div className="space-y-3">
                 <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-xl space-y-1">
-                  <div className="flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300 font-bold text-[11px]">
-                    <span>Public IP Reachable: {connectInfo.public_ip}</span>
+                  <div className="flex items-center justify-between text-emerald-800 dark:text-emerald-300 font-bold text-[11px]">
+                    <span>Target: {connectInfo.public_ip}</span>
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 uppercase text-[9px]">
+                      {connectInfo.type || 'LIVE'}
+                    </span>
                   </div>
                   <p className="text-[10px] text-slate-600 dark:text-slate-400">
-                    Use your SSH private key file to establish a secure encrypted shell session to the instance.
+                    {connectInfo.type === 'sandbox' || connectInfo.type === 'docker'
+                      ? 'Live execution session ready. Execute real commands directly inside this sandboxed environment.'
+                      : 'Use your SSH private key file to establish a secure encrypted shell session to the instance.'}
                   </p>
                 </div>
 
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-slate-400 uppercase font-bold">SSH Command</span>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(connectInfo.ssh_command);
-                        setCopiedCmd(true);
-                        setTimeout(() => setCopiedCmd(false), 2000);
+                {/* Interactive Web Terminal for Sandbox & Docker instances */}
+                {(connectInfo.type === 'sandbox' || connectInfo.type === 'docker' || connectInfo.web_terminal_url) ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1.5">
+                        <Terminal className="w-3.5 h-3.5 text-emerald-400" />
+                        Live Web Terminal Console
+                      </span>
+                      <div className="flex items-center gap-1.5 text-[10px]">
+                        <button
+                          type="button"
+                          onClick={() => handleExecCommand('ls -la')}
+                          disabled={executingCmd}
+                          className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded cursor-pointer"
+                        >
+                          ls -la
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleExecCommand('cat aravanta_manifest.json')}
+                          disabled={executingCmd}
+                          className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded cursor-pointer"
+                        >
+                          manifest
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleExecCommand('whoami')}
+                          disabled={executingCmd}
+                          className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded cursor-pointer"
+                        >
+                          whoami
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Terminal Output Screen */}
+                    <div className="p-3 bg-black text-emerald-400 rounded-xl text-[11px] h-48 overflow-y-auto border border-slate-800 font-mono space-y-2">
+                      <div className="text-slate-500 text-[10px]">
+                        # Aravanta Sovereign Shell v1.0 — Instance: {connectTarget.name} ({connectTarget.id})<br />
+                        # Connected to real isolated execution directory. Type any command below.
+                      </div>
+                      {terminalHistory.map((item, idx) => (
+                        <div key={idx} className="space-y-0.5">
+                          <div className="text-blue-400 font-bold flex items-center gap-1">
+                            <span className="text-emerald-500">root@{connectTarget.name}:~$</span>
+                            <span>{item.cmd}</span>
+                            {item.exit_code !== 0 && (
+                              <span className="text-[9px] text-rose-400 ml-1">(exit {item.exit_code})</span>
+                            )}
+                          </div>
+                          <pre className="text-slate-200 whitespace-pre-wrap text-[11px] pl-2">{item.output}</pre>
+                        </div>
+                      ))}
+                      {executingCmd && (
+                        <div className="text-amber-400 animate-pulse flex items-center gap-1">
+                          <span>Executing...</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Command Input Form */}
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        handleExecCommand();
                       }}
-                      className="px-2 py-0.5 bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                      className="flex items-center gap-2"
                     >
-                      {copiedCmd ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                      Copy Command
-                    </button>
+                      <div className="relative flex-1">
+                        <span className="absolute left-3 top-2.5 text-emerald-500 font-bold text-xs select-none">$</span>
+                        <input
+                          type="text"
+                          value={terminalCmd}
+                          onChange={(e) => setTerminalCmd(e.target.value)}
+                          placeholder="Type command (e.g. ls -la, python3 --version, env)..."
+                          disabled={executingCmd}
+                          className="w-full pl-7 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-mono"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={executingCmd || !terminalCmd.trim()}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold font-mono transition-colors cursor-pointer disabled:opacity-40"
+                      >
+                        {executingCmd ? 'Running...' : 'Run'}
+                      </button>
+                    </form>
                   </div>
-                  <pre className="p-3 bg-black text-emerald-400 rounded-xl text-[11px] overflow-x-auto border border-slate-800 font-mono">
-                    {connectInfo.ssh_command}
-                  </pre>
-                </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold">SSH Command</span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(connectInfo.ssh_command);
+                          setCopiedCmd(true);
+                          setTimeout(() => setCopiedCmd(false), 2000);
+                        }}
+                        className="px-2 py-0.5 bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        {copiedCmd ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                        Copy Command
+                      </button>
+                    </div>
+                    <pre className="p-3 bg-black text-emerald-400 rounded-xl text-[11px] overflow-x-auto border border-slate-800 font-mono">
+                      {connectInfo.ssh_command}
+                    </pre>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl space-y-3 font-sans">
@@ -622,41 +751,50 @@ export const Compute: React.FC<ComputeProps> = ({ token, onNavigate }) => {
                   <span>Instance Awaiting Provider Assignment</span>
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                  {connectInfo?.reason || "This virtual machine does not have a live public IP address assigned yet. In Aravanta Cloud OS, real provider verification is required before establishing an SSH connection."}
+                  {connectInfo?.reason || "This virtual machine does not have an active provider engine assigned. Select Sovereign Sandbox for instant zero-cloud access or connect AWS credentials."}
                 </p>
 
                 {/* 1-Click Guidance Cards */}
                 <div className="pt-2 border-t border-amber-200/80 dark:border-amber-500/20 space-y-2">
                   <div className="text-[11px] font-bold text-slate-800 dark:text-slate-200 font-mono">
-                    How to solve this & assign a reachable IP:
+                    How to solve this & start running commands:
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                    <div className="p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 border border-amber-200 dark:border-slate-800 space-y-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
+                    <div className="p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 border border-emerald-300 dark:border-emerald-500/30 space-y-1">
                       <div className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-mono">
-                        <span>1. Local Docker (Free)</span>
+                        <span>1. Sovereign Sandbox</span>
                       </div>
                       <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-normal">
-                        Start Docker Desktop on this PC, then click Re-Check below to automatically spin up a local container VM.
+                        Click Deploy & select Sovereign Sandbox for instant live execution with zero cloud or Docker requirements.
                       </p>
                     </div>
 
-                    <div className="p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 border border-amber-200 dark:border-slate-800 space-y-1">
-                      <div className="font-bold text-blue-600 dark:text-blue-400 flex items-center justify-between font-mono">
-                        <span>2. Cloud AWS EC2</span>
+                    <div className="p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 space-y-1">
+                      <div className="font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1 font-mono">
+                        <span>2. Local Docker</span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-normal">
+                        Start Docker Desktop on this PC, then click Re-Check below to automatically provision locally.
+                      </p>
+                    </div>
+
+                    <div className="p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 space-y-1">
+                      <div className="font-bold text-amber-600 dark:text-amber-400 flex items-center justify-between font-mono">
+                        <span>3. AWS EC2</span>
                         {onNavigate && (
                           <button
                             onClick={() => {
                               setConnectTarget(null);
                               onNavigate('settings');
                             }}
-                            className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                            className="text-[10px] text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
                           >
-                            Go to Settings &rarr;
+                            Settings &rarr;
                           </button>
                         )}
                       </div>
                       <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-normal">
-                        Connect AWS credentials in Settings to provision genuine EC2 instances with elastic public IPs.
+                        Connect AWS credentials to spin up genuine EC2 virtual machines.
                       </p>
                     </div>
                   </div>

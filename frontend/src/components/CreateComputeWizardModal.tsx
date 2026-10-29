@@ -24,6 +24,7 @@ export interface ComputeConfig {
   autoSuspend: boolean;
   suspendMinutes: number;
   sshKeyName: string;
+  provider?: 'sandbox' | 'docker' | 'aws';
 }
 
 const STEPS = [
@@ -54,6 +55,7 @@ export const CreateComputeWizardModal: React.FC<CreateComputeWizardModalProps> =
   // Form State
   const [name, setName] = useState('');
   const [environment, setEnvironment] = useState<'development' | 'staging' | 'production'>('development');
+  const [provider, setProvider] = useState<'sandbox' | 'docker' | 'aws'>('sandbox');
   const [instanceType, setInstanceType] = useState('arv.medium');
   const [osImage, setOsImage] = useState('Ubuntu 22.04 LTS');
   const [region, setRegion] = useState('arv-us-east-1');
@@ -127,6 +129,7 @@ export const CreateComputeWizardModal: React.FC<CreateComputeWizardModalProps> =
       await onSubmit({
         name: name.trim(),
         environment,
+        provider,
         instanceType,
         osImage,
         region,
@@ -248,6 +251,61 @@ export const CreateComputeWizardModal: React.FC<CreateComputeWizardModalProps> =
                         {env}
                       </button>
                     ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Compute Engine & Provider
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setProvider('sandbox')}
+                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        provider === 'sandbox'
+                          ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 ring-1 ring-emerald-500/30'
+                          : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      <div className="font-bold text-xs flex items-center justify-between">
+                        <span>Sovereign Sandbox</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 font-mono">Zero-Cloud</span>
+                      </div>
+                      <p className="text-[10px] mt-1 opacity-80 leading-tight">Instant live sandbox, zero Docker or AWS required.</p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setProvider('docker')}
+                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        provider === 'docker'
+                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300 ring-1 ring-blue-500/30'
+                          : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      <div className="font-bold text-xs flex items-center justify-between">
+                        <span>Local Docker</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-mono">Daemon</span>
+                      </div>
+                      <p className="text-[10px] mt-1 opacity-80 leading-tight">Runs inside local Docker Desktop engine.</p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setProvider('aws')}
+                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        provider === 'aws'
+                          ? 'border-amber-500 bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30'
+                          : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      <div className="font-bold text-xs flex items-center justify-between">
+                        <span>AWS Cloud EC2</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 font-mono">Cloud</span>
+                      </div>
+                      <p className="text-[10px] mt-1 opacity-80 leading-tight">Elastic VM on AWS (requires credentials).</p>
+                    </button>
                   </div>
                 </div>
 
@@ -434,6 +492,14 @@ export const CreateComputeWizardModal: React.FC<CreateComputeWizardModalProps> =
                   <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1.5">
                     <span className="text-slate-500">Instance Name:</span>
                     <span className="font-mono font-bold text-slate-900 dark:text-white">{name}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1.5">
+                    <span className="text-slate-500">Provider Engine:</span>
+                    <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      {provider === 'sandbox' && <span className="text-emerald-600 dark:text-emerald-400 font-mono">Sovereign Sandbox (Zero-Cloud)</span>}
+                      {provider === 'docker' && <span className="text-blue-600 dark:text-blue-400 font-mono">Local Docker Engine</span>}
+                      {provider === 'aws' && <span className="text-amber-600 dark:text-amber-400 font-mono">AWS EC2 Cloud</span>}
+                    </span>
                   </div>
                   <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1.5">
                     <span className="text-slate-500">Spec / Size:</span>

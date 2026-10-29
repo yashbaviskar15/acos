@@ -15,7 +15,10 @@ export function getApiBaseUrl(): string {
   if (typeof window !== 'undefined') {
     const custom = localStorage.getItem('acos_backend_url');
     if (custom && (custom.startsWith('http://') || custom.startsWith('https://'))) {
-      return custom.replace(/\/+$/, '');
+      // Ignore obsolete localhost overrides that may be stale
+      if (!custom.includes('localhost') && !custom.includes('127.0.0.1')) {
+        return custom.replace(/\/+$/, '');
+      }
     }
   }
   if (envApiUrl && envApiUrl !== '/' && (envApiUrl.startsWith('http://') || envApiUrl.startsWith('https://'))) {

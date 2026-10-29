@@ -138,6 +138,25 @@ class DockerComputeDriver(BaseComputeDriver):
         except NotFound:
             return {"status": "MISSING_AT_PROVIDER", "observed_at": datetime.utcnow().isoformat()}
 
+    def execute_command(self, provider_resource_id: str, cmd: str) -> Dict[str, Any]:
+        """Executes a command inside the running Docker container."""
+        if docker is None or self.client is None:
+            return {"exit_code": 1, "output": "Docker client unavailable", "stdout": "", "stderr": "Docker client unavailable"}
+        try:
+            c = self.client.containers.get(provider_resource_id)
+            exec_res = c.exec_run(cmd, demux=True)
+            exit_code = exec_res.exit_code
+            stdout = (exec_res.output[0] or b"").decode("utf-8", errors="replace") if exec_res.output else ""
+            stderr = (exec_res.output[1] or b"").decode("utf-8", errors="replace") if exec_res.output and len(exec_res.output) > 1 and exec_res.output[1] else ""
+            return {
+                "exit_code": exit_code,
+                "output": (stdout + stderr).strip() or "[Command finished with no output]",
+                "stdout": stdout,
+                "stderr": stderr
+            }
+        except Exception as e:
+            return {"exit_code": 1, "output": str(e), "stdout": "", "stderr": str(e)}
+
 
 class DockerLocalProvider(BaseCloudProvider):
     name = "Docker"

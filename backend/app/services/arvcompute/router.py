@@ -55,25 +55,39 @@ OS_IMAGES = [
 def _det_id(prefix: str, name: str) -> str:
     return f"{prefix}-{hashlib.md5(f'{name}-{datetime.utcnow().timestamp()}'.encode()).hexdigest()[:10]}"
 
-def _get_compute_driver_for_user(db: Session, user_id: str):
-    cred = db.query(CloudProviderCredential).filter(
-        CloudProviderCredential.user_id == user_id,
-        CloudProviderCredential.provider.in_(["AWS", "EC2"])
-    ).first()
-    if cred:
+def _get_compute_driver_for_user(db: Session, user_id: str, preferred_provider: Optional[str] = None):
+    p_pref = (preferred_provider or "").upper().strip()
+
+    # If user explicitly requested sandbox, return sandbox immediately
+    if p_pref in ("SANDBOX", "WASM", "SOVEREIGN"):
         try:
-            raw_creds = json.loads(decrypt_aes256gcm(PLATFORM_MASTER_KEY, cred.encrypted_credentials))
-            return get_provider("AWS", raw_creds), "provider"
+            return get_provider("SANDBOX"), "sandbox"
         except Exception:
             pass
-    # Check local Docker daemon
-    try:
-        docker_provider = get_provider("DOCKER")
-        success, _, _ = docker_provider.test_connection({})
-        if success:
-            return docker_provider, "docker"
-    except Exception:
-        pass
+
+    # 1. AWS Credentials (if available or preferred)
+    if not p_pref or p_pref in ("AWS", "EC2"):
+        cred = db.query(CloudProviderCredential).filter(
+            CloudProviderCredential.user_id == user_id,
+            CloudProviderCredential.provider.in_(["AWS", "EC2"])
+        ).first()
+        if cred:
+            try:
+                raw_creds = json.loads(decrypt_aes256gcm(PLATFORM_MASTER_KEY, cred.encrypted_credentials))
+                return get_provider("AWS", raw_creds), "provider"
+            except Exception:
+                pass
+
+    # 2. Check local Docker daemon
+    if not p_pref or p_pref in ("DOCKER", "LOCAL"):
+        try:
+            docker_provider = get_provider("DOCKER")
+            success, _, _ = docker_provider.test_connection({})
+            if success:
+                return docker_provider, "docker"
+        except Exception:
+            pass
+
     return None, None
 
 
@@ -84,6 +98,7 @@ class CreateInstanceRequest(BaseModel):
     os_image: str = "Ubuntu 22.04 LTS"
     region: str = "arv-us-east-1"
     disk_gb: int = 50
+    provider: Optional[str] = None  # "sandbox", "docker", "aws"
     tags: dict = {}
 
 class ActionRequest(BaseModel):
@@ -91,6 +106,9 @@ class ActionRequest(BaseModel):
 
 class CreateKeypairRequest(BaseModel):
     name: str
+
+class ExecCommandRequest(BaseModel):
+    command: str
 
 # ─── Endpoints ──────────────────────────────────────────────────
 @router.get("/provider-status")
@@ -101,12 +119,12 @@ def get_provider_status(db: Session = Depends(get_db), current_user: User = Depe
             "provider_configured": True,
             "provider_type": p_type,
             "message": f"Connected to {p_type.upper()} compute infrastructure.",
-            "supported_providers": ["aws_ec2", "docker_local"]
+            "supported_providers": ["aws_ec2", "docker_local", "sovereign_sandbox"]
         }
     return {
         "provider_configured": False,
-        "message": "No compute provider configured. Connect AWS credentials to provision real VMs.",
-        "supported_providers": ["aws_ec2", "docker_local"]
+        "message": "No compute provider configured.",
+        "supported_providers": ["aws_ec2", "docker_local", "sovereign_sandbox"]
     }
 
 @router.post("/keypairs")
@@ -202,10 +220,22 @@ def connect_instance(
     elif (inst.state_source in ["docker", "local"] or (inst.tags and "container" in inst.tags)) and inst.status == "RUNNING":
         return {
             "connectable": True,
+            "type": "docker",
             "ssh_command": f"docker exec -it {inst.name} /bin/bash",
             "public_ip": inst.private_ip or "127.0.0.1 (Local Container VM)",
             "username": "root",
-            "port": 22
+            "port": 22,
+            "web_terminal_url": f"/compute?terminal={inst.id}"
+        }
+    elif (inst.state_source in ["sandbox", "wasm"] or (inst.tags and "sandbox" in inst.tags)) and inst.status == "RUNNING":
+        return {
+            "connectable": True,
+            "type": "sandbox",
+            "ssh_command": f"arv-shell --instance {inst.id}",
+            "public_ip": "127.0.0.1 (Sovereign Sandbox Engine)",
+            "username": "root",
+            "port": 22,
+            "web_terminal_url": f"/compute?terminal={inst.id}"
         }
     else:
         return {
@@ -224,7 +254,8 @@ def reconcile_instance(
     if not inst:
         raise HTTPException(status_code=404, detail=f"Instance {instance_id} not found")
     
-    provider, p_type = _get_compute_driver_for_user(db, str(current_user.id))
+    preferred = inst.state_source if inst.state_source in ["sandbox", "docker", "aws"] else None
+    provider, p_type = _get_compute_driver_for_user(db, str(current_user.id), preferred_provider=preferred)
     if provider:
         if inst.provider_resource_id:
             try:
@@ -369,7 +400,7 @@ def create_instance(
                 inst = bg_db.query(ComputeInstance).filter(ComputeInstance.id == inst_id).first()
                 if not inst:
                     return {"error": "Instance not found"}
-                provider, p_type = _get_compute_driver_for_user(bg_db, str(inst.user_id))
+                provider, p_type = _get_compute_driver_for_user(bg_db, str(inst.user_id), preferred_provider=req.provider)
                 if provider:
                     try:
                         spec = {
@@ -421,7 +452,7 @@ def create_instance(
         )
 
     # Synchronous execution path (for tests and standard clients)
-    provider, p_type = _get_compute_driver_for_user(db, str(current_user.id))
+    provider, p_type = _get_compute_driver_for_user(db, str(current_user.id), preferred_provider=req.provider)
     if provider:
         try:
             spec = {
@@ -509,6 +540,8 @@ def instance_action(
     if user_role not in ["superadmin", "admin"] and inst.user_id != current_user.id and inst.workspace_id != current_user.workspace_id:
         raise HTTPException(status_code=403, detail="Access denied to this instance")
 
+    preferred = inst.state_source if inst.state_source in ["sandbox", "docker", "aws"] else None
+
     action = req.action.lower()
     if action == "terminate":
         if user_role not in ["superadmin", "admin"]:
@@ -518,7 +551,7 @@ def instance_action(
             )
         inst_name = inst.name
         if inst.provider_resource_id:
-            provider, p_type = _get_compute_driver_for_user(db, str(current_user.id))
+            provider, p_type = _get_compute_driver_for_user(db, str(current_user.id), preferred_provider=preferred)
             if provider:
                 try:
                     provider.compute.delete(inst.provider_resource_id)
@@ -554,7 +587,7 @@ def instance_action(
                 detail=f"Cannot perform '{action}' on an unprovisioned instance (status: {inst.status}). Connect a cloud provider to provision real infrastructure."
             )
         
-        provider, p_type = _get_compute_driver_for_user(db, str(current_user.id))
+        provider, p_type = _get_compute_driver_for_user(db, str(current_user.id), preferred_provider=preferred)
         if not provider:
             raise HTTPException(status_code=503, detail="Active cloud provider credentials missing or unreachable.")
         
@@ -586,6 +619,43 @@ def instance_action(
     else:
         raise HTTPException(status_code=400, detail=f"Unknown action: {action}")
 
+@router.post("/instances/{instance_id}/exec")
+def execute_instance_command(
+    instance_id: str,
+    req: ExecCommandRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    inst = db.query(ComputeInstance).filter(ComputeInstance.id == instance_id).first()
+    if not inst:
+        raise HTTPException(status_code=404, detail=f"Instance {instance_id} not found")
+    
+    if inst.status != "RUNNING":
+        raise HTTPException(status_code=400, detail=f"Cannot execute command on instance in state {inst.status}. Must be RUNNING.")
+    
+    preferred = inst.state_source if inst.state_source in ["sandbox", "docker", "aws"] else None
+    provider, p_type = _get_compute_driver_for_user(db, str(current_user.id), preferred_provider=preferred)
+    if not provider:
+        raise HTTPException(status_code=503, detail="Compute provider unavailable.")
+    
+    if hasattr(provider.compute, "execute_command"):
+        try:
+            target_rid = inst.provider_resource_id or inst.id
+            result = provider.compute.execute_command(target_rid, req.command)
+            return {
+                "instance_id": instance_id,
+                "stdout": result.get("stdout", ""),
+                "stderr": result.get("stderr", ""),
+                "output": result.get("output", ""),
+                "exit_code": result.get("exit_code", 0),
+                "source": p_type,
+                "observed_at": datetime.utcnow().isoformat()
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Command execution error: {e}")
+    else:
+        raise HTTPException(status_code=501, detail=f"Provider '{p_type}' does not support live exec.")
+
 @router.delete("/instances/{instance_id}")
 def delete_instance(
     instance_id: str,
@@ -600,7 +670,8 @@ def delete_instance(
         raise HTTPException(status_code=403, detail="Access denied to this instance")
 
     if inst.provider_resource_id:
-        provider, _ = _get_compute_driver_for_user(db, str(current_user.id))
+        preferred = inst.state_source if inst.state_source in ["sandbox", "docker", "aws"] else None
+        provider, _ = _get_compute_driver_for_user(db, str(current_user.id), preferred_provider=preferred)
         if provider:
             try:
                 provider.compute.delete(inst.provider_resource_id)

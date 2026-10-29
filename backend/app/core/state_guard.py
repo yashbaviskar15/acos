@@ -32,6 +32,8 @@ VALID_STATE_SOURCES: Set[str] = {
     "prometheus",
     "host",
     "docker",
+    "sandbox",
+    "wasm",
     "reconciler"
 }
 
