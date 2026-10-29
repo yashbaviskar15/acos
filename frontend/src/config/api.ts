@@ -52,7 +52,7 @@ function buildUserError(status: number | null, serverMsg: string | null): string
   // 4xx with a readable server message (e.g. "Invalid credentials") — surface it.
   if (status && status >= 400 && status < 500 && serverMsg) {
     // Never surface a string that contains the backend URL.
-    if (/https?:\/\/|arv-backend|FUNCTION_INVOCATION|vercel\.app/i.test(serverMsg)) {
+    if (/https?:\/\/|arv-backend|FUNCTION_INVOCATION|vercel\.app|aravanta\.tech/i.test(serverMsg)) {
       return USER_FACING_NETWORK_ERROR;
     }
     return serverMsg;
@@ -209,7 +209,7 @@ export async function apiFetch<T = any>(
           ? "Request timed out. Please try again."
           : network
             ? USER_FACING_NETWORK_ERROR
-            : err?.message && !/https?:\/\/|arv-backend|FUNCTION_INVOCATION|vercel\.app/i.test(err.message)
+            : err?.message && !/https?:\/\/|arv-backend|FUNCTION_INVOCATION|vercel\.app|aravanta\.tech/i.test(err.message)
               ? err.message
               : USER_FACING_NETWORK_ERROR;
       const outer = new Error(userMsg);

@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
 
     BACKEND_CORS_ORIGINS: str = (
+        "https://aravantacloud.aravanta.tech,"
         "https://aravantacos.vercel.app,"
         "https://arv-frontend.vercel.app,"
         "http://localhost:5173,"

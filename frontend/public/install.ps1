@@ -44,6 +44,7 @@ $aravantaPs1 = Join-Path $binDir "aravanta.ps1"
 # 3. Unpack CLI engine
 $downloaded = $false
 $sources = @(
+    "https://aravantacloud.aravanta.tech/aravanta.py",
     "https://aravantacos.vercel.app/aravanta.py",
     "https://raw.githubusercontent.com/yashbaviskar15/acos/main/cli/aravanta.py"
 )

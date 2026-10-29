@@ -513,7 +513,8 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onNavigate
   };
 
   const handleCopyInviteLink = (linkToCopy?: string) => {
-    const text = linkToCopy || lastInviteLink || `https://aravantacos.vercel.app/join?ws=${user?.workspace_id || 'ws-aravanta'}`;
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://aravantacloud.aravanta.tech';
+    const text = linkToCopy || lastInviteLink || `${origin}/join?ws=${user?.workspace_id || 'ws-aravanta'}`;
     navigator.clipboard.writeText(text);
     setCopiedInviteLink(true);
     setTimeout(() => setCopiedInviteLink(false), 3000);
@@ -570,7 +571,8 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onNavigate
         return [...prev, memberObj];
       });
 
-      const inviteLink = res.invite_link || `https://aravantacos.vercel.app/join?ws=${user?.workspace_id || 'ws-prod'}&email=${encodeURIComponent(emailClean)}`;
+      const origin = typeof window !== 'undefined' ? window.location.origin : 'https://aravantacloud.aravanta.tech';
+      const inviteLink = res.invite_link || `${origin}/join?ws=${user?.workspace_id || 'ws-prod'}&email=${encodeURIComponent(emailClean)}`;
       setLastInviteLink(inviteLink);
       setInviteSuccessMsg(res.message || `Invitation successfully sent to ${emailClean} as ${inviteRole}.`);
       setInviteStatus('success');

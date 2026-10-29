@@ -365,6 +365,16 @@ def get_workspace_members(
 
     return members_list
 
+def _detect_frontend_base(request: Request) -> str:
+    origin = request.headers.get("origin") or request.headers.get("referer") or ""
+    if "aravanta.tech" in origin:
+        return "https://aravantacloud.aravanta.tech"
+    if "vercel.app" in origin:
+        return "https://aravantacos.vercel.app"
+    if "localhost" in origin or "127.0.0.1" in origin:
+        return "http://localhost:3000"
+    return os.environ.get("FRONTEND_URL", "https://aravantacloud.aravanta.tech")
+
 @router.post("/workspace/members/invite")
 def invite_workspace_member(
     req: InviteMemberRequest,
@@ -400,6 +410,7 @@ def invite_workspace_member(
         db.refresh(current_user)
 
     ws_name = current_user.workspace_name or f"{current_user.full_name}'s Workspace"
+    fe_base = _detect_frontend_base(request)
 
     existing = db.query(User).filter(func.lower(User.email) == clean_email).first()
     if existing:
@@ -411,7 +422,7 @@ def invite_workspace_member(
         log_audit(db, current_user.email, "MEMBER_INVITE", "Workspace", request, f"Added existing user {existing.full_name} ({existing.email}) to workspace as {assigned_role}", workspace_id=current_user.workspace_id)
         return {
             "message": f"Invitation accepted — {existing.full_name} joined workspace as {assigned_role}",
-            "invite_link": f"https://aravantacos.vercel.app/?email={clean_email}&ws={current_user.workspace_id}",
+            "invite_link": f"{fe_base}/?email={clean_email}&ws={current_user.workspace_id}",
             "member": {
                 "id": existing.id,
                 "email": existing.email,
@@ -458,7 +469,7 @@ def invite_workspace_member(
     db.commit()
     db.refresh(invitation)
 
-    invite_url = f"https://aravantacos.vercel.app/?invite_token={invite_token}&email={clean_email}&ws={current_user.workspace_id}"
+    invite_url = f"{fe_base}/?invite_token={invite_token}&email={clean_email}&ws={current_user.workspace_id}"
 
     emit_notification(
         db=db,
@@ -1143,12 +1154,13 @@ def oauth_login(req: OAuthLoginRequest, request: Request, db: Session = Depends(
     )
 
 @router.get("/oauth/{provider}/url")
-def get_oauth_url(provider: str):
+def get_oauth_url(provider: str, request: Request):
     provider_clean = provider.strip().lower()
+    fe_base = _detect_frontend_base(request)
     if provider_clean == "google":
         client_id = os.environ.get("GOOGLE_CLIENT_ID")
         if client_id:
-            redirect_uri = os.environ.get("GOOGLE_REDIRECT_URI", "https://aravantacos.vercel.app/api/v1/auth/oauth/google/callback")
+            redirect_uri = os.environ.get("GOOGLE_REDIRECT_URI", f"{fe_base}/api/v1/auth/oauth/google/callback")
             return {
                 "configured": True,
                 "url": f"https://accounts.google.com/o/oauth2/v2/auth?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=openid%20email%20profile"
@@ -1156,7 +1168,7 @@ def get_oauth_url(provider: str):
     elif provider_clean == "github":
         client_id = os.environ.get("GITHUB_CLIENT_ID")
         if client_id:
-            redirect_uri = os.environ.get("GITHUB_REDIRECT_URI", "https://aravantacos.vercel.app/api/v1/auth/oauth/github/callback")
+            redirect_uri = os.environ.get("GITHUB_REDIRECT_URI", f"{fe_base}/api/v1/auth/oauth/github/callback")
             return {
                 "configured": True,
                 "url": f"https://github.com/login/oauth/authorize?client_id={client_id}&redirect_uri={redirect_uri}&scope=read:user%20user:email"

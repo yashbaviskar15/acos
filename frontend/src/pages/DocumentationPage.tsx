@@ -304,7 +304,7 @@ arv compute create \\
 arv compute connect prod-api-gateway
 
 # Or open browser web terminal directly:
-# Navigate to: https://aravantacos.vercel.app/console -> Compute -> Terminal`,
+# Navigate to: https://aravantacloud.aravanta.tech/console -> Compute -> Terminal`,
         lang: 'bash',
       },
     ],
@@ -552,10 +552,10 @@ arv monitor query --expr 'avg(rate(container_cpu_usage_seconds_total[5m])) * 100
         title: 'Cross-Platform Installation',
         body: 'Install the native arv CLI on Windows, macOS, or Linux with zero external dependencies.',
         code: `# Windows (PowerShell):
-[Net.ServicePointManager]::SecurityProtocol = 3072; irm https://aravantacos.vercel.app/install.ps1 | iex
+[Net.ServicePointManager]::SecurityProtocol = 3072; irm https://aravantacloud.aravanta.tech/install.ps1 | iex
 
 # Linux & macOS (bash):
-curl -fsSL https://aravantacos.vercel.app/install.sh | bash`,
+curl -fsSL https://aravantacloud.aravanta.tech/install.sh | bash`,
         lang: 'bash',
       },
       {

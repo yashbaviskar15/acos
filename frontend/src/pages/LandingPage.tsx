@@ -177,10 +177,10 @@ resource "aravanta_compute_instance" "prod_gateway" {
     title: 'arv CLI v2.4 (Native Binary)',
     code: `# Install Aravanta CLI v2.4 (Zero External Dependencies)
 # Windows (PowerShell):
-irm https://aravantacos.vercel.app/install.ps1 | iex
+irm https://aravantacloud.aravanta.tech/install.ps1 | iex
 
 # Linux & macOS:
-curl -fsSL https://aravantacos.vercel.app/install.sh | bash
+curl -fsSL https://aravantacloud.aravanta.tech/install.sh | bash
 
 # Authenticate & Launch Managed Kubernetes Node Pool
 arv auth login --account ARV-ACC-891044

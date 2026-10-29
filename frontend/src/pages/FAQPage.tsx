@@ -52,7 +52,7 @@ const faqs: FAQItem[] = [
     title: 'How do I get started with Aravanta Cloud OS?',
     answer:
       'Getting started takes under two minutes. You can create a free account with no credit card required. Once registered, install the official arv CLI to interact directly with your workspace from your terminal. The free developer tier grants 2 vCPUs, 4 GB RAM, 50 GB SSD storage, and 100 GB network egress per month.',
-    codeSnippet: '# Install on macOS/Linux:\ncurl -fsSL https://aravantacos.vercel.app/install.sh | bash\n\n# Install on Windows PowerShell:\nirm https://aravantacos.vercel.app/install.ps1 | iex',
+    codeSnippet: '# Install on macOS/Linux:\ncurl -fsSL https://aravantacloud.aravanta.tech/install.sh | bash\n\n# Install on Windows PowerShell:\nirm https://aravantacloud.aravanta.tech/install.ps1 | iex',
   },
   {
     id: 'inr-pricing-gst',

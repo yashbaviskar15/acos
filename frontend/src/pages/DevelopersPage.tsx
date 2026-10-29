@@ -44,7 +44,7 @@ const quickstartSteps = [
     step: '02',
     title: 'Install the CLI',
     body: 'Install the standalone Aravanta CLI (aravanta) globally via 1-line installer for Windows, macOS, or Linux. Operates directly against the control plane REST API with zero repo dependencies.',
-    tip: 'Windows: [Net.ServicePointManager]::SecurityProtocol = 3072; irm https://aravantacos.vercel.app/install.ps1 | iex | macOS/Linux: curl -fsSL https://aravantacos.vercel.app/install.sh | bash',
+    tip: 'Windows: [Net.ServicePointManager]::SecurityProtocol = 3072; irm https://aravantacloud.aravanta.tech/install.ps1 | iex | macOS/Linux: curl -fsSL https://aravantacloud.aravanta.tech/install.sh | bash',
   },
   {
     step: '03',
@@ -236,10 +236,10 @@ export const DevelopersPage: React.FC<PageProps> = ({
                   language="bash"
                   code={`# 1. Install Globally (No repository dependency)
 # Windows (PowerShell):
-[Net.ServicePointManager]::SecurityProtocol = 3072; irm https://aravantacos.vercel.app/install.ps1 | iex
+[Net.ServicePointManager]::SecurityProtocol = 3072; irm https://aravantacloud.aravanta.tech/install.ps1 | iex
 
 # macOS & Linux (Terminal):
-curl -fsSL https://aravantacos.vercel.app/install.sh | bash
+curl -fsSL https://aravantacloud.aravanta.tech/install.sh | bash
 
 # 2. Check connection & platform status
 aravanta status

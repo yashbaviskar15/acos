@@ -78,6 +78,7 @@ export const CLIPage: React.FC<CLIPageProps> = ({
   const [loading, setLoading] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://aravantacloud.aravanta.tech';
   const [currentDir, setCurrentDir] = useState('~');
   const [selectedOS, setSelectedOS] = useState<'windows' | 'mac' | 'linux'>('windows');
 
@@ -690,17 +691,17 @@ Identity:
                   </label>
                   <div className="relative">
                     <pre className="p-3 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl overflow-x-auto border border-slate-800">
-                      [Net.ServicePointManager]::SecurityProtocol = 3072; irm https://aravantacos.vercel.app/install.ps1 | iex
+                      [Net.ServicePointManager]::SecurityProtocol = 3072; irm {origin}/install.ps1 | iex
                     </pre>
                     <button
-                      onClick={() => copyToClipboard('[Net.ServicePointManager]::SecurityProtocol = 3072; irm https://aravantacos.vercel.app/install.ps1 | iex', 'w-install')}
+                      onClick={() => copyToClipboard(`[Net.ServicePointManager]::SecurityProtocol = 3072; irm ${origin}/install.ps1 | iex`, 'w-install')}
                       className="absolute right-2 top-2 p-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 text-xs"
                     >
                       {copiedId === 'w-install' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Alternatively with native curl: <code className="text-brandGold-400 font-mono">curl.exe -fsSL https://aravantacos.vercel.app/install.ps1 | Out-String | iex</code>
+                    Alternatively with native curl: <code className="text-brandGold-400 font-mono">curl.exe -fsSL {origin}/install.ps1 | Out-String | iex</code>
                   </p>
                 </div>
 
@@ -800,10 +801,10 @@ aravanta project list`}
                   </label>
                   <div className="relative">
                     <pre className="p-3 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl overflow-x-auto border border-slate-800">
-                      curl -fsSL https://aravantacos.vercel.app/install.sh | bash
+                      curl -fsSL {origin}/install.sh | bash
                     </pre>
                     <button
-                      onClick={() => copyToClipboard('curl -fsSL https://aravantacos.vercel.app/install.sh | bash', 'm-install')}
+                      onClick={() => copyToClipboard(`curl -fsSL ${origin}/install.sh | bash`, 'm-install')}
                       className="absolute right-2 top-2 p-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 text-xs"
                     >
                       {copiedId === 'm-install' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -884,10 +885,10 @@ aravanta compute create --name prod-api-01 --cpu 2 --ram 4096`}
                   </label>
                   <div className="relative">
                     <pre className="p-3 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl overflow-x-auto border border-slate-800">
-                      curl -fsSL https://aravantacos.vercel.app/install.sh | bash
+                      curl -fsSL {origin}/install.sh | bash
                     </pre>
                     <button
-                      onClick={() => copyToClipboard('curl -fsSL https://aravantacos.vercel.app/install.sh | bash', 'l-install')}
+                      onClick={() => copyToClipboard(`curl -fsSL ${origin}/install.sh | bash`, 'l-install')}
                       className="absolute right-2 top-2 p-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 text-xs"
                     >
                       {copiedId === 'l-install' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}

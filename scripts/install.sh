@@ -23,7 +23,7 @@ TARGET="$BIN_DIR/aravanta"
 echo "Setting up Aravanta CLI engine..."
 
 DOWNLOADED=0
-for URL in "https://aravantacos.vercel.app/aravanta.py" "https://raw.githubusercontent.com/yashbaviskar15/acos/main/cli/aravanta.py"; do
+for URL in "https://aravantacloud.aravanta.tech/aravanta.py" "https://aravantacos.vercel.app/aravanta.py" "https://raw.githubusercontent.com/yashbaviskar15/acos/main/cli/aravanta.py"; do
   if command -v curl >/dev/null 2>&1; then
     if curl -fsSL --connect-timeout 4 "$URL" -o "$TARGET" 2>/dev/null; then
       if [ -s "$TARGET" ]; then

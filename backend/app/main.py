@@ -185,11 +185,11 @@ class VercelPathRewriteMiddleware:
 
 app.add_middleware(VercelPathRewriteMiddleware)
 
-# Configure CORS: allow all Vercel domains (*.vercel.app), localhost, and explicit origins
+# Configure CORS: allow all Vercel domains (*.vercel.app), aravanta domains (*.aravanta.tech), localhost, and explicit origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
-    allow_origin_regex=r"^https://.*\.vercel\.app$",
+    allow_origin_regex=r"^(https://.*\.vercel\.app|https://.*\.aravanta\.tech|http://localhost:\d+|http://127\.0\.0\.1:\d+)$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
